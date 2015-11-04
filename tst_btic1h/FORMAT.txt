@@ -1,0 +1,500 @@
+General idea here is that encoder will work with blocks of 16 pixels at a time, likely using some internal variables and a state-machine to determine what to emit, as well as memory for up to N intermediate blocks (though, working a single block at a time would be possible, and a decoder should not need a multi-block memory for static images or I-frames).
+
+Note that it should be possible to drive most of the block encoding choices with arithmetic-based heuristics.
+
+For encoding or decoding video, it will be necessary to keep a block-buffer for the current and prior frames.
+
+
+It is blocky VQ mapped to a bitstream, and encoding values as adaptive rice-coded deltas.
+A linear quantizer will be used.
+
+Will reuse the same packaging from other BTIC variants ([[BTIC_CTLV]]):
+* 0xE1, len:Word24, data:byte[len] (Image Data)
+
+Standalone image files may use a DIB/BMP header with biCompression set to 'bt1h', but the frames will still contain at least the Image Data marker.
+
+Similar goes for embedding in AVI.
+
+Embedding in [[BTEMP]] will use 'VS1H'.
+* Possibly allow AVI stream to have a series of 'VS1H' chunks, making it easier to direct-record from robot stream.
+* Alternately, repack blocks from current MB2 buffer.
+
+Currently, BTIC1H will not define use of an Alpha channel, but this may be added as a future extension.
+
+
+=== Basic TLV Format ===
+
+For the top-level structure, a TLV format will be used.
+This may be used for headers or extensions or other things.
+
+Lengths are big-endian, and will include the length of the chunk header.
+
+Tag Bytes:
+* 0xE0: End-Of-Image Marker
+* 0xE1: len=Word24, Image Data
+* 0xE2: len=Byte, Image Data
+* 0xE3: len=Word24, tag=TWOCC
+* 0xE4: len=Word24, tag=FOURCC
+* 0xE5: len=Byte, tag=TWOCC
+* 0xE6: len=Word56, tag=FOURCC
+
+
+=== Bitstream ===
+
+Bitstream will be encoded in MSB first order.
+
+
+AdRice:
+* Will have a unary prefix (Q) of zero or more 1 bits, terminated by a 0 bit.
+* This will be followed by a k bit suffix (j).
+** Value=(Q<<k)|j;
+* Q will adjust k:
+** 0: if(k>0)k=k-1;
+** 1: k is unchanged.
+** 2+: k=k+log2(Q).
+
+Here, AdRice contexts will start with an initial Rk value of 2 unless otherwise specified.
+Rk will have a maximum value of 16, and a minimum value of 0.
+
+Signed Rice values (AdSRice) will have the sign folded into the LSB (0, -1, 1, -2, 2, ...).
+
+
+=== Color Points ===
+
+Colorspaces:
+* YCbCr, with sample-points ranging from 0 to 255.
+* Alternate:
+** Y=(2*G+B+R)>>2
+** U=((B-Y)>>1)+128
+** V=((R-Y)>>1)+128
+** B'=Y+((U-128)<<1)
+** R'=Y+((V-128)<<1)
+** G'=(4*Y-B-R)>>1
+
+
+Color-points are represented mostly as YUVD, YUV encoding the center color, and D the difference between the brightest and darkest colors along the Y axis:
+* Ya=Y-(D>>1), Yb=Yb+D
+* ColorA=(Ya, U, V)
+* ColorB=(Yb, U, V)
+
+Secondary color points could encode a full set of YUV deltas:
+* Ya=Y-(Dy>>1), Yb=Yb+Dy
+* Ua=U-(Du>>1), Ub=Ub+Du
+* Va=V-(Dv>>1), Vb=Vb+Dv
+* ColorA=(Ya, Ua, Va)
+* ColorB=(Yb, Ub, Vb)
+
+
+As part of decoding a block:
+* YUVD:
+** Y'=Y+(DeltaY*QfDeltaY)
+** U'=U+(DeltaU*QfDeltaUV)
+** V'=V+(DeltaV*QfDeltaUV)
+** D'=D+(DeltaD*QfDeltaD)
+* YUVDyuv:
+** Y'=Y+(DeltaY*QfDeltaY)
+** U'=U+(DeltaU*QfDeltaUV)
+** V'=V+(DeltaV*QfDeltaUV)
+** Dy'=Dy+(DeltaDy*QfDeltaDy)
+** Du'=Du+(DeltaDu*QfDeltaDuv)
+** Dv'=Dv+(DeltaDv*QfDeltaDuv)
+
+YUVD will have an allowed range of 0 to 255.
+An encoder may not allowed these values to go outside this range.
+
+Dyuv will have an allowed range of +/- 256, but with the requirement that the resultant YUV values (after calculating the color endpoints) are required to fall in the range of 0 to 255.
+
+The results of going out of range are undefined.
+* A decoder may, but is not required to, implement range clamping.
+* An encoder may not assume the use of modular arithmetic here.
+* Likewise, out of gamut colors are not allowed.
+
+
+(Possible) Exception, HDR:
+* HDR will use a 16-bit Half-Float space.
+* Ranges in this case are 0 to 65535, and +/- 65536.
+* Bias for absolute colors is 0x3800 (+0.5), rather than 128.
+
+
+Delta Color:
+* DeltaYUV: 3 AdSRice coded deltas (dY, dU, dV).
+* DeltaYUVD: 4 AdSRice coded deltas (dY, dU, dV, dD).
+* DeltaYUVDyuv: 6 AdSRice coded deltas (dY, dU, dV, dDy, dDu, dDv).
+* Deltas will be sign-folded, so good old: 0, -1, 1, -2, 2, ... sequence.
+
+Absolute Color:
+* AbsYUV: AdRice coded YUV
+* AbsYUVD: AdRice coded YUVD
+* AbsYUVDyuv: AdRice coded YUVDyuv
+* Absolute colors YUV will be stored as a signed value relative to 128.
+* Absolute D, and Dyuv values will be stored as a signed value relative to 0.
+
+Quantization Factors:
+* QfDeltaYUVD: 3 AdRice quantization factors (QfDeltaY, QfDeltaUV, QfDeltaD)
+* QfDeltaYUVDyuv: 4 AdRice quantization factors (QfDeltaY, QfDeltaUV, QfDeltaDy, QfDeltaDuv)
+* QfAbsYUV*: Similar, but for the absolute quantization factors (QfAbs)
+
+
+=== Pixel Blocks ===
+
+BTIC1H is essentially an advanced case of Color Cell Compression.
+
+Pixel-blocks will be represented as XxY pixels, which would typically be 2 bits each, ex:
+* 00=ColorA
+* 01=2/3 ColorA + 1/3 ColorB
+* 10=1/3 ColorA + 2/3 ColorB
+* 11=ColorB
+
+With 2bpp block formats:
+* PixelBlock2x2: grid of 2x2 pixels, 8 bits
+* PixelBlock2x1: grid of 2x1 pixels (left, right), 4 bits
+* PixelBlock1x2: grid of 1x2 pixels (up, down), 4 bits
+* PixelBlock4x4: grid of 4x4 pixels, 32 bits
+* PixelBlock4x2: grid of 4x2 pixels (reduced vertical), 16 bits
+* PixelBlock2x4: grid of 2x4 pixels (reduced horizontal), 16 bits
+
+A 1bpp case will exist:
+* 0=ColorA
+* 1=ColorB
+* PixelBlock2x2x1: grid of 4 1bpp pixels, 4 bits
+* PixelBlock4x4x1: grid of 16 1bpp pixels, 16 bits
+
+A 3bpp case will also exist:
+* 0=ColorA
+* 1=6/7 ColorA + 1/7 ColorB
+* 2=5/7 ColorA + 2/7 ColorB
+* 3=4/7 ColorA + 3/7 ColorB
+* 4=3/7 ColorA + 4/7 ColorB
+* 5=2/7 ColorA + 5/7 ColorB
+* 6=1/7 ColorA + 6/7 ColorB
+* 7=ColorB
+
+The 4x4x3 block type will require 48 bits for pixel data.
+
+
+A few blocks will use Hilbert Order:
+ 4x4:
+  0  1  2  3
+  4  5  6  7
+  8  9 10 11
+ 12 13 14 15
+ -> 0, 1, 5, 4, 8, 12, 13, 9, 10, 14, 15, 11, 7, 6, 2, 3
+ 
+ 2x2:
+ 0 1
+ 2 3
+ -> 0 2 3 1
+
+
+=== Initial State ===
+
+Most Rice k factors will be per-variable (with initial values):
+*  Rk(CmdRIdx)=2 (Command Indices)
+*  Rk(CmdAbs)=4 (Absolute Commands)
+*  Rk(CmdCnt)=2 (RunCount)
+*  Rk(ParmXY)=2 (X/Y Offset)
+*  Rk(ParmVar)=2 (Parameter Variable)
+*  Rk(ParmVal)=2 (Parameter Value)
+*  Rk(ParmIx)=2 (Parameter Value-Count, Index)
+*  Rk(DeltaY)=2 (Delta Y)
+*  Rk(DeltaUV)=2 (Delta U and V)
+*  Rk(DeltaDy)=2 (Delta D and Dy)
+*  Rk(DeltaDuv)=2 (Delta Du and Dv)
+*  Rk(AbsY)=5 (Absolute Y)
+*  Rk(AbsUV)=5 (Absolute U and V)
+*  Rk(AbsDy)=5 (Absolute D and Dy)
+*  Rk(AbsDuv)=5 (Absolute Du and Dv)
+*  Rk(QfY)=3 (Quantization Factor, Y)
+*  Rk(QfUV)=3 (Quantization Factor, UV)
+*  Rk(QfDy)=3 (Quantization Factor, Dy)
+*  Rk(QfDuv)=3 (Quantization Factor, Duv)
+
+Initial color values will be 0.
+Initial Qf values will be 1.
+
+
+=== Commands ===
+
+C(XX), expresses a logical command number in Hex:
+* CmdRIdx encoded as AdRice
+** 0: Followed by CmdAbs, which encodes an absolute command number.
+** 1..16: Repeat a prior command (encodes RIdx 0..15).
+
+The RIdx is an index into a 16-entry rotating table of commands:
+* RIdx=0: Use command at index 0, table is unchanged.
+* RIdx=1..15: Use command at entry RIdx, Swap entries RIdx and RIdx-1.
+
+CmdAbs:
+* Table rotates back 1 place, command added to front of table.
+* Initial contents of the table are undefined and may not be used.
+
+RunCount will be AdRice, with 0 as a reserved value.
+
+
+Commands:
+* C(00) DeltaYUV
+** delta flat-color block.
+
+* C(01) DeltaYUVD, Pixblock2x2
+** Delta 2x2 block.
+
+* C(02) DeltaYUVD, Pixblock2x1
+* C(03) DeltaYUVD, Pixblock1x2
+** 2x1 and 1x2 blocks.
+
+* C(04) QfDeltaYUVD
+** Update delta quantization factors.
+
+* C(05) DeltaYUVD, Pixblock4x4
+* C(06) DeltaYUVD, Pixblock4x2
+* C(07) DeltaYUVD, Pixblock2x4
+** color and pixel-blocks
+
+* C(08) QfDeltaYUVDyuv
+** Update delta quantization factors.
+
+* C(09) DeltaYUVDyuv, Pixblock4x4
+* C(0A) DeltaYUVDyuv, Pixblock4x2
+* C(0B) DeltaYUVDyuv, Pixblock2x4
+** Color and pixel-blocks (but with more endpoints)
+
+* C(0C) AbsYUVD, Pixblock2x2
+* C(0D) AbsYUVD, Pixblock4x4
+* C(0E) AbsYUVDyuv, Pixblock2x2
+* C(0F) AbsYUVDyuv, Pixblock4x4
+
+* C(10) RunCount
+** Run of blocks repeating a single color.
+
+* C(11) RunCount, PixelBlock2x2*RunCount
+* C(12) RunCount, PixelBlock2x1*RunCount
+* C(13) RunCount, PixelBlock1x2*RunCount
+** Run of blocks with reusing prior color.
+
+* C(14) QfAbsYUVD
+** Update absolute quantization factors.
+
+* C(15) RunCount, PixelBlock4x4*RunCount
+* C(16) RunCount, PixelBlock4x2*RunCount
+* C(17) RunCount, PixelBlock2x4*RunCount
+** Run of blocks with reusing prior color.
+
+* C(18) QfAbsYUVDyuv
+** Update absolute quantization factors.
+
+* C(19) RunCount, PixelBlock2x2x1*RunCount
+* C(1A) RunCount, PixelBlock4x4x1*RunCount
+** Run of blocks with reusing prior color (1bpp).
+
+* C(1B) RunCount, DeltaYUV*RunCount
+** Run of flat-color blocks.
+
+* C(1C) DeltaYUV*4
+**  Logical 4:2:0, 2x2 with 1 color per pixel
+**  Colors are encoded in Hilbert(2x2) order
+* C(1D) DeltaYUVD*4, Pixblock4x4
+**  Logical 4:2:0, 4x4 consisting of 2x2 sub-blocks
+**  Colors are encoded in Hilbert(2x2) order
+* C(1E) DeltaYUV*16
+**  Logical 4:4:4, 4x4 with 1 color per pixel
+**  Pixels are encoded in Hilbert(4x4) order
+* C(1F) AbsYUV*16
+**  Logical 4:4:4, 4x4 with 1 color per pixel
+**  Pixels are encoded in Hilbert(4x4) order
+
+* C(20) End Of Data
+** Logical end of bitstream data. For multi-segment images, indicates the end of the current segment.
+** Any subsequent data in the message lump is to be ignored.
+
+* C(21) RunCount
+** Skip, Blocks are copied from the prior frame
+* C(22) RunCount, XOffset, YOffset
+** Skip+Translate, Blocks are copied from the prior frame.
+** Offsets indicate the source position in blocks relative to the current block.
+
+* C(23), Var, Val
+** Set Parameter (Signed Integer)
+* C(24), Var, IxB, Cnt, Val[Cnt]
+** Set Parameter (Signed Int Vector)
+
+
+* C(28) RunCount, (DeltaYUVD, Pixblock2x2)*RunCount
+* C(29) RunCount, (DeltaYUVDyuv, Pixblock2x2)*RunCount
+** Delta 2x2 gradient blocks.
+** Pixel blocks give values at the corners, with the intermediate pixels being interpolated.
+
+* C(2A) DeltaYUVD, PixelBlock4x4x1
+* C(2B) DeltaYUVD, PixelBlock2x2x1
+** 2x2x1 and 4x4x1 blocks.
+
+* C(2C) DeltaYUVD, Pixblock4x4x3
+** Pixel Block 4x4x3
+* C(2D) DeltaYUVDyuv, Pixblock4x4x3
+** Pixel Block 4x4x3
+
+* C(2E) DeltaY*16, DeltaUV*4
+**  Logical 4:2:0, Pixels are delta-coded, with Y and UV in Hilbert order.
+* C(2F) AbsY*16, AbsUV*4
+**  Logical 4:2:0, Pixels are absolute, with Y and UV in Hilbert order.
+
+
+=== Alpha Channel ===
+
+Alpha(A) and Diff-Alpha(Da) are the main variables, and work similarly to Y and D.
+
+They will be stored in a separate chunk:
+* TWOCC('AX')
+** Will follow immediately after the Image Data (0xE1) tag.
+
+
+Commands:
+* C(00) DeltaA
+** Delta flat-alpha block.
+
+* C(01) DeltaAD, Pixblock2x2
+** Delta 2x2 block.
+
+* C(02) DeltaAD, Pixblock2x1
+* C(03) DeltaAD, Pixblock1x2
+** 2x1 and 1x2 blocks.
+
+* C(04) QfDeltaAD
+** Update delta quantization factors.
+
+* C(05) DeltaAD, Pixblock4x4
+* C(06) DeltaAD, Pixblock4x2
+* C(07) DeltaAD, Pixblock2x4
+** Alpha and pixel-blocks
+
+* C(08) QfAbsAD
+** Update absolute quantization factors.
+
+* C(09) AbsAD, Pixblock2x2
+* C(0A) AbsAD, Pixblock4x4
+
+* C(0B) DeltaAD, Pixblock4x4x3
+** Pixel Block 4x4x3
+
+* C(10) RunCount
+** Run of blocks repeating a single color.
+
+* C(11) RunCount, PixelBlock2x2*RunCount
+* C(12) RunCount, PixelBlock2x1*RunCount
+* C(13) RunCount, PixelBlock1x2*RunCount
+** Run of blocks with reusing prior alpha.
+
+* C(15) RunCount, PixelBlock4x4*RunCount
+* C(16) RunCount, PixelBlock4x2*RunCount
+* C(17) RunCount, PixelBlock2x4*RunCount
+** Run of blocks with reusing prior alpha.
+
+
+=== (Side Info) Metablock2 ===
+
+Metablock is the block representation used internally by the codec.
+It represents an intermediate step between the internal bitstream Encode/Decode process, and the Input/Output framebuffer.
+
+
+ Reserve 256 bits.
+ 
+ A: Y,U,V,D, Pa,Pb,Pc,Pd, x, x, x, x,  x, x, x, x,  y, y, y, y,  y, y, y, y,  a-a-a-a, a-a-a-a
+ B: Y,U,V,0, M, Dy,Pc,Pd, Du,Dv,Qe,Qf, Qa,Qb,Qc,Qd, y, y, y, y,  y, y, y, y,  a-a-a-a, a-a-a-a
+ C: Y,U,V,0, M, D, Pn, x, Y1,U1,V1,d1, Qa,Qb,Qc,Qd, Y2,U2,V2,D2, Y3,U3,V3,D3, a-a-a-a, a-a-a-a
+ D: Y,U,V,0, M, D, Pn, x, U0,U1,U2,U3, V0,V1,V2,V2, Y0,Y1,Y2,Y3, Y4,Y5,Y6,Y7, Y8,Y9,...
+ 
+ Y,U,V,D: YUV and Diff (Primary Color, 0)
+ Yn,Un,Vn,Dn: YUV and Diff (Secondary Color n)
+ Pa,Pb,Pc,Pd: Pixel Data (Primary)
+ Qe,Qf,Qa,Qb,Qc,Qd: Pixel Data (Secondary)
+ x/y: reserved, MBZ
+ a-a-a-a: alpha block
+ 
+ d==0: Flat or Special
+  M==0: Flat
+  M==1: 2x2x2bpp
+    Pb=Diff
+    Pc=Pixel Bits
+  M==2: 4x4x1bpp
+    Pb=Diff
+    Pc/Pd=Pixel Bits
+  M==3: Skip (No Translate)
+  M==4: Skip+Translate
+    Pc=Y Offset
+    Pd=X Offset
+ 
+  M==5: 2x2x1bpp
+    Pb=Diff
+    Pc=Pixel Bits
+ 
+  M==6: 4x4x3bpp (YUVD)
+    Pb=Diff
+    Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits
+    
+  M==7: YUV 4:2:0
+    Y0..Y15 (16..31), U0..U3 (8..11), V0..V3 (12..15)
+  
+  M==8: 2x1x2bpp
+  M==9: 1x2x2bpp
+    Pb=Diff
+    Pc=Pixel Bits
+ 
+  M==10: 4x2x2bpp
+  M==11: 2x4x2bpp
+    Pb=Diff
+    Pc/Pd=Pixel Bits
+ 
+  M==12: 4x2x2bpp (YUVDyuv)
+  M==13: 2x4x2bpp
+    Pb=Diff
+    Pc/Pd=Pixel Bits
+  M==14: 4x4x2bpp (YUVDyuv)
+    Pb=Diff
+    Qa/Qb/Qc/Qd=Pixel Bits
+  M==15: 4x4x3bpp (YUVDyuv)
+    Pb=Diff
+    Qa/Qb/Qc/Qd/Qe/Qf=Pixel Bits
+ 
+  M==16: 4x4x2bpp (YUVDx2)
+    Pb=Diff
+    Pn=1(Horz), 2(Vert)
+    Qa/Qb/Qc/Qd=Pixel Bits
+  M==17: 4x4x2bpp (YUVDx4)
+    Pb=Diff
+    Pn=1(Horz), 2(Vert)
+    Qa/Qb/Qc/Qd=Pixel Bits
+ 
+ Alpha Block
+ A,D,Pe,Pf, Pa,Pb,Pc,Pd
+ A,0,D, M,  Pa,Pb,Pc,Pd
+ 
+ A=(A0+A1)>>1
+ D=A1-A0
+ 
+ Default mode encodes alpha at 3 bits/pixel.
+  M==0: Flat
+  M==1: 2x2x2bpp
+    Pb=Diff
+    Pc=Pixel Bits
+  M==2: 4x4x1bpp
+    Pb=Diff
+    Pc/Pd=Pixel Bits
+  M==3: Skip (No Translate)
+  M==4: Skip+Translate
+    Pc=Y Offset
+    Pd=X Offset
+  M==5: 2x2x1bpp
+    Pb=Diff
+    Pc=Pixel Bits
+  M==6: 4x4x2bpp
+    Pb=Diff
+    Pc=Pixel Bits
+  M==7:
+  M==8: 2x1x2bpp
+  M==9: 1x2x2bpp
+    Pb=Diff
+    Pc=Pixel Bits
+ 
+  M==10: 4x2x2bpp
+  M==11: 2x4x2bpp
+    Pb=Diff
+    Pc/Pd=Pixel Bits
