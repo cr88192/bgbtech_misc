@@ -12,11 +12,15 @@ tst_fastbcn: Test for a "reasonably fast" BC7 encoder.
 It is single-threaded plain C.
 Tests have it getting around 50-60 megapixels/second from RGBA on a 3.4GHz AMD K10 (Phenom II).
 
-Possible: throw on code for JPEG decoding, possibly with an Alpha extension.
+It has a JPEG decoder with support for an Alpha Channel extension.
 Alpha can be done via shoving another JPEG inside the first JPEG via APPn markers
 (representing a monochrome alpha channel).
 This is reasonably transparent, but non-aware programs can't use the alpha channel.
+Normal JPEG images can be decoded, and will be treated as opaque.
+Note: Current decoder is only good for 4:2:0 images which are multiples of 16 pixels.
 
 Also possible: shim transcode from BTIC1H metablock format to BC7.
-JPEG would be slower, but compresses better.  BTIC1H could be faster.
+JPEG is slower, but compresses better.  BTIC1H could be faster.
 Would either way likely need to use a planar YUV format or similar as an intermediate format for sake of mipmaps.
+
+As-is: On the test PC, the JPEG decoder by itself pulls off about 50 Mpix/sec, and can be converted to BC7 at 30-35 Mpix/sec. It is around 25-30 if producing BC7 output with mipmaps (the actual Mpix/sec is the same, however throughput is slightly lower due to needing to process more pixel data).
