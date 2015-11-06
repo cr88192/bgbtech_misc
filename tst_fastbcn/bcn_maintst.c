@@ -36,6 +36,8 @@ THE SOFTWARE.
 #include "bc7_blkenc.c"
 #include "bc7_blkenc_p2.c"
 
+#include "bcn_decjpg.c"
+
 #include "bt1h_targa.c"
 
 double checkrmse(byte *ibuf1, byte *ibuf2, int xs, int ys)
@@ -128,11 +130,15 @@ int main()
 {
 	byte *ibuf, *yibuf, *obuf, *blks, *yibuf2;
 	byte *tbuf, *tbuf1, *ct1, *ibuf2;
+	byte *jibuf;
 	FILE *tfd;
+	PDJPG_Context *jctx;
 	double f, g, h, e;
-	int xs, ys, xs1, ys1;
+	int xs, ys, xs0, ys0, xs1, ys1;
 	int cr, cg, cb, cy, cu, cv, cu1, cv1;
+	int i0, i1, i2, i3;
 	int t0, t1, t2, t3;
+	int jisz;
 	int n, n1, nf, ncf, qf;
 	int i, j, k, l;
 
@@ -148,29 +154,151 @@ int main()
 //	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs, &ys);
 //	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs1, &ys1);
 
-	ibuf=BTIC1H_Img_LoadTGA("Chem0.tga", &xs, &ys);
-	ibuf2=BTIC1H_Img_LoadTGA("Chem0.tga", &xs1, &ys1);
+//	ibuf=BTIC1H_Img_LoadTGA("Chem0.tga", &xs, &ys);
+//	ibuf2=BTIC1H_Img_LoadTGA("Chem0.tga", &xs1, &ys1);
 
-//	yibuf=malloc(xs*ys*2);
-
+#if 0
 	if(!ibuf || !ibuf2)
 	{
 		printf("failed load test images\n");
 		return(-1);
 	}
+#endif
+
+	tfd=fopen("MLP_FIM1_q95.jpg", "rb");
+	fseek(tfd, 0, 2);
+	jisz=ftell(tfd);
+	fseek(tfd, 0, 0);
+	jibuf=malloc(jisz);
+	fread(jibuf, 1, jisz, tfd);
+	fclose(tfd);
+	
+	jctx=PDJPG_AllocContext();
+//	PDJPG_DecodeCtxInner(jctx, jibuf, jisz, &xs, &ys);
+	PDJPG_DecodeBasic(jctx, jibuf, jisz, &xs, &ys);
+
+#if 1
+	t0=clock(); t1=t0; nf=0; ncf=0;
+	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
+	{
+//		BGBBTJ_BC7_EncodeImageBestBC7(tbuf, ibuf, xs, ys, 4, 0);
+//		PDJPG_DecodeCtxInner(jctx, jibuf, jisz, &xs, &ys);
+		PDJPG_DecodeBasic(jctx, jibuf, jisz, &xs, &ys);
+
+		nf++; t1=clock();
+		
+//		if(!(nf&15))
+		if(1)
+		{
+			t2=t1-t0;
+			f=(t2)/((double)CLOCKS_PER_SEC);
+			printf("fc=%d dt=%f fps=%f Mpix=%f, ncf=%d cfps=%f\r",
+				nf, f, nf/f, (nf/f)*(xs*ys*(1.0/1000000)),
+				ncf, (ncf/f)*(xs*ys*(1.0/1000000)));
+		}
+	}
+	printf("\n");
+#endif
+
+	ibuf=malloc(xs*ys*4);
+
+	yibuf=malloc(xs*ys*4);
+	PDJPG_GetImagePlaneYUVA420(jctx, yibuf, xs, ys);
+
+	xs1=xs>>1; ys1=ys>>1;
+
+	i0=0;
+	i1=i0+xs*ys;
+	i2=i1+(xs1*ys1);
+	i3=i2+(xs1*ys1);
+
+#if 0
+	for(i=0; i<ys; i++)
+		for(j=0; j<xs; j++)
+	{
+		k=ys-i-1;
+		cy=yibuf[i0+(k*xs+j)];
+		cu=yibuf[i1+((k>>1)*xs1+(j>>1))];
+		cv=yibuf[i2+((k>>1)*xs1+(j>>1))];
+
+		cr=cy+((cv-128)<<1);
+//		cg=cy-((cv-128)<<1)-((cu-128)<<1);
+		cg=cy-(cv-128)-(cu-128);
+		cb=cy+((cu-128)<<1);
+		
+		cr=clamp255(cr);
+		cg=clamp255(cg);
+		cb=clamp255(cb);
+		
+		ibuf[(i*xs+j)*4+0]=cr;
+		ibuf[(i*xs+j)*4+1]=cg;
+		ibuf[(i*xs+j)*4+2]=cb;
+		ibuf[(i*xs+j)*4+3]=255;
+	}
+#endif
+
+#if 0
+	xs0=jctx->jpg_cxi[0];
+	ys0=jctx->jpg_cyi[0];
+
+	xs1=jctx->jpg_cxi[1];
+	ys1=jctx->jpg_cyi[1];
+	
+//	xs1=(xs+15)&(~15);
+	for(i=0; i<ys; i++)
+		for(j=0; j<xs; j++)
+	{
+		k=ys-i-1;
+		cy=jctx->jpg_sibuf[0][k*xs0+j];
+		cu=jctx->jpg_sibuf[1][(k>>1)*xs1+(j>>1)];
+		cv=jctx->jpg_sibuf[2][(k>>1)*xs1+(j>>1)];
+		
+		cr=cy+((cv-128)<<1);
+//		cg=cy-((cv-128)<<1)-((cu-128)<<1);
+		cg=cy-(cv-128)-(cu-128);
+		cb=cy+((cu-128)<<1);
+		
+		cr=clamp255(cr);
+		cg=clamp255(cg);
+		cb=clamp255(cb);
+		
+		ibuf[(i*xs+j)*4+0]=cr;
+		ibuf[(i*xs+j)*4+1]=cg;
+		ibuf[(i*xs+j)*4+2]=cb;
+		ibuf[(i*xs+j)*4+3]=255;
+	}
+#endif
+
+//	yibuf=malloc(xs*ys*2);
 
 	obuf=malloc(xs*ys*8);
 //	blks=malloc(xs*ys*2);
 
-	tbuf=malloc(1<<20);
-	tbuf1=malloc(1<<20);
+	tbuf=malloc(1<<24);
+	tbuf1=malloc(1<<24);
 
 	BGBBTJ_BC7_PartitionInit();
 
+	i0=0;
+	i1=i0+xs*ys;
+	i2=i1+(xs1*ys1);
+	i3=i2+(xs1*ys1);
+
 	t0=clock(); t1=t0; nf=0; ncf=0;
-	while((t1>=t0) && (t1<(t0+(15*CLOCKS_PER_SEC))))
+	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
 	{
-		BGBBTJ_BC7_EncodeImageBestBC7(tbuf, ibuf, xs, ys, 4, 0);
+//		BGBBTJ_BC7_EncodeImageBestBC7(tbuf, ibuf, xs, ys, 4, 0);
+
+//		BGBBTJ_BC7_EncodeImageYuvaBC7(tbuf,
+//			yibuf+i0, yibuf+i1, yibuf+i2, yibuf+i3,
+//			xs, -ys, 1, 1, 0);
+
+		PDJPG_DecodeBasic(jctx, jibuf, jisz, &xs, &ys);
+//		BGBBTJ_BC7_EncodeImageYuvaBC7(tbuf,
+		BGBBTJ_BC7_EncodeImageMipYuvaBC7(tbuf,
+			jctx->jpg_sibuf[0], jctx->jpg_sibuf[1],
+			jctx->jpg_sibuf[2], jctx->jpg_sabuf,
+			xs, -ys, 1, 1, 0);
 
 		nf++; t1=clock();
 		

@@ -320,22 +320,13 @@ void BGBBTJ_BC7_EncodeBlock_Mode7(byte *block,
 	byte *pxy0, byte *pxy1, int *min, int *max,
 	int *rmcy, int *rncy, int part);
 
-void BGBBTJ_BC7_EncodeBlock(byte *block,
-	byte *rgba, int xstride, int ystride, int pfb)
+void BGBBTJ_BC7_EncodeBlockI(byte *block,
+	byte *pxy, byte *pxy2, byte *pxa,
+	int *min, int *max,
+	int *mcy, int *ncy,
+	int mca, int nca, int pn)
 {
-	byte pxy[16], pxy2[16], pxa[16];
-	int min[16], max[16];
-	int mcy[8], ncy[8];
-	int dy, du, dv, da, duv, pn;
-	int mca, nca;
-	
-//	BGBBTJ_BC7_EncodeBlock_SplitMinMaxClrYA(
-//		pxy, pxy2, pxa, min, max, mcy, ncy, &mca, &nca, &pn,
-//		rgba, xstride, ystride, pfb);
-
-	BGBBTJ_BC7_EncodeBlock_SplitMinMaxClrYA2(
-		pxy, pxy2, pxa, min, max, mcy, ncy, &mca, &nca, &pn,
-		rgba, xstride, ystride, pfb);
+	int dy, du, dv, da, duv;
 	
 	dy=ncy[0]-mcy[0];
 	du=ncy[3]-mcy[3];
@@ -345,12 +336,8 @@ void BGBBTJ_BC7_EncodeBlock(byte *block,
 	
 	if((mca==nca) && (mca==255))
 	{
-//		if((pn>=0) && (duv>64) && (dy<96))
-//		if((pn>=0) && (duv>64) && (dy<duv))
 		if(pn>=0)
-//		if(0)
 		{
-//			dy=ncy[0]-mcy[0];
 			if(dy>48)
 			{
 				BGBBTJ_BC7_EncodeBlock_Mode1(block, pxy2, pxy2,
@@ -380,7 +367,6 @@ void BGBBTJ_BC7_EncodeBlock(byte *block,
 		return;
 	}
 	
-//	dy=ncy[0]-mcy[0];
 	if(dy>64)
 	{
 		BGBBTJ_BC7_EncodeBlock_Mode4(block, pxy, pxa,
@@ -394,6 +380,44 @@ void BGBBTJ_BC7_EncodeBlock(byte *block,
 			min, max, mcy[0], ncy[0], mca, nca);
 		return;
 	}
+}
+
+void BGBBTJ_BC7_EncodeBlock(byte *block,
+	byte *rgba, int xstride, int ystride, int pfb)
+{
+	byte pxy[16], pxy2[16], pxa[16];
+	int min[16], max[16];
+	int mcy[8], ncy[8];
+	int dy, du, dv, da, duv, pn;
+	int mca, nca;
+	
+	BGBBTJ_BC7_EncodeBlock_SplitMinMaxClrYA2(
+		pxy, pxy2, pxa, min, max, mcy, ncy, &mca, &nca, &pn,
+		rgba, xstride, ystride, pfb);
+	
+	BGBBTJ_BC7_EncodeBlockI(block, pxy, pxy2, pxa, min, max,
+		mcy, ncy, mca, nca, pn);
+}
+
+void BGBBTJ_BC7_EncodeBlockYuva4204(byte *block,
+	byte *ybuf, byte *ubuf, byte *vbuf, byte *abuf,
+	int xystride, int yystride,
+	int xustride, int yustride, int pfb)
+{
+	byte pxy[16], pxy2[16], pxa[16];
+	int min[16], max[16];
+	int mcy[8], ncy[8];
+	int dy, du, dv, da, duv, pn;
+	int mca, nca;
+	
+	BGBBTJ_BC7_EncodeBlock_SplitMinMaxClrYA2_Yuva4204(
+		pxy, pxy2, pxa, min, max, mcy, ncy, &mca, &nca, &pn,
+		ybuf, ubuf, vbuf, abuf,
+		xystride, yystride,
+		xustride, yustride, pfb);
+	
+	BGBBTJ_BC7_EncodeBlockI(block, pxy, pxy2, pxa, min, max,
+		mcy, ncy, mca, nca, pn);
 }
 
 void BGBBTJ_BC7_EncodeBlockBest(byte *block,
@@ -465,6 +489,58 @@ void BGBBTJ_BC7_EncodeBlockEdge(byte *block,
 	BGBBTJ_BC7_EncodeBlockBest(block, tblk, 4, 4*4, pfb);
 }
 
+void BGBBTJ_BC7_EncodeBlockEdgeYuva4204(byte *block,
+//	byte *rgba, int xstride, int ystride,
+	byte *ybuf, byte *ubuf, byte *vbuf, byte *abuf,
+	int xystride, int yystride, int xustride, int yustride,
+	int xfrac, int yfrac, int pfb)
+{
+	byte tyblk[16];
+	byte tablk[16];
+	byte tublk[4];
+	byte tvblk[4];
+	byte cr, cg, cb, ca;
+	byte *csy, *cty;
+	byte *csu, *ctu;
+	byte *csv, *ctv;
+	byte *csa, *cta;
+	int i, j, xn;
+
+	memset(tyblk, ybuf[0], 16);
+	memset(tublk, ybuf[0], 4);
+	memset(tvblk, vbuf[0], 4);
+
+	if(abuf)
+		{ memset(tablk, abuf[0], 16); }
+	else
+		{ memset(tablk, 255, 16); }
+
+#if 0
+	xn=xfrac*xstride;
+	for(i=0; i<yfrac; i++)
+	{
+		cs=rgba+i*ystride;
+		ct=tblk+i*4*4;
+
+		for(j=0; j<xn; j++)
+			*ct++=*cs++;
+	}
+
+	for(; i<4; i++)
+	{
+		ct=tblk+i*4*4;
+		for(j=0; j<4; j++)
+		{
+			*ct++=cr; *ct++=cg;
+			*ct++=cb; *ct++=ca;
+		}
+	}
+#endif
+	
+	BGBBTJ_BC7_EncodeBlockYuva4204(block,
+		tyblk, tublk, tvblk, tablk, 1, 4, 1, 2, pfb);
+}
+
 #if 0
 // void BGBBTJ_BC7_EncodeImageBC7(byte *block,
 	byte *rgba, int xs, int ys, int stride, int pfb)
@@ -518,7 +594,7 @@ void BGBBTJ_BC7_EncodeImageBestBC7(byte *block,
 			BGBBTJ_BC7_EncodeBlockBest(
 				block+(i*xs2+j)*16,
 				rgba3+(j*4*xstr),
-				stride, xs*stride, pfb);
+				stride, ystr, pfb);
 		
 //			k=BGBBTJ_BC7_GetBlockMode(block+(i*xs2+j)*16);
 //			stat[k]++;
@@ -586,3 +662,172 @@ void BGBBTJ_BC7_StatImageBC7(byte *block,
 		stat[0], stat[1], stat[2], stat[3],
 		stat[4], stat[5], stat[6], stat[7], stat[8]);
 }
+
+#if 1
+void BGBBTJ_BC7_EncodeImageYuvaBC7(byte *block,
+	byte *ybuf,	byte *ubuf,	byte *vbuf,	byte *abuf,
+	int xs, int ys, int xystr, int xustr, int pfb)
+{
+	byte *ybuf2, *ubuf2, *vbuf2, *abuf2;
+	byte *ybuf3, *ubuf3, *vbuf3, *abuf3;
+	int xstr, xastr, yystr, yustr, yastr;
+	int xs1, ys1, xs2, ys2, xf, yf;
+	int i, j, k;
+	
+	BGBBTJ_BC7_PartitionInit();
+	
+	ybuf2=ybuf;	ubuf2=ubuf;
+	vbuf2=vbuf;	abuf2=abuf;
+	yystr=xs*xystr; yustr=((xs+1)>>1)*xustr;
+	xastr=abuf?xystr:0;
+	yastr=abuf?yystr:0;
+
+	if(ys<0)
+	{
+		ys=-ys;
+		ybuf2=ybuf+((ys-1)*yystr);
+		abuf2=abuf+((ys-1)*yastr);
+		ubuf2=ubuf+(((ys-1)>>1)*yustr);
+		vbuf2=vbuf+(((ys-1)>>1)*yustr);
+
+		yystr=-xs*xystr;
+		yustr=-((xs+1)>>1)*xustr;
+		xastr=abuf?xystr:0;
+		yastr=abuf?yystr:0;
+	}
+		
+	xs1=xs>>2; ys1=ys>>2;
+	xs2=(xs+3)>>2; ys2=(ys+3)>>2;
+	xf=xs&3; yf=ys&3;
+	for(i=0; i<ys1; i++)
+	{
+		ybuf3=ybuf2+(i*4*yystr);
+		abuf3=abuf2+(i*4*yastr);
+		ubuf3=ubuf2+(i*2*yustr);
+		vbuf3=vbuf2+(i*2*yustr);
+
+		for(j=0; j<xs1; j++)
+		{
+			BGBBTJ_BC7_EncodeBlockYuva4204(
+				block+(i*xs2+j)*16,
+				ybuf3+(j*4*xystr),	ubuf3+(j*2*xustr),
+				vbuf3+(j*2*xustr),	abuf3+(j*4*xastr),
+				xystr, yystr, xustr, yustr,
+				pfb);
+		}
+
+		if(xf)
+		{
+			BGBBTJ_BC7_EncodeBlockEdgeYuva4204(
+				block+(i*xs2+j)*16,
+				ybuf3+(j*4*xystr),	ubuf3+(j*2*xustr),
+				vbuf3+(j*2*xustr),	abuf3+(j*4*xastr),
+				xystr, yystr, xustr, yustr,
+				xf, 4, pfb);
+		}
+	}
+
+	if(yf)
+	{
+		ybuf3=ybuf2+(i*4*yystr);
+		abuf3=abuf2+(i*4*yastr);
+		ubuf3=ubuf2+(i*2*yustr);
+		vbuf3=vbuf2+(i*2*yustr);
+
+		for(j=0; j<xs1; j++)
+		{
+			BGBBTJ_BC7_EncodeBlockEdgeYuva4204(
+				block+(i*xs2+j)*16,
+				ybuf3+(j*4*xystr),	ubuf3+(j*2*xustr),
+				vbuf3+(j*2*xustr),	abuf3+(j*4*xastr),
+				xystr, yystr, xustr, yustr,
+				4, yf, pfb);
+		}
+		if(xf)
+		{
+			BGBBTJ_BC7_EncodeBlockEdgeYuva4204(
+				block+(i*xs2+j)*16,
+				ybuf3+(j*4*xystr),	ubuf3+(j*2*xustr),
+				vbuf3+(j*2*xustr),	abuf3+(j*4*xastr),
+				xystr, yystr, xustr, yustr,
+				xf, yf, pfb);
+		}
+	}
+}
+
+void BGBBTJ_BC7_EncodeImagePlaneMipHalfSample(
+	byte *oybuf, byte *iybuf, int xs, int ys)
+{
+	byte *ct, *cs;
+	int xs1, ys1;
+	int p0, p1, p2, p3;
+	int i, j, k, l;
+	
+	xs1=(xs+1)>>1;
+	ys1=(ys+1)>>1;
+	ct=oybuf; cs=iybuf;
+	for(i=0; i<ys1; i++)
+	{
+		ct=oybuf+i*xs1; cs=iybuf+(i*2*xs);
+		for(j=0; j<xs1; j++)
+		{
+			p0=cs[0];		p1=cs[1];
+			p2=cs[xs+0];	p3=cs[xs+1];
+			k=(p0+p1+p2+p3)>>2;
+			cs+=2;	*ct++=k;
+		}
+	}
+}
+
+void BGBBTJ_BC7_EncodeImageMipYuvaBC7(byte *block,
+	byte *ybuf,	byte *ubuf,	byte *vbuf,	byte *abuf,
+	int xs, int ys, int xystr, int xustr, int pfb)
+{
+	byte *tybuf, *tubuf, *tvbuf, *tabuf;
+	byte *ct;
+	int xs1, ys1, xs2, ys2, xs3, ys3, vf;
+	
+	xs1=xs; ys1=ys; vf=0;
+	if(xs1<0)xs1=-xs;
+	if(ys1<0)
+		{ ys1=-ys; vf=1; }
+	
+	tybuf=malloc(xs1*ys1*4);
+	tubuf=tybuf+xs1*ys1;
+	tvbuf=tubuf+xs1*ys1;
+	tabuf=tvbuf+xs1*ys1;
+	if(!abuf)tabuf=NULL;
+
+//	xs1=xs;	ys1=ys;
+	xs2=(xs1+3)>>2;	ys2=(ys1+3)>>2;
+	xs3=(xs1+1)>>1;	ys3=(ys1+1)>>1;
+	ct=block;
+	BGBBTJ_BC7_EncodeImageYuvaBC7(ct, ybuf, ubuf, vbuf, abuf,
+		xs1, vf?(-ys1):ys1, xystr, xustr, pfb);
+	ct+=xs2*ys2*16;
+
+	BGBBTJ_BC7_EncodeImagePlaneMipHalfSample(tybuf, ybuf, xs1, ys1);
+	if(abuf)BGBBTJ_BC7_EncodeImagePlaneMipHalfSample(tabuf, abuf, xs1, ys1);
+	BGBBTJ_BC7_EncodeImagePlaneMipHalfSample(tubuf, ubuf, xs3, ys3);
+	BGBBTJ_BC7_EncodeImagePlaneMipHalfSample(tvbuf, vbuf, xs3, ys3);
+	xs1=xs3; ys1=ys3;
+	
+	while((xs1>1) || (ys1>1))
+	{
+		xs2=(xs1+3)>>2;	ys2=(ys1+3)>>2;
+		xs3=(xs1+1)>>1;	ys3=(ys1+1)>>1;
+		BGBBTJ_BC7_EncodeImageYuvaBC7(ct, tybuf, tubuf, tvbuf, tabuf,
+			xs1, vf?(-ys1):ys1, xystr, xustr, pfb);
+		ct+=xs2*ys2*16;
+		BGBBTJ_BC7_EncodeImagePlaneMipHalfSample(tybuf, tybuf, xs1, ys1);
+		if(abuf)
+			BGBBTJ_BC7_EncodeImagePlaneMipHalfSample(tabuf, tabuf, xs1, ys1);
+		BGBBTJ_BC7_EncodeImagePlaneMipHalfSample(tubuf, tubuf, xs3, ys3);
+		BGBBTJ_BC7_EncodeImagePlaneMipHalfSample(tvbuf, tvbuf, xs3, ys3);
+		xs1=xs3; ys1=ys3;
+	}
+	
+	free(tybuf);
+}
+
+#endif
