@@ -1518,11 +1518,13 @@ int PDJPG_DecodeBasic(PDJPG_Context *ctx,
 	byte *csl;
 	int i, n, sz1;
 	
+//	csl=NULL;
 	csl=PDJPG_DecodeScanForComponentLayer(buf, sz, "Alpha");
 	if(csl)
 	{
 		sz1=sz-(csl-buf);
-		PDJPG_DecodeCtxInner(ctx, csl, sz1, rxs, rys);
+//		PDJPG_DecodeCtxInner(ctx, csl, sz1, rxs, rys);
+		PDJPG_DecodeLDatCtx(ctx, csl, sz1, rxs, rys);
 		
 		n=ctx->xs*ctx->ys;
 		if(!ctx->jpg_sabuf)
@@ -1540,36 +1542,7 @@ int PDJPG_DecodeBasic(PDJPG_Context *ctx,
 }
 
 
-#if 0
-// byte *PDJPG_Decode(byte *buf, int sz, int *xs, int *ys)
-{
-	PDJPG_Context *ctx;
-	byte *obuf;
-	byte *otbuf;
-	byte *csl;
-	int i, n, sz1;
-	
-	ctx=PDJPG_AllocContext();
-	obuf=PDJPG_DecodeCtx(ctx, buf, sz, xs, ys);
-	ctx->jpg_imgbuf=NULL;
-	
-	csl=PDJPG_DecodeScanForComponentLayer(buf, sz, "Alpha");
-	if(csl)
-	{
-		sz1=sz-(csl-buf);
-		otbuf=PDJPG_DecodeCtx(ctx, csl, sz1, xs, ys);
-		
-		n=ctx->xs*ctx->ys;
-		for(i=0; i<n; i++)
-		{
-			obuf[i*4+3]=otbuf[i*4+1];
-		}
-	}
-
-	PDJPG_FreeContext(ctx);
-	return(obuf);
-}
-
+#if 1
 int PDJPG_EscapeDecodeBuffer(byte *ibuf, int isz,
 	byte *obuf, int osz)
 {
@@ -1605,21 +1578,33 @@ int PDJPG_EscapeDecodeSingleBuffer(byte *buf, int sz)
 	return(ct-buf);
 }
 
-// byte *PDJPG_DecodeLDatCtx(PDJPG_Context *ctx,
+int PDJPG_DecodeLDatCtx(PDJPG_Context *ctx,
 	byte *buf, int sz, int *xs, int *ys)
 {
 	byte *tbuf, *tbuf2, *cs, *ct;
-	int i;
+	int tsz;
+	int i, j, k;
 
 	if((buf[0]!=0xFF) || (buf[1]!=JPG_APP12) ||
 		(buf[4]!='L') || (buf[5]!='D') ||
 		(buf[6]!='A') || (buf[7]!='T'))
 	{
-		tbuf=PDJPG_DecodeCtx(ctx, buf, sz, xs, ys);
-		return(tbuf);
+		k=PDJPG_DecodeCtxInner(ctx, buf, sz, xs, ys);
+		return(k);
+	}
+
+	cs=buf; tsz=0;
+	while((cs[0]==0xFF) && (cs[1]==JPG_APP12) &&
+		(cs[4]=='L') && (cs[5]=='D') &&
+		(cs[6]=='A') && (cs[7]=='T'))
+	{
+		i=(cs[2]<<8)|cs[3];
+		tsz+=i;
+		cs+=i+2;
 	}
 	
-	tbuf=malloc(1<<20);
+//	tbuf=malloc(1<<20);
+	tbuf=malloc(tsz);
 	cs=buf; ct=tbuf;
 
 	while((cs[0]==0xFF) && (cs[1]==JPG_APP12) &&
@@ -1634,8 +1619,8 @@ int PDJPG_EscapeDecodeSingleBuffer(byte *buf, int sz)
 	i=ct-tbuf;
 	i=PDJPG_EscapeDecodeSingleBuffer(tbuf, i);
 
-	tbuf2=PDJPG_DecodeCtx(ctx, tbuf, i, xs, ys);
+	k=PDJPG_DecodeCtxInner(ctx, tbuf, i, xs, ys);
 	free(tbuf);
-	return(tbuf2);
+	return(k);
 }
 #endif

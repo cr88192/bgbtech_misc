@@ -38,6 +38,11 @@ THE SOFTWARE.
 
 #include "bcn_decjpg.c"
 
+#include "bcn_bt1h_common.c"
+#include "bcn_bt1h_decrice.c"
+#include "bcn_bt1h_blkdec_pyuv.c"
+#include "bcn_bt1h_decode.c"
+
 #include "bt1h_targa.c"
 
 double checkrmse(byte *ibuf1, byte *ibuf2, int xs, int ys)
@@ -177,6 +182,8 @@ int main()
 //	PDJPG_DecodeCtxInner(jctx, jibuf, jisz, &xs, &ys);
 	PDJPG_DecodeBasic(jctx, jibuf, jisz, &xs, &ys);
 
+	BIPRO_ProfilerSetActive(1);
+
 #if 1
 	t0=clock(); t1=t0; nf=0; ncf=0;
 	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
@@ -199,6 +206,8 @@ int main()
 	}
 	printf("\n");
 #endif
+
+	BIPRO_ProfilerSetActive(0);
 
 	ibuf=malloc(xs*ys*4);
 
@@ -284,6 +293,8 @@ int main()
 	i2=i1+(xs1*ys1);
 	i3=i2+(xs1*ys1);
 
+	BIPRO_ProfilerSetActive(1);
+
 	t0=clock(); t1=t0; nf=0; ncf=0;
 	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
 	{
@@ -313,6 +324,8 @@ int main()
 		}
 	}
 	printf("\n");
+
+	BIPRO_ProfilerSetActive(0);
 
 	BGBBTJ_BC7_StatImageBC7(tbuf, xs, ys);
 

@@ -70,6 +70,63 @@ double checkrmse(byte *ibuf1, byte *ibuf2, int xs, int ys)
 	return(e);
 }
 
+int dump_bmp(char *name, int xs, int ys, int fcc, byte *ibuf, int isz)
+{
+	byte hbuf[256];
+	FILE *fd;
+	int sz1, sz2, sz3, dpm;
+	
+	fd=fopen(name, "wb");
+	if(!fd)
+	{
+		printf("Fail Open %s\n", name);
+		return(-1);
+	}
+
+	sz1=54+isz;
+	sz2=54;
+	sz3=40;
+	dpm=2880;
+	
+	hbuf[0x00]='B';		hbuf[0x01]='M';
+	hbuf[0x02]=sz1;		hbuf[0x03]=sz1>>8;
+	hbuf[0x04]=sz1>>16;	hbuf[0x05]=sz1>>24;
+	hbuf[0x06]=0;		hbuf[0x07]=0;
+	hbuf[0x08]=0;		hbuf[0x09]=0;
+	hbuf[0x0A]=sz2;		hbuf[0x0B]=sz2>>8;
+	hbuf[0x0C]=sz2>>16;	hbuf[0x0D]=sz2>>24;
+
+	hbuf[0x0E]=sz3;		hbuf[0x0F]=sz3>>8;
+	hbuf[0x10]=sz3>>16;	hbuf[0x11]=sz3>>24;
+	hbuf[0x12]=xs;		hbuf[0x13]=xs>>8;
+	hbuf[0x14]=xs>>16;	hbuf[0x15]=xs>>24;
+	hbuf[0x16]=ys;		hbuf[0x17]=ys>>8;
+	hbuf[0x18]=ys>>16;	hbuf[0x19]=ys>>24;
+
+	hbuf[0x1A]=1;		hbuf[0x1B]=0;
+	hbuf[0x1C]=32;		hbuf[0x1D]=0;
+	hbuf[0x1E]=fcc;		hbuf[0x1F]=fcc>>8;
+	hbuf[0x20]=fcc>>16;	hbuf[0x21]=fcc>>24;
+	hbuf[0x22]=isz;		hbuf[0x23]=isz>>8;
+	hbuf[0x24]=isz>>16;	hbuf[0x25]=isz>>24;
+	hbuf[0x26]=dpm;		hbuf[0x27]=dpm>>8;
+	hbuf[0x28]=dpm>>16;	hbuf[0x29]=dpm>>24;
+	hbuf[0x2A]=dpm;		hbuf[0x2B]=dpm>>8;
+	hbuf[0x2C]=dpm>>16;	hbuf[0x2D]=dpm>>24;
+
+	hbuf[0x2E]=0;		hbuf[0x2F]=0;
+	hbuf[0x30]=0;		hbuf[0x31]=0;
+
+	hbuf[0x32]=0;		hbuf[0x33]=0;
+	hbuf[0x34]=0;		hbuf[0x35]=0;
+	
+	fwrite(hbuf, 1, sz2, fd);
+	fwrite(ibuf, 1, isz, fd);
+	
+	fclose(fd);
+	return(0);
+}
+
 int main(int argc, char *argv[])
 {
 	byte *ibuf, *yibuf, *obuf, *blks, *yibuf2;
@@ -89,8 +146,8 @@ int main(int argc, char *argv[])
 	ibuf2=BTIC1H_Img_LoadTGA("StreetHollandSD_q45.tga", &xs1, &ys1);
 //	ibuf=BTIC1H_Img_LoadTGA("3917969_f260.tga", &xs, &ys);
 
-//	ibuf=BTIC1H_Img_LoadTGA("screencap0.tga", &xs, &ys);
-//	ibuf2=BTIC1H_Img_LoadTGA("screencap0.tga", &xs1, &ys1);
+	ibuf=BTIC1H_Img_LoadTGA("screencap0.tga", &xs, &ys);
+	ibuf2=BTIC1H_Img_LoadTGA("screencap0.tga", &xs1, &ys1);
 
 	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs, &ys);
 	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1_q95.tga", &xs1, &ys1);
@@ -103,6 +160,14 @@ int main(int argc, char *argv[])
 		return(-1);
 	}
 
+	obuf=malloc(xs*ys*4);
+//	blks=malloc(xs*ys*2);
+
+	tbuf=malloc(1<<24);
+	tbuf1=malloc(1<<24);
+
+
+#if 0
 	for(i=0; i<ys; i++)
 		for(j=0; j<xs; j++)
 	{
@@ -150,8 +215,8 @@ int main(int argc, char *argv[])
 	obuf=malloc(xs*ys*4);
 //	blks=malloc(xs*ys*2);
 
-	tbuf=malloc(1<<20);
-	tbuf1=malloc(1<<20);
+	tbuf=malloc(1<<24);
+	tbuf1=malloc(1<<24);
 
 	for(i=0; i<ys; i++)
 		for(j=0; j<xs; j++)
@@ -239,7 +304,9 @@ int main(int argc, char *argv[])
 	printf("QCLRS2: ");
 	checkrmse(ibuf, obuf, xs, ys);
 
-	memset(obuf, 0, xs*ys*4);
+#endif
+
+//	memset(obuf, 0, xs*ys*4);
 
 //	qf=65;
 //	qf=85;
@@ -268,8 +335,10 @@ int main(int argc, char *argv[])
 //		ct1=BTIC1H_EncodeBlocksBuffer(tbuf, blks, NULL, n,
 //			32, 1<<20, &n1, qf);
 
+#if 1
 		i=BTIC1H_EncodeCtx(ctx, ibuf, tbuf, 1<<20,
 			xs, ys, qf, BTIC1H_PXF_RGBX);
+#endif
 
 //		i=BTIC1H_EncodeCtx(ctx, yibuf2, tbuf, 1<<20,
 //			xs, ys, qf, BTIC1H_PXF_YUYV);
@@ -296,6 +365,8 @@ int main(int argc, char *argv[])
 	printf("Output Size %d / %d (%.3f bpp)\n", ct1-tbuf, n*7,
 		h);
 	
+	BTIC1H_DestroyContext(ctx);
+	
 	tfd=fopen("tst1g_raw0.dat", "wb");
 	if(tfd)
 	{
@@ -303,9 +374,20 @@ int main(int argc, char *argv[])
 		fclose(tfd);
 	}
 
+	dump_bmp("tst1g_raw0.bmp", xs, ys, BTIC1H_FCC_bt1h,
+		tbuf, ct1-tbuf);
+
+//	dump_bmp("tst1g_raw0.bmp", xs, ys, 0, tbuf, xs*ys*4);
+
 	memcpy(tbuf1, tbuf, 1<<20);
 
-	memset(ctx->blks, 0, n*32);
+	ctx=BTIC1H_AllocContext();
+	ctx->xs=xs;
+	ctx->ys=ys;
+	ctx->flip=0;
+
+	if(ctx->blks)
+		memset(ctx->blks, 0, n*32);
 
 #if 1
 	t0=clock(); t1=t0; nf=0; ncf=0;

@@ -84,8 +84,8 @@ int BTIC1H_EmitCommandCode(BTIC1H_Context *ctx, int cmd)
 			k=ctx->cmdwin[(j+i-1)&15];
 			ctx->cmdwin[(j+i-1)&15]=cmd;
 			ctx->cmdwin[(j+i+0)&15]=k;
-			ctx->cmdidx[cmd]=(byte)(j+i-1);
-			ctx->cmdidx[k]=(byte)(j+i);
+			ctx->cmdidx[cmd&255]=(byte)(j+i-1);
+			ctx->cmdidx[k&255]=(byte)(j+i);
 		}
 
 		return(0);
@@ -105,7 +105,7 @@ int BTIC1H_EmitCommandCode(BTIC1H_Context *ctx, int cmd)
 		ctx->cmdidx[k]=-1;
 
 	ctx->cmdwin[j&15]=cmd;
-	ctx->cmdidx[cmd]=j;
+	ctx->cmdidx[cmd&255]=j;
 
 	return(0);
 }
@@ -2020,7 +2020,7 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 {
 	byte *ct, *cte;
 	int sz, sz1;
-	int i;
+	int i, n;
 
 	if(!ctx->blks)
 	{
@@ -2028,8 +2028,9 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 		ctx->ybsz=(ctx->ys+3)>>2;
 		ctx->nblks=ctx->xbsz*ctx->ybsz;
 		
-		ctx->blks=malloc(ctx->nblks*32);
-		ctx->lblks=malloc(ctx->nblks*32);
+		n=(ctx->xbsz+1)*(ctx->ybsz+1);
+		ctx->blks=malloc(n*32);
+		ctx->lblks=malloc(n*32);
 	}
 
 	BTIC1H_EncodeImageClrs(ctx->blks, 32, src,
@@ -2074,10 +2075,17 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 		dst[3]=sz1;
 		dst[4]='A';
 		dst[5]='X';
+
+		sz=ctx->bs_ct-dst;
 	}
 #endif
 
 	memcpy(ctx->lblks, ctx->blks, ctx->nblks*32);
+
+	if(sz>dsz)
+	{
+		*(int *)-1=-1;
+	}
 
 	return(sz);
 }

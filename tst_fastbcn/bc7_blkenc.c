@@ -663,6 +663,120 @@ void BGBBTJ_BC7_StatImageBC7(byte *block,
 		stat[4], stat[5], stat[6], stat[7], stat[8]);
 }
 
+void BGBBTJ_BC7_EncodeImageMipHalfSample(
+	byte *obuf, byte *ibuf, int xs, int ys, int xstr, int pfb)
+{
+	byte *ct, *cs0, *cs1;
+	int xs1, ys1, ystr, ystr1;
+	int r0, r1, r2, r3;
+	int g0, g1, g2, g3;
+	int b0, b1, b2, b3;
+	int a0, a1, a2, a3;
+	int cr, cg, cb, ca;
+	int i, j, k, l;
+	
+	if(xstr==4)
+	{
+		xs1=(xs+1)>>1;	ys1=(ys+1)>>1;
+		for(i=0; i<ys1; i++)
+		{
+			ct=obuf+i*xs1*4;
+			cs0=ibuf+((i*2+0)*xs)*4;
+			cs1=ibuf+((i*2+1)*xs)*4;
+			for(j=0; j<xs1; j++)
+			{
+				r0=cs0[0];	g0=cs0[1];	b0=cs0[2];	a0=cs0[3];
+				r1=cs0[4];	g1=cs0[5];	b1=cs0[6];	a1=cs0[7];
+				r2=cs1[0];	g2=cs1[1];	b2=cs1[2];	a2=cs1[3];
+				r3=cs1[4];	g3=cs1[5];	b3=cs1[6];	a3=cs1[7];
+
+				if((a0&a1&a2&a3)==(a0|a1|a2|a3))
+				{
+					cr=(r0+r1+r2+r3)>>2;
+					cg=(g0+g1+g2+g3)>>2;
+					cb=(b0+b1+b2+b3)>>2;
+					ca=(a0+a1+a2+a3)>>2;
+				}else
+				{
+					ca=4096/(a0+a1+a2+a3);
+					cr=((a0*r0+a1*r1+a2*r2+a3*r3)*ca)>>12;
+					cg=((a0*g0+a1*g1+a2*g2+a3*g3)*ca)>>12;
+					cb=((a0*b0+a1*b1+a2*b2+a3*b3)*ca)>>12;
+					ca=(a0+a1+a2+a3)>>2;
+				}
+
+				ct[0]=cr;	ct[1]=cg;
+				ct[2]=cb;	ct[3]=ca;
+				cs0+=8; cs1+=8;	*ct++=4;
+			}
+		}
+		return;
+	}
+
+	ystr=xs*xstr;
+	xs1=(xs+1)>>1;	ys1=(ys+1)>>1;
+	ystr1=xs1*xstr;
+	for(i=0; i<ys1; i++)
+	{
+		ct=obuf+i*ystr1;
+		cs0=ibuf+(i*2+0)*ystr;
+		cs1=ibuf+(i*2+1)*ystr;
+		for(j=0; j<xs1; j++)
+		{
+			r0=cs0[0];	g0=cs0[1];	b0=cs0[2];	cs0+=xstr;
+			r1=cs0[0];	g1=cs0[1];	b1=cs0[2];	cs0+=xstr;
+			r2=cs1[0];	g2=cs1[1];	b2=cs1[2];	cs1+=xstr;
+			r3=cs1[0];	g3=cs1[1];	b3=cs1[2];	cs1+=xstr;
+			cr=(r0+r1+r2+r3)>>2;
+			cg=(g0+g1+g2+g3)>>2;
+			cb=(b0+b1+b2+b3)>>2;
+			ct[0]=cr;	ct[1]=cg;	ct[2]=cb;
+			*ct++=xstr;
+		}
+	}
+}
+
+void BGBBTJ_BC7_EncodeImageMipBC7(byte *block,
+	byte *ibuf, int xs, int ys, int xstr, int pfb)
+{
+	byte *tbuf;
+	byte *ct;
+	int xs1, ys1, xs2, ys2, xs3, ys3, vf;
+	
+	xs1=xs; ys1=ys; vf=0;
+	if(xs1<0)xs1=-xs;
+	if(ys1<0)
+		{ ys1=-ys; vf=1; }
+	
+	tbuf=malloc(xs1*ys1*4);
+
+	xs2=(xs1+3)>>2;	ys2=(ys1+3)>>2;
+	xs3=(xs1+1)>>1;	ys3=(ys1+1)>>1;
+	ct=block;
+	BGBBTJ_BC7_EncodeImageBestBC7(ct, ibuf, xs1, vf?(-ys1):ys1,
+		xstr, pfb);
+	ct+=xs2*ys2*16;
+
+	BGBBTJ_BC7_EncodeImageMipHalfSample(tbuf, ibuf,
+		xs1, ys1, xstr, pfb);
+	xs1=xs3; ys1=ys3;
+	
+	while((xs1>1) || (ys1>1))
+	{
+		xs2=(xs1+3)>>2;	ys2=(ys1+3)>>2;
+		xs3=(xs1+1)>>1;	ys3=(ys1+1)>>1;
+		BGBBTJ_BC7_EncodeImageBestBC7(ct, tbuf,
+			xs1, vf?(-ys1):ys1, xstr, pfb);
+		ct+=xs2*ys2*16;
+		BGBBTJ_BC7_EncodeImageMipHalfSample(tbuf, tbuf,
+			xs1, ys1, xstr, pfb);
+		xs1=xs3; ys1=ys3;
+	}
+	
+	free(tbuf);
+}
+
+
 #if 1
 void BGBBTJ_BC7_EncodeImageYuvaBC7(byte *block,
 	byte *ybuf,	byte *ubuf,	byte *vbuf,	byte *abuf,
