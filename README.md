@@ -32,3 +32,66 @@ JPEG is slower, but compresses better.  BTIC1H could be faster.
 Would either way likely need to use a planar YUV format or similar as an intermediate format for sake of mipmaps.
 
 As-is: On the test PC, the JPEG decoder by itself pulls off about 50 Mpix/sec, and can be converted to BC7 at 30-35 Mpix/sec. It is around 25-30 if producing BC7 output with mipmaps (the actual Mpix/sec is the same, however throughput is slightly lower due to needing to process more pixel data).
+
+
+BCn Modes
+---------
+
+BCn Modes
+* 0, Unknown/Invalid
+* 1, BC1/DXT1, 64-bit with optional 1-bit alpha
+* 2, BC2/DXT3, 128-bit, with 64-bit color and 4-bpp alpha.
+* 3, BC3/DXT5, 128-bit, with 64-bit color and 8-bpp color.
+* 4, BC4, 64-bit Y image.
+* 5, BC5, 128-nit Y/A or R/G image.
+* 6, BC6H, 128-bit HDR.
+* 7, BC7, 128-bit LDR color+alpha.
+
+
+Pixel Format
+------------
+
+ccpp-ssao
+* o: RGB/YUYV vs BGR/UYVY
+* * 0=RGB/YUYV
+* * 1=BGR/UYVY
+* a: Alpha (If pattern can have alpha)
+* * 0=Alpha
+* * 1=No Alpha
+* ss: Stride, 4-1
+* pp: Pixel Bit Type
+* * 0=Unsigned Byte
+* * 1=Half-Float
+* * 2=Reserved
+* * 3=Float
+* cc: Colorspace Type
+* * 0=RGBA
+* * 1=YUV, Interleaved
+
+Assigned Mode Numbers:
+* 00: RGBA
+* 01: BGRA
+* 02: RGBx
+* 03: BGRx
+* 04: RGB
+* 05: BGR
+* 06: RGB (Resv)
+* 07: BGR (Resv)
+* 08: RG
+* 0C: R
+* 10: RGBA (H-Float)
+* 11: BGRA (H-Float)
+* ...
+* 30: RGBA (Float)
+* 31: BGRA (Float)
+* ...
+* 40: YUVA (4:4:4:4)
+* 42: YUVx (4:4:4)
+* 44: YUV (4:4:4)
+* 48: YUYV (4:2:2)
+* 49: UYVY (4:2:2)
+* 4C: Y
+* 4E: Planar YUVA (4:2:0:4)
+* 4F: Planar AYUV (4:4:2:0)
+* ...
+
