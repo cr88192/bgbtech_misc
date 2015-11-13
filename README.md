@@ -1,12 +1,20 @@
 # bgbtech_misc
 BGB related misc stuff.
 
+tst_btic1h
+==========
+
 tst_btic1h: BTIC1H VfW codec (Test).
 This was an initial test of the design for BTIC1H.
 This implementation does frame-at-a-time encoding, and does not support incremental encoding.
 A version used for streaming video from a robot would likely be a little more minimalist and
 support incremental encoding. This is a "too be done" thing.
 
+This supports being compiled as a VfW codec driver. This allows its use from other Windows applications while embedded in an AVI. AVI and a modified BMP will be the canonical formats for on-disk storage of BTIC1H video or images.
+
+
+tst_fastbcn
+===========
 
 tst_fastbcn: Test for a "reasonably fast" BC7 encoder.
 It is single-threaded plain C.
