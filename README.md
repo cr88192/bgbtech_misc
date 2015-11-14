@@ -51,47 +51,19 @@ BCn Modes
 Pixel Format
 ------------
 
-ccpp-ssao
+ppss-yqao
 * o: RGB/YUYV vs BGR/UYVY
 * * 0=RGB/YUYV
 * * 1=BGR/UYVY
 * a: Alpha (If pattern can have alpha)
 * * 0=Alpha
 * * 1=No Alpha
-* ss: Stride, 4-1
+* q: Don't use partitions (Resv)
+* y: Use YUV.
+* rr: Reserved, MBZ
+* ss: Stride=4-ss; (0->4, 3->1)
 * pp: Pixel Bit Type
 * * 0=Unsigned Byte
-* * 1=Half-Float
-* * 2=Reserved
+* * 1=Reserved
+* * 2=Half-Float
 * * 3=Float
-* cc: Colorspace Type
-* * 0=RGBA
-* * 1=YUV, Interleaved
-
-Assigned Mode Numbers:
-* 00: RGBA
-* 01: BGRA
-* 02: RGBx
-* 03: BGRx
-* 04: RGB
-* 05: BGR
-* 06: RGB (Resv)
-* 07: BGR (Resv)
-* 08: RG
-* 0C: R
-* 10: RGBA (H-Float)
-* 11: BGRA (H-Float)
-* ...
-* 30: RGBA (Float)
-* 31: BGRA (Float)
-* ...
-* 40: YUVA (4:4:4:4)
-* 42: YUVx (4:4:4)
-* 44: YUV (4:4:4)
-* 48: YUYV (4:2:2)
-* 49: UYVY (4:2:2)
-* 4C: Y
-* 4E: Planar YUVA (4:2:0:4)
-* 4F: Planar AYUV (4:4:2:0)
-* ...
-

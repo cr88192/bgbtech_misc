@@ -55,10 +55,6 @@ iiii iiii  iiii iiii (14/15)
 */
 
 
-#define BC7_PFB_BGR		1		//BGR Ordering
-#define BC7_PFB_NOAX	2		//No Alpha
-#define BC7_PFB_NOPART	4		//No Partitions
-
 int bgbbtj_bc7_weights2[4]=
 	{ 0, 21, 43, 64};
 int bgbbtj_bc7_weights3[8]=

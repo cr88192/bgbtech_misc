@@ -231,7 +231,7 @@ void PDJPG_Init()
 	init=1;
 }
 
-void PDJPG_TransIDCT_Horiz(short *iblk, int *oblk)
+void PDJPG_TransIDCT_Horiz(int *iblk, int *oblk)
 {
 	int a, b, c, d, e, f;
 	int i, j, k, l;
@@ -267,7 +267,7 @@ void PDJPG_TransIDCT_Vert(int *iblk, int *oblk)
 	oblk[32]=l-p;	oblk[40]=k-o;	oblk[48]=j-n;	oblk[56]=i-m;
 }
 
-void BGBBTJ_JPG_TransIDCT_Vert2(int *iblk, short *oblk, int dcbias)
+void BGBBTJ_JPG_TransIDCT_Vert2(int *iblk, int *oblk, int dcbias)
 {
 	int a, b, c, d, e, f;
 	int i, j, k, l;
@@ -288,11 +288,11 @@ void BGBBTJ_JPG_TransIDCT_Vert2(int *iblk, short *oblk, int dcbias)
 }
 
 // void PDJPG_TransIDCT(short *iblk, byte *oblk)
-void PDJPG_TransIDCT(short *iblk, short *oblk, int dcbias, int rtm)
+void PDJPG_TransIDCT(int *iblk, int *oblk, int dcbias, int rtm)
 {
 	int s[DCTSZ2];
 	int t[DCTSZ2];
-	short *ob, *obe;
+	int *ob, *obe;
 	int i, j, k;
 
 	if(rtm==2)
@@ -414,7 +414,7 @@ void PDJPG_TransIRDCT_Horiz(int *iblk, int *oblk)
 	oblk[6]=ib[4];	oblk[7]=ib[1];
 }
 
-void PDJPG_TransIRDCT_Vert(short *iblk, int *oblk)
+void PDJPG_TransIRDCT_Vert(int *iblk, int *oblk)
 {
 	int ib[8];
 
@@ -475,7 +475,7 @@ void PDJPG_TransIRDCT_Vert(short *iblk, int *oblk)
 	oblk[48]=ib[4];	oblk[56]=ib[1];
 }
 
-void PDJPG_TransIRDCT(short *iblk, short *oblk, int dcbias, int rtm)
+void PDJPG_TransIRDCT(int *iblk, int *oblk, int dcbias, int rtm)
 {
 	int s[DCTSZ2];
 	int t[DCTSZ2];
@@ -658,13 +658,13 @@ int PDJHUFF_DecodeDiffDC(PDJPG_Context *ctx, int tab)
 }
 
 int PDJHUFF_DecodeBlock(PDJPG_Context *ctx,
-	short *buf, int dctab, int actab, int qid,
+	int *buf, int dctab, int actab, int qid,
 	int ni, int nn)
 {
 	byte *qtab;
 	int i, j, k;
 
-	memset(buf+1, 0, 63*sizeof(short));
+	memset(buf+1, 0, 63*sizeof(int));
 	qtab=ctx->jpg_qt[qid];
 
 	buf[0]+=PDJHUFF_DecodeDiffDC(ctx, dctab)*qtab[0];
@@ -709,11 +709,11 @@ int PDJHUFF_DecodeBlock(PDJPG_Context *ctx,
 }
 
 void PDJPG_CopyOutBlock8B(
-	PDJPG_Context *ctx, short *ibuf,
+	PDJPG_Context *ctx, int *ibuf,
 	byte *obuf, int xs, int ys,
 	int x, int y)
 {
-	short *cs;
+	int *cs;
 	byte *ct;
 	int i0, i1, i2, i3, i4, i5, i6, i7;
 	int i, j, k;
@@ -768,9 +768,9 @@ void PDJPG_CopyOutBlock8B(
 
 int PDJPG_MarkerSOS(PDJPG_Context *ctx, byte *buf)
 {
-	short dbuf[4*64];
-	short dcblk[64];
-	short diblk[64];
+	int dbuf[4*64];
+	int dcblk[64];
+	int diblk[64];
 	byte ch[4], cv[4], qid[4];
 	byte step[4];
 	int xi[4], yi[4], wi[4], hi[4];

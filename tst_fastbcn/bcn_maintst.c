@@ -36,6 +36,9 @@ THE SOFTWARE.
 #include "bc7_blkenc.c"
 #include "bc7_blkenc_p2.c"
 
+#include "bcn_s2blkenc.c"
+#include "bcn_s2blkdec.c"
+
 #include "bcn_decjpg.c"
 
 #include "bcn_bt1h_common.c"
@@ -287,6 +290,7 @@ int main()
 	tbuf1=malloc(1<<24);
 
 	BGBBTJ_BC7_PartitionInit();
+	BGBBTJ_BCn_InitDither_S2TCB();
 
 	i0=0;
 	i1=i0+xs*ys;
@@ -296,7 +300,7 @@ int main()
 	BIPRO_ProfilerSetActive(1);
 
 	t0=clock(); t1=t0; nf=0; ncf=0;
-	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
+	while((t1>=t0) && (t1<(t0+(5*CLOCKS_PER_SEC))))
 	{
 //		BGBBTJ_BC7_EncodeImageBestBC7(tbuf, ibuf, xs, ys, 4, 0);
 
@@ -353,4 +357,21 @@ int main()
 
 	BTIC1H_Img_SaveTGA("tst1g_out0.tga", obuf, xs, ys);
 
+
+	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs, &ys);
+//	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs1, &ys1);
+
+//	ibuf=BTIC1H_Img_LoadTGA("Chem0.tga", &xs, &ys);
+//	ibuf2=BTIC1H_Img_LoadTGA("Chem0.tga", &xs1, &ys1);
+
+	memset(tbuf, 0, 1<<20);
+
+	BGBBTJ_BCn_EncodeImageBCn(tbuf, BCN_BCF_BC1, ibuf, xs, ys, BCN_PFB_RGBA);
+	
+	BGBBTJ_BCn_DecodeImageBCn(tbuf, BCN_BCF_BC1, obuf, xs, ys, BCN_PFB_RGBA);
+
+	printf("CLRS2 BC1: ");
+	checkrmse(ibuf, obuf, xs, ys);
+
+	BTIC1H_Img_SaveTGA("tst1g_out1.tga", obuf, xs, ys);
 }
