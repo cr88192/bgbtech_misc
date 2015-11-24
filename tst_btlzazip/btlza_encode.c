@@ -10,7 +10,8 @@ void BTLZA_Encode_UpdateWindowByte(BGBBTJ_BTLZA_Context *ctx,
 {
 	int h;
 
-	h=(((s[0]*251+s[1])*251+s[2])*251)&0x3FFF;
+	h=(s[0]^(s[1]<<4)^(s[2]<<8))&0x3FFF;
+//	h=(((s[0]*251+s[1])*251+s[2])*251)&0x3FFF;
 //	h=(s[0]^(s[1]<<4)^(s[2]<<8))&0xFFF;
 //	h=(s[0]^(s[1]<3)^(s[2]<<6))&0xFFF;
 	ctx->lz_lbuf[ctx->lz_wpos]=ctx->lz_hash[h];
@@ -26,7 +27,8 @@ void BTLZA_Encode_UpdateWindowString(BGBBTJ_BTLZA_Context *ctx,
 
 	while(l--)
 	{
-		h=(((s[0]*251+s[1])*251+s[2])*251)&0x3FFF;
+		h=(s[0]^(s[1]<<4)^(s[2]<<8))&0x3FFF;
+//		h=(((s[0]*251+s[1])*251+s[2])*251)&0x3FFF;
 //		h=(s[0]^(s[1]<<4)^(s[2]<<8))&0xFFF;
 //		h=(s[0]^(s[1]<<3)^(s[2]<<6))&0xFFF;
 		ctx->lz_lbuf[ctx->lz_wpos]=ctx->lz_hash[h];
@@ -50,7 +52,8 @@ int BTLZA_Encode_LookupString(BGBBTJ_BTLZA_Context *ctx,
 	md=ctx->lz_maxdist;
 	sd=ctx->lz_sdepth;
 
-	i=(((cs[0]*251+cs[1])*251+cs[2])*251)&0x3FFF;
+	i=(cs[0]^(cs[1]<<4)^(cs[2]<<8))&0x3FFF;
+//	i=(((cs[0]*251+cs[1])*251+cs[2])*251)&0x3FFF;
 //	i=(cs[0]^(cs[1]<<4)^(cs[2]<<8))&0xFFF;
 	i=ctx->lz_hash[i];
 
