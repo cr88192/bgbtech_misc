@@ -1,0 +1,9 @@
+EXESUF=.exe
+BINSUF=.exe
+
+CC_OUTEXE=cl /Fe
+CC_OUTTOOL=cl /Fe
+
+CFLAGS=/I. /DBGBBTJ_DLL /DBGBBTJ_NODY /Zi
+
+include Makefile.inc

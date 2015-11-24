@@ -1,0 +1,27 @@
+File contents consist of a series of markers.
+These markers express compressed file contents in-series.
+Markers are byte aligned within the file.
+
+
+Types:
+* WORD: 16 bit word, big endian.
+* WORD24: 24 bit word, big endian.
+
+
+Markers:
+* 0xE1, len:WORD24, data:BYTE[len-4]
+** Compressed data block, contents use a Faux Zlib header.
+** This is basically Zlib format, but with 9 for Deflate64, and A for BTLZH.
+** Each E1 block is encoded independently of the preceding blocks.
+* 0xE3, len:WORD24, tag:TWOCC, data:BYTE[len-6]
+** TWOCC Marker.
+** TWOCC='ST' means stored data.
+* 0xE4, len:WORD24, tag:FOURCC, data:BYTE[len-8]
+** FOURCC Marker.
+** FOURCC='BTLZ' means header.
+*** flags:WORD
+*** blockSize:BYTE; log2 of logical block size
+*** windowSize:BYTE; log2 of window size.
+*** if(flags&1)
+**** name:ASCIIZ4; ASCII name padded to multiple of 4 bytes.
+**** This is the name of the original file which was compressed.

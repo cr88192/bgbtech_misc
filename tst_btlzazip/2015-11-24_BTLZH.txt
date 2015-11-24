@@ -1,0 +1,457 @@
+BTLZA: BGBTech LZ77 + Arithmetic
+
+BTLZH: BGBTech LZ77 + Huffman
+
+
+Goals:
+* Deflate-like encoder but with (optional) Arithmetic Coding;
+* Ideally, sort of like LZMA but cheaper/faster;
+* Should ideally compress better than Deflate or Deflate + Arithmetic;
+* Should be mostly drop-in-compatible with Deflate.
+
+In cases where a Zlib header is expected by the format, a Faux Zlib Header will be used.
+
+
+== Faux Zlib Header ==
+
+* 0xWMFF
+** W=Log2 Window Size minus 8
+** M=Method
+*** 8=Deflate
+*** 9=Deflate64
+*** A=BTLZA / BTLZH
+*** B=[[BGB_MTFRice|MTFRice]]
+* FF=Flags and Check
+** 0bLLDCCCCC
+*** LL=Level, 0=Fastest, 3=Best Compression
+*** D=Preset Dictionary
+*** CC=Check Value
+
+The check value is a special value which is set such that the header (seen as a 16-bit big-endian value) is a multiple of 31.
+
+For methods 8 and 9, the compressed data is solely in Deflate or Deflate64 mode.
+For method A, the data is in BTLZA Mode.
+
+In these modes, the compressed data is to be followed by an Adler32 checksum of the expected output.
+
+If the preset dictionary flag is set, the header is followed by an Adler32 checksum which may be used to identify the dictionary.
+
+
+=== Compact Form Header ===
+
+* 0x8M (Primary)
+* 0xBM (Alternate)
+** Only contains a method number, and is a single byte.
+** Does not contain a checksum.
+** Default Window Sizes:
+*** 32kB for Deflate
+*** 64kB for Deflate64
+*** 1MB for BTLZA / BTLZH
+
+This header interferes with the coding of a 64kB Window:
+* Interferes with the normal Zlib header for Deflate64.
+
+May only be interpreted as a compact mode header if the Mod31 check fails.
+* Alternate may be used if the primary would pass the Mod31 check.
+* Alternate will likewise be subject to the Mod31 check.
+** However, it will not occur that both would pass the Mod31 check.
+** Alternate is only valid if primary would pass the Mod31 check.
+
+
+== Coded Stream ==
+
+=== Coded Blocks ===
+
+Blocks will be tagged using a 1-bit final-block indicator followed by a 2 bit block-type ID.
+Bits will be read from bytes starting from the LSB.
+
+Block Types will use a 2-bit ID:
+* 0: Stored Data
+* 1: Fixed Table
+* 2: Dynamic Table
+* 3: Escape Case
+** 3-bit secondary type follows.
+** 0=Stored Data 2
+** 1=Arithmetic Mode Header
+** 2=Dynamic Table 2
+** 3=Fixed Table 2
+
+Block types 0, 1, and 2 will be the same as normal Deflate (as defined in RFC1951).
+
+If in Deflate64 Mode, the blocks will be nearly identical, but with a few slight differences:
+* The dictionary will be extended to 64kB.
+** The last 2 entries in the distance table will be used for these lengths.
+* Symbol 285 will have 16 extra bits.
+** It will encode a value from 3 to 65538.
+
+
+==== Stored Data ====
+
+Stored data is stored in an uncompressed form.
+
+* len:WORD, nLen:WORD, data:byte[len]
+** len: Length of stored data
+** nLen: ~len
+** data: raw byte data.
+
+Data is to be stored byte-aligned.
+
+The current behavior of this form in arithmetic mode is undecided.
+
+
+==== Stored Data 2 ====
+
+Stored data is stored without applying LZ or Huffman compression.
+
+These will be stored as a length followed by the data bytes (encoded as sequences of 8 bits).
+
+* Len:Dist(6)
+* Bytes(Len*8)
+
+In arithmetic mode, these bytes will be encoded using Model L.
+
+The length is encoded using a fixed 6-bit prefix and the distance table (Arithmetic model R).
+
+
+==== Fixed Huffman Table ====
+
+In this mode, the Huffman table will used fixed code-lengths.
+* 0-143: 8 bits
+* 144-255: 9 bits
+* 256-279: 7 bits
+* 280-287: 8 bits
+
+
+==== Fixed Huffman Table 2 ====
+
+Similar to the normal Fixed Huffman Table, except that a table-ID is given:
+* Hl(3): TableID, Literal (TableID_Lit)
+* Hd(2): TableID, Distance (TableID_Dist)
+
+
+TableID, Literal:
+* 0, Same literal table as before, expanded distance table
+** 0-143: 8 bits
+** 144-255: 9 bits
+** 256-279: 7 bits
+** 280-287: 8 bits
+*** Match lengths are limited to 386 bytes.
+* 1, Expanded A.
+** 0-127: 8 bits
+** 128-383: 9 bits
+*** 0xxxxxx: 0-127 8 bit
+*** 1xxxxxxx: 128-383
+* 2, Expanded B.
+** 0-255: 9 bits
+** 256-383: 8 bits
+*** 0xxxxxx: 256-383 8 bit
+*** 1xxxxxxx: 0-255
+* 3-6, Reserved
+* 7, Reuse tables from prior block
+
+TableID, Distance:
+* 0:
+** 0-63: 6 bits (Window: Full Range)
+* 1:
+** 0-31: 5 bits (Window: 64kB)
+* 2:
+** 0-15: 4 bits (Window: 256 bytes)
+* 3:
+** 0-7: 3 bits (Window: 16 bytes)
+
+
+TableID_Lit=7
+* Reuse Literal and Distance tables from prior block.
+** TableID_Dist=0
+* For piecewise streams, this may reference tables from the prior stream segment.
+
+
+==== Dynamic Huffman Table ====
+
+* Hl(5) bits: Number of coded literal symbols (minus 257, 257-288).
+* Hd(5) bits: Number coded distance symbols (minus 1, 1-32).
+* Hc(4) bits: Number of header symbols (minus 4, 4-19).
+** Hcl(Hc*3): Header symbol code lengths
+*** Encoded in the following order:
+**** 16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15
+
+This is followed by the literal and distance tables, which are encoded as such:
+* 0-15: Code Length
+* 16: Rc(2), Repeat prior code length 3-7 times.
+* 17: Zc(3), Code length of 0 for 3 to 10 times.
+* 18: Zc(7), Code length of 0 for 11 to 138 times.
+
+
+==== Dynamic Huffman Table 2 ====
+
+Similar to the normal Dynamic Huffman Table, except for a few sizes and similar:
+* Hr(3): Reserved, must be 0
+* Hl(7): Number of coded literal symbols (minus 257, 257-384).
+* Hd(6): Number coded distance symbols (minus 1, 1-64).
+* Hc(5): Number of header symbols (minus 4, 4-35).
+** Hcl(Hc*3): Header symbol code lengths
+
+
+==== Arithmetic Mode Header ====
+
+Hr(3): Header Mode
+
+* 0: Disable Arithmetic Coding
+** Cancels out of arithmetic coding, returns to using raw bits.
+
+* 1: Enable Arithmetic Coding (Mode A)
+** Hl(4)+12: Size of Context (Model R)
+** Hw(5): Dictionary Window Size
+*** Enables the use of a arithmetic-coding mode.
+*** In this mode, Huffman coded symbols and extra bits are secondarily fed through a bitwise arithmetic coder.
+*** No distinction is made between the types of bits (All bits will use a single shared context model).
+*** Logically, bits are read/written in LSB-first ordering.
+
+* 2: Enable Arithmetic Coding (Mode B)
+** Hl(5): Size of Literal Symbol Context (Model L)
+** Hd(5): Size of Distance Symbol Context (Model D)
+** Hx(5): Size of Extra-Bits Value Context (Model X)
+** HCx(5): Number of context-encoded Extra-Bits
+*** After this count, fixed-probability bits will be used instead.
+*** If given as 31, all bits will use context modeling.
+** Hy(5): Size of Raw-Bits Value Context (Model R)
+** Hw(5): Dictionary Window Size
+*** Enables the use of a arithmetic-coding mode.
+*** In this mode, Huffman coded symbols and extra bits are secondarily fed through a bitwise arithmetic coder.
+*** Different types of bits will use different contexts.
+*** Logically, bits are read/written in LSB-first ordering.
+
+
+=== VLC ===
+
+ Run Length A(*) (Prefix, Range, Extra):
+ 257-264,   3- 10, 0
+ 265-268,  11- 18, 1
+ 269-272,  19- 34, 2
+ 273-276,  35- 66, 3
+ 277-280,  67-130, 4
+ 281-284, 131-258, 5
+ 285-288, 259-514, 6
+ -
+ 289-292,   515- 1026, 7
+ 293-296,  1027- 2050, 8
+ 297-300,  2051- 4098, 9
+ 301-304,  4099- 8194, 10
+ 305-308,  8195-16386, 11
+ 309-312, 16387-32770, 12
+ 313-316, 32771-65537, 13
+ 317,     65538      , 0
+ ...
+ 
+ Run Length B(*) (Prefix, Range, Extra):
+ 257-264,   3- 10, 0
+ 265-268,  11- 18, 1
+ 269-272,  19- 34, 2
+ 273-276,  35- 66, 3
+ 277-280,  67-130, 4
+ 281-284, 131-258, 5
+ 285,     258|3-65538, 0|16
+
+The type of length table used will depend on the block type.
+* Fixed Huffman 2 and Dynamic Huffman 2 will use A.
+* Fixed Huffman and Dynamic Huffman will used B.
+** The encoding of symbol 285 will depend on the mode:
+*** Deflate Mode: 258, 0
+*** Deflate64 Mode: 3-65538, 16
+*** BTLZA Mode: 3-65538, 16
+** Symbols beyond 285 are not used.
+
+
+ Run Distance (Prefix, Range, Extra)
+  0- 3,     1-    4, 0
+  4/ 5,     5-    8, 1
+  6/ 7,     9-   16, 2
+  8/ 9,    17-   32, 3
+ 10/11,    33-   64, 4
+ 12/13,    65-  128, 5
+ 14/15,   129-  256, 6
+ 16/17,   257-  512, 7
+ 18/19,   513- 1024, 8
+ 20/21,  1025- 2048, 9
+ 22/23,  2049- 4096, 10
+ 24/25,  4097- 8192, 11
+ 26/27,  8193-16384, 12
+ 28/29, 16385-32768, 13
+ 30/31, 32769-65536, 14
+ -
+ 32/33,  65537-131072, 15
+ 34/35, 131073-262144, 16
+ ...
+ 
+ 
+ Extended Runs
+ 318-321,     1-    4, 0
+ 322/323,     5-    8, 1
+ 324/325,     9-   16, 2
+ 326/327,    17-   32, 3
+ 328/329,    33-   64, 4
+ 330/331,    65-  128, 5
+ 332/333,   129-  256, 6
+
+More Generalized Form of this scheme:
+ VLCA (Prefix, Range, Extra):
+  0- 3,     0-    3, 0
+  4/ 5,     4-    7, 1
+  6/ 7,     8-   15, 2
+  8/ 9,    16-   31, 3
+ 10/11,    32-   63, 4
+ 12/13,    64-  127, 5
+ 14/15,   128-  255, 6
+ 16/17,   256-  511, 7
+ 18/19,   512- 1023, 8
+ 20/21,  1024- 2047, 9
+ 22/23,  2048- 4095, 10
+ 24/25,  4096- 8191, 11
+ 26/27,  8192-16383, 12
+ 28/29, 16384-32767, 13
+ 30/31, 32768-65535, 14
+ -
+ 32/33,  65536-131071, 15
+ 34/35, 131072-262143, 16
+ ...
+ 
+ VLCB (Prefix, Range, Extra):
+  0- 7,   0-  7, 0
+  8-11,   8- 15, 1
+ 12-15,  16- 31, 2
+ 16-19,  32- 63, 3
+ 20-23,  64-127, 4
+ 24-27, 128-255, 5
+ 28-31, 256-511, 6
+ -
+ 32-33,  512-1023, 7
+ 34-35, 1024-2047, 8
+ ...
+
+ VLC-VLN (Prefix, Range, Extra):
+  0/1,      0-    1, 0 (Zero Run)
+  2,        2-    3, 1 (Zero Run)
+  3,        4-    7, 2 (Zero Run)
+  4,        8-   15, 3 (Zero Run)
+  5,       16-   31, 4 (Zero Run)
+  6,       32-   63, 5 (Zero Run)
+  7,       64-  127, 6 (Value)
+  8,      128-  255, 7 (Value)
+  9,      256-  511, 8
+ 10,      512- 1023, 9
+ 11,     1024- 2047, 10
+ 12,     2048- 4095, 11
+ 13,     4096- 8191, 12
+ 14,     8192-16383, 13
+ 15,    16384-32767, 14
+ -
+ 16,    32768- 65535, 15
+ 17,    65536-131071, 16
+ 18,   131072-262143, 17
+ ...
+
+Some values and arguments may have the sign folded into the LSB:
+* 0, -1, 1, -2, 2, -3, 3, -4, ...
+
+These cases will be called SVLCA and SVLCB.
+
+
+== LZ Compression ==
+
+Symbol Ranges
+* 0-255: Literal Byte Values
+* 256: End Of Block
+* 257-285: LZ Runs (Deflate and BTLZH/BTLZA Modes)
+* 286-317: LZ Runs (BTLZH/BTLZA)
+* 318-333: Extended Runs
+** 1: Prior Length and Distance
+** 2: Prior Length, Distance Follows
+** 3: Prior Distance, Length Follows
+* 334-365: (Possible) VLN Value
+
+
+=== (Possible/Undecided) VLN ===
+
+VLN are VLC-VLN values coded with a dedicated value range (as an optional feature).
+
+VLN values will be represented as-bytes with a format resembling UTF-8.
+
+* 0x80-0xBF: 0-63 (Single Byte)
+** Coded as a literal byte.
+* 0xC0-0xDF: 64-2047 (2-Byte)
+* 0xE0-0xEF: 2048-65535 (3-Byte)
+* 0xF0-0xF7: 65536-2M (4-Byte)
+* 0xF8-0xFB: 2M-64M (5-Byte)
+* 0xFC-0xFD: 64M-2G (6-Byte)
+* 0xFE: 2G-64G (7-Byte)
+
+Values < 64 will be coded as a literal byte, rather than a VLN value. VLN values < 64 will instead code a run of zeroes (0x80 bytes).
+
+
+== Arithmetic Coder ==
+
+To be filled in more once it stabilizes.
+
+Basically, it uses a bit-at-a-time encoder, with a variable context size.
+
+The context basically consists of the last N preceding bits, which is used as an index into a probabilities table. After encoding each bit, the context is shifted 1 bit and the encoded bit is added to the LSB (or MSB).
+
+This context is masked by the context-size, namely ((1<<n)-1), when accessing the model weights.
+
+Encoded data bits may be written in LSB-first or MSB-first ordering.
+
+There may be multiple models in use for different types of bits:
+* Model L, Literal Symbol Bits
+** Used for Literal Huffman Symbols
+* Model D, Distance Symbol Bits
+** Used for Distance Huffman Symbols
+* Model X, Extra Bits
+** Used for context-modeled extra-bits.
+* Model R, Raw Bits
+** Used for any non-categorized bits.
+** This is the sole context used in Arithmetic Mode A.
+* Model F, Fixed
+** Bits are always encoded with an equal probability.
+** Note, will only eat 1 bit from the range.
+
+
+=== Extra Bits ===
+
+For encoding extra-bits, the high order N bits are encoded using model X, and the low order bits with model F.
+
+If the number of extra bits is less than or equal to this N-bit cutoff, all the bits will use model X.
+
+For example, a 6-bit distance with a 10 extra bits and a 4 bit cutoff would be modeled as:
+* - - - D D D D D D F F F F F F X X X X - - -
+
+
+=== Range and Weights ===
+
+Logically, there will be several values in use:
+* min: Lower bound of the coder range
+* max: Upper bound of the coder range
+* range=max-min: Difference between the lower and upper bounds
+* val: Encoded value stream
+
+An 8-bit weight value will be used.
+
+A division bound will be calculated from the weight as:
+* bound=(range>>8)*weight.
+* Values above this point (rval>dval) will correspond to a logical 1 bit
+** min=bound+1;
+** weight=weight-(w>>5);
+* Values less than or equal to this value will be interpreted as 0
+** max=bound;
+** weight=weight+((256-w)>>5);
+
+
+Normalization happens when the high 8 bits of min and max become equal.
+
+For encoding:
+* Write the high 8 bits to the output;
+** WriteByte(min>>24);
+* min=(min<<8); max=(max<<8)|255;
+
+For decoding:
+* min=(min<<8); max=(max<<8)|255;
+* val=(val<<8)|ReadByte();
