@@ -67,3 +67,15 @@ ppss-yqao
 * * 1=Reserved
 * * 2=Half-Float
 * * 3=Float
+
+
+tst_btlzazip
+============
+
+Misc standalone compressor for a format known as BTLZA or BTLZH. This is an extended form of Deflate which has a bigger window and matches and can give better compression for some types of data.
+
+It exists as a compromise between Deflate and LZMA, capable of giving better compression than Deflate while faster to decode than LZMA.
+
+It has an optional arithmetic mode which may (sometimes) result in better compression (but does generally make it slower, so isn't generally used).
+
+The tool basically makes it standalone and hacks on a basic GZIP-like front-end.
