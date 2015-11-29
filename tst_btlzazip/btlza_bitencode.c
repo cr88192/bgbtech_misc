@@ -814,6 +814,13 @@ BGBBTJ_API int BTLZA_BitEnc_EncodeStreamXLvl(
 	BGBBTJ_BTLZA_Context *ctx;
 	int i;
 
+	if((lvl>>8)&BGBBTJ_ZFL_FASTENC)
+	{
+		i=BTLZA_BitEncF_EncodeStreamXLvl(
+			ibuf, obuf, isz, osz, lvl);
+		return(i);
+	}
+
 	ctx=BTLZA_AllocContext();
 	ctx->lz_sdepth=sd[lvl&15];
 //	ctx->lz_maxdist=262144-16384;

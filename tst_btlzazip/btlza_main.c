@@ -349,6 +349,7 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 		
 		break;
 	}
+	return(0);
 }
 
 int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
@@ -472,6 +473,26 @@ int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
 	return(0);
 }
 
+void help(char *pgm)
+{
+	fprintf(stderr, "usage: %s options* <infile> [-o <outfile>]\n", pgm);
+	fprintf(stderr,
+	"  -d           Decode (default is Encode)\n"
+	"  -dt          Decode Test (Compare with output file)\n"
+	"  -ds          Decode Sim (Decode but don't write output)\n"
+	"  -c           Write to stdout\n"
+	"  -v           Verbose\n"
+	"  -o <name>    Specify output file\n"
+	"  -1 .. -9     Compression Level\n"
+	"  -1a .. -9a   Compression Level (With Arithmetic, *)\n"
+	"  -fe          Use fast encoder\n"
+	"  -h           This message\n"
+	"  --help       This message\n"
+	"\n"
+	"*: The arithmetic coder only rarely gives good results\n"
+	);
+}
+
 int main(int argc, char *argv[])
 {
 	char tb[1024];
@@ -540,6 +561,14 @@ int main(int argc, char *argv[])
 			if(!strcmp(argv[i], "-9a"))
 				{ lvl=9; lvflag|=BGBBTJ_ZFL_ARITH; continue; }
 
+			if(!strcmp(argv[i], "-fe"))
+				{ lvflag|=BGBBTJ_ZFL_FASTENC; continue; }
+
+			if(!strcmp(argv[i], "-h"))
+				{ mode=-1; continue; }
+			if(!strcmp(argv[i], "--help"))
+				{ mode=-1; continue; }
+
 			fprintf(stderr, "unrecognized option %s\n", argv[i]);
 			continue;
 		}
@@ -550,6 +579,12 @@ int main(int argc, char *argv[])
 		}
 		fprintf(stderr, "too many names %s\n", argv[i]);
 		continue;
+	}
+	
+	if(mode==-1)
+	{
+		help(argv[0]);
+		return(0);
 	}
 	
 	lvl=lvl|(lvflag<<8);
@@ -627,4 +662,6 @@ int main(int argc, char *argv[])
 		BTLZA_DecodeFileStream(ifd, ofd, mode, flag);
 		return(0);
 	}
+	
+	return(-1);
 }

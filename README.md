@@ -12,6 +12,8 @@ support incremental encoding. This is a "too be done" thing.
 
 This supports being compiled as a VfW codec driver. This allows its use from other Windows applications while embedded in an AVI. AVI and a modified BMP will be the canonical formats for on-disk storage of BTIC1H video or images.
 
+BTIC1H is a modestly fast Blocky VQ codec using Adaptive Rice coding for things like color deltas and commands.
+
 
 tst_fastbcn
 ===========

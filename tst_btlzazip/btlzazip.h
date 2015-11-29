@@ -13,6 +13,7 @@
 #define BGBBTJ_ZFL_ESCBTLZH		8
 #define BGBBTJ_ZFL_ISBTLZH		16
 #define BGBBTJ_ZFL_ARITH		32
+#define BGBBTJ_ZFL_FASTENC		64
 
 #include <btlzazip_btlza.h>
 #include <btlzazip_auto.h>
