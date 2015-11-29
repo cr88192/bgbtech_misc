@@ -25,3 +25,14 @@ Markers:
 *** if(flags&1)
 **** name:ASCIIZ4; ASCII name padded to multiple of 4 bytes.
 **** This is the name of the original file which was compressed.
+* 0xEC, len:WORD40, data:BYTE[len-6]
+** Compressed data block, contents use a Faux Zlib header.
+** Basically like E1 but with a larger maximum block size.
+* 0xED, len:WORD40, tag:TWOCC, data:BYTE[len-8]
+** TWOCC Marker.
+** TWOCC='ST' means stored data.
+
+Possible:
+* TWOCC='BI'
+** Incremental Block
+** With this block, the end of the prior block serves as a preset dictionary.

@@ -1,0 +1,10 @@
+EXESUF=.elf
+BINSUF=.elf
+
+CC_OUTEXE=gcc -o 
+CC_OUTTOOL=gcc -o 
+
+# CFLAGS=/I. /DBGBBTJ_DLL /DBGBBTJ_NODY /Zi
+CFLAGS=-I. -DBGBBTJ_DLL -DBGBBTJ_NODY -g -O3
+
+include Makefile.inc

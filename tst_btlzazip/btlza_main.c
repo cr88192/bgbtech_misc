@@ -140,7 +140,7 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 	int szbuf1, szbuf2;
 	int t0, t1, t2, t3;
 	int i0, i1, i2, i3;
-	int aisz, aosz;
+	s64 aisz, aosz;
 	int i, j, k;
 
 	tbuf1=NULL;	szbuf1=1<<16;
@@ -150,7 +150,7 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 	aisz=0; aosz=0; t0=clock();
 	while(!feof(ifd))
 	{
-		if((flag&2) || (mode==2))
+		if((flag&2) || (mode==2) || (mode==3))
 		{
 			t1=clock();
 			t2=t1-t0;
@@ -158,7 +158,7 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 			fprintf(stderr, "%.2fKiB/%.2fKiB %.2f%% %.3fKiB/s\r",
 				aosz/1024.0, aisz/1024.0,
 				(100.0*aosz)/(aisz+1),
-				(aisz/1024.0)/((t2+1.0)/CLOCKS_PER_SEC));
+				(aosz/1024.0)/((t2+1.0)/CLOCKS_PER_SEC));
 
 //			if(mode==2)
 //				fprintf(stderr, "\n");
@@ -166,7 +166,14 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 	
 		i0=fgetc(ifd);
 		if(i0<0)
+		{
+			if(mode==3)
+			{
+				fseek(ifd, 0, 0);
+				continue;
+			}
 			break;
+		}
 		
 		if((i0==0xE1) || (i0==0xEC))
 		{
@@ -213,6 +220,13 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 			if(mode==1)
 			{
 				fwrite(tbuf2, 1, i, ofd);
+				aisz+=i1;
+				aosz+=i;
+				continue;
+			}
+
+			if(mode==3)
+			{
 				aisz+=i1;
 				aosz+=i;
 				continue;
@@ -344,12 +358,12 @@ int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
 		12, 14, 15, 15, 17,
 		18, 19, 19, 20, 20};
 
-	char tb[1024];
+	byte tb[1024];
 	byte *tbuf1, *tbuf2;
 	byte *ct;
 	int szbuf1, szbuf2;
 	int t0, t1, t2, t3;
-	int aisz, aosz;
+	s64 aisz, aosz;
 	int bsz, wsz;
 	int i, j, k, l;
 
@@ -477,6 +491,8 @@ int main(int argc, char *argv[])
 
 			if(!strcmp(argv[i], "-dt"))
 				{ mode=2; continue; }
+			if(!strcmp(argv[i], "-ds"))
+				{ mode=3; continue; }
 
 			if(!strcmp(argv[i], "-c"))
 				{ flag|=1; continue; }
@@ -568,10 +584,10 @@ int main(int argc, char *argv[])
 
 	if(ofn)
 	{
-		if(mode==2)
+		if((mode==2) || (mode==3))
 		{
 			ofd=fopen(ofn, "rb");
-		}else
+		}else if((mode==0) || (mode==1))
 		{
 			ofd=fopen(ofn, "wb");
 		}
@@ -606,7 +622,7 @@ int main(int argc, char *argv[])
 		return(0);
 	}
 
-	if((mode==1) || (mode==2))
+	if((mode==1) || (mode==2) || (mode==3))
 	{
 		BTLZA_DecodeFileStream(ifd, ofd, mode, flag);
 		return(0);
