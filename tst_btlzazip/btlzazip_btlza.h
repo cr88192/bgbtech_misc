@@ -45,11 +45,8 @@ u32 rmax;		//window upper range
 u32 rval;		//window decode value
 // u32 range;		//window decode range
 
+//Arithmetic State
 int wctx;
-// u16 *mdl_lit;		//literal model
-// u16 *mdl_dist;		//distances model
-// u16 *mdl_xbits;		//extra bits model
-// u16 *mdl_rbits;		//raw bits model
 btlza_prob *mdl_lit;		//literal model
 btlza_prob *mdl_dist;		//distances model
 btlza_prob *mdl_xbits;	//extra bits model
@@ -71,7 +68,7 @@ int ctxcnt_xbits;	//context mask (extra bits)
 int ctxbits_raw;	//context bits (raw bits)
 int ctxmask_raw;	//context mask (raw bits)
 
-//bitstream
+//Bitstream
 u32 bs_win;		//bit window
 int bs_pos;		//bit window position
 int bs_flags;	//decoder flags
@@ -80,14 +77,16 @@ int bs_flags;	//decoder flags
 int (*BS_ReadByte)(BGBBTJ_BTLZA_Context *ctx);
 int (*BS_DecodeSymbol)(BGBBTJ_BTLZA_Context *ctx);
 int (*BS_DecodeDistanceSymbol)(BGBBTJ_BTLZA_Context *ctx);
+int (*BS_DecodeClSymbol)(BGBBTJ_BTLZA_Context *ctx);
 int (*BS_ReadExtraNBits)(BGBBTJ_BTLZA_Context *ctx, int n);
 int (*BS_ReadNBits)(BGBBTJ_BTLZA_Context *ctx, int n);
 void (*BS_SkipNBits)(BGBBTJ_BTLZA_Context *ctx, int n);
 int (*BS_ReadBit)(BGBBTJ_BTLZA_Context *ctx);
 
 void (*BS_WriteByte)(BGBBTJ_BTLZA_Context *ctx, int val);
-int (*BS_EncodeSymbol)(BGBBTJ_BTLZA_Context *ctx, int sym);
-int (*BS_EncodeDistanceSymbol)(BGBBTJ_BTLZA_Context *ctx, int sym);
+void (*BS_EncodeSymbol)(BGBBTJ_BTLZA_Context *ctx, int sym);
+void (*BS_EncodeDistanceSymbol)(BGBBTJ_BTLZA_Context *ctx, int sym);
+void (*BS_EncodeClSymbol)(BGBBTJ_BTLZA_Context *ctx, int sym);
 int (*BS_WriteExtraNBits)(BGBBTJ_BTLZA_Context *ctx, int v, int n);
 int (*BS_WriteNBits)(BGBBTJ_BTLZA_Context *ctx, int v, int n);
 int (*BS_WriteBit)(BGBBTJ_BTLZA_Context *ctx, int v);
@@ -106,6 +105,30 @@ u16 bs_dtab_code[64];	//distance codes
 u16 bs_dtab_mask[64];	//distance code masks
 u16 bs_dtab_next[64];	//distance table code chains
 byte bs_dtab_len[64];	//distance code lengths
+
+
+//Ring Huff
+
+byte *bs_ltab_rhuff;	//literal table ring
+byte *bs_dtab_rhuff;	//distance table ring
+
+byte bs_rhtab_sz;		//size of allocated ringhuff
+byte bs_rhtab_n;		//number of ringhuff tables
+byte bs_rhtab_lrov;		//ringhuff literal rover
+byte bs_rhtab_drov;		//ringhuff distance rover
+
+u16 *bs_ltab_idx2[8];	//literal index table
+u16 *bs_dtab_idx2[8];	//distance index table
+
+u16 *bs_ltab_code2[8];	//literal codes
+u16 *bs_ltab_mask2[8];	//literal code masks
+u16 *bs_ltab_next2[8];	//literal table code chains
+byte *bs_ltab_len2[8];	//literal code lengths
+
+u16 *bs_dtab_code2[8];	//distance codes
+u16 *bs_dtab_mask2[8];	//distance code masks
+u16 *bs_dtab_next2[8];	//distance table code chains
+byte *bs_dtab_len2[8];	//distance code lengths
 
 //LZ77 state
 byte *lz_wbuf;		//window buffer

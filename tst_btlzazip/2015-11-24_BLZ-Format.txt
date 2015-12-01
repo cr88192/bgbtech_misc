@@ -12,7 +12,7 @@ Markers:
 * 0xE1, len:WORD24, data:BYTE[len-4]
 ** Compressed data block, contents use a Faux Zlib header.
 ** This is basically Zlib format, but with 9 for Deflate64, and A for BTLZH.
-** Each E1 block is encoded independently of the preceding blocks.
+** (Drop) Each E1 block is encoded independently of the preceding blocks.
 * 0xE3, len:WORD24, tag:TWOCC, data:BYTE[len-6]
 ** TWOCC Marker.
 ** TWOCC='ST' means stored data.
@@ -36,3 +36,5 @@ Possible:
 * TWOCC='BI'
 ** Incremental Block
 ** With this block, the end of the prior block serves as a preset dictionary.
+** (Change) This is now the default behavior.
+** Consider independent blocks as the special case.

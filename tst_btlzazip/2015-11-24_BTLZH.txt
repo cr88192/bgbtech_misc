@@ -173,23 +173,47 @@ TableID_Lit=7
 * Hc(4) bits: Number of header symbols (minus 4, 4-19).
 ** Hcl(Hc*3): Header symbol code lengths
 *** Encoded in the following order:
-**** 16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15
+**** 16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15, 19
 
 This is followed by the literal and distance tables, which are encoded as such:
 * 0-15: Code Length
 * 16: Rc(2), Repeat prior code length 3-7 times.
 * 17: Zc(3), Code length of 0 for 3 to 10 times.
 * 18: Zc(7), Code length of 0 for 11 to 138 times.
+* 19: Uc(1), Increment/Decrement prior length, 1=+1, 0=-1.
 
 
 ==== Dynamic Huffman Table 2 ====
 
 Similar to the normal Dynamic Huffman Table, except for a few sizes and similar:
 * Hr(3): Reserved, must be 0
+** Change: 0-3, RingHuff
 * Hl(7): Number of coded literal symbols (minus 257, 257-384).
 * Hd(6): Number coded distance symbols (minus 1, 1-64).
 * Hc(5): Number of header symbols (minus 4, 4-35).
 ** Hcl(Hc*3): Header symbol code lengths
+
+
+RingHuff:
+* 0: A single set of Huffman tables is used.
+* 1: 2 sets of Huffman tables are used
+* 2: 4 sets of Huffman tables are used
+* 3: 8 sets of Huffman tables are used
+
+The first tables are encoded as normal, followed by the RingHuff tables.
+
+Ring Huff Tables are encoded very similarly to the normal tables:
+* 0-15: Code Length
+* 16: Rc(2), Repeat prior code length 3-7 times.
+* 17: Zc(3), Skip for 3 to 10 times.
+* 18: Zc(7), Skip for 11 to 138 times.
+* 19: Uc(1), Increment/Decrement length from prior table, 1=+1, 0=-1.
+
+Skip copies the lengths from the prior table. These replace zero runs. Note that normally the zero/non-zero status needs to match for the symbol in all tables (in which case, the run of zeroes may be copied to a similar effect).
+
+If RingHuff is used, the tables are used in rotation, where each coded symbol advances to the next table, and then wraps around at the end. Length and distance tables are advanced independently, and each block starts back at table 0 for both length and distance.
+
+The idea of RingHuff is that it may be used to approximate fractional probabilities in many cases by dithering the desired symbol lengths.
 
 
 ==== Arithmetic Mode Header ====

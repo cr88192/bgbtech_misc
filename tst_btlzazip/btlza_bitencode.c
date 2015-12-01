@@ -262,7 +262,7 @@ void BTLZA_BitEnc_StatLZBuffer(BGBBTJ_BTLZA_Context *ctx,
 	byte *s;
 	int i;
 
-	for(i=0; i<320; i++)lstat[i]=0;
+	for(i=0; i<384; i++)lstat[i]=0;
 	for(i=0; i<64; i++)dstat[i]=0;
 
 	s=tbuf;
@@ -304,13 +304,101 @@ void BTLZA_BitEnc_StatLengths(BGBBTJ_BTLZA_Context *ctx,
 	}
 }
 
+void BTLZA_BitEnc_StatLengthsRh(BGBBTJ_BTLZA_Context *ctx,
+	byte *cl, byte *lcl, int nc, int *stat)
+{
+	int i, j, l;
+
+	l=-1;
+	for(i=0; i<nc;)
+	{
+//		for(j=0; ((i+j)<nc) && (cl[i+j]==0); j++);
+		for(j=0; ((i+j)<nc) && (cl[i+j]==lcl[i+j]); j++);
+		if(j>138)j=138;
+		if(j>10) { stat[18]++; i+=j; l=lcl[i-1]; continue; }
+		if(j>2) { stat[17]++; i+=j; l=lcl[i-1]; continue; }
+
+		for(j=0; ((i+j)<nc) && (cl[i+j]==l); j++);
+		if(j>6)j=6;
+		if(j>2) { stat[16]++; i+=j; continue; }
+
+#if 1
+		if((cl[i]==(lcl[i]+1)) || (cl[i]==(lcl[i]-1)))
+		{
+			stat[19]++;
+			l=cl[i++];
+			continue;
+		}
+#endif
+
+		l=cl[i++];
+		stat[l]++;
+	}
+}
+
 void BTLZA_BitEnc_EncodeSymbol(BGBBTJ_BTLZA_Context *ctx, int v)
 {
+	ctx->BS_EncodeSymbol(ctx, v);
+}
+
+void BTLZA_BitEnc_EncodeDistanceSymbol(BGBBTJ_BTLZA_Context *ctx, int v)
+{
+	ctx->BS_EncodeDistanceSymbol(ctx, v);
+}
+
+void BTLZA_BitEnc_EncodeClSymbol(BGBBTJ_BTLZA_Context *ctx, int v)
+{
+	ctx->BS_EncodeClSymbol(ctx, v);
+}
+
+void BTLZA_BitEnc_EncodeSymbolBasic(BGBBTJ_BTLZA_Context *ctx, int v)
+{
 	if(!ctx->bs_ltab_len[v])
-		fprintf(stderr, "BTLZA_BitEnc_EncodeSymbol: no symbol %d\n", v);
+		fprintf(stderr, "BTLZA_BitEnc_EncodeSymbolBasic: No Symbol %d\n", v);
 
 	BTLZA_BitEnc_WriteNBits(ctx, ctx->bs_ltab_code[v],
 		ctx->bs_ltab_len[v]);
+}
+
+void BTLZA_BitEnc_EncodeDistanceSymbolBasic(
+	BGBBTJ_BTLZA_Context *ctx, int v)
+{
+	if(!ctx->bs_dtab_len[v])
+		fprintf(stderr, "BTLZA_BitEnc_EncodeDistanceSymbol: "
+			"No symbol %d\n", v);
+
+	BTLZA_BitEnc_WriteNBits(ctx, ctx->bs_dtab_code[v],
+		ctx->bs_dtab_len[v]);
+}
+
+void BTLZA_BitEnc_EncodeSymbolRingHuff(
+	BGBBTJ_BTLZA_Context *ctx, int v)
+{
+	int rh;
+
+	rh=(ctx->bs_rhtab_lrov++)&7;
+
+	if(!ctx->bs_ltab_len2[rh][v])
+		fprintf(stderr, "BTLZA_BitEnc_EncodeSymbolRingHuff: "
+			"No symbol %d\n", v);
+
+	BTLZA_BitEnc_WriteNBits(ctx, ctx->bs_ltab_code2[rh][v],
+		ctx->bs_ltab_len2[rh][v]);
+}
+
+void BTLZA_BitEnc_EncodeDistanceSymbolRingHuff(
+	BGBBTJ_BTLZA_Context *ctx, int v)
+{
+	int rh;
+
+	rh=(ctx->bs_rhtab_drov++)&7;
+
+	if(!ctx->bs_dtab_len2[rh][v])
+		fprintf(stderr, "BTLZA_BitEnc_EncodeDistanceSymbolRingHuff: "
+			"No symbol %d\n", v);
+
+	BTLZA_BitEnc_WriteNBits(ctx, ctx->bs_dtab_code2[rh][v],
+		ctx->bs_dtab_len2[rh][v]);
 }
 
 void BTLZA_BitEnc_EncodeLengths(BGBBTJ_BTLZA_Context *ctx, byte *cl, int nc)
@@ -324,7 +412,7 @@ void BTLZA_BitEnc_EncodeLengths(BGBBTJ_BTLZA_Context *ctx, byte *cl, int nc)
 		if(j>10)
 		{
 			if(j>138)j=138;
-			BTLZA_BitEnc_EncodeSymbol(ctx, 18);
+			BTLZA_BitEnc_EncodeClSymbol(ctx, 18);
 			BTLZA_BitEnc_WriteNBits(ctx, j-11, 7);
 			i+=j;
 			l=0;
@@ -334,7 +422,7 @@ void BTLZA_BitEnc_EncodeLengths(BGBBTJ_BTLZA_Context *ctx, byte *cl, int nc)
 		}
 		if(j>2)
 		{
-			BTLZA_BitEnc_EncodeSymbol(ctx, 17);
+			BTLZA_BitEnc_EncodeClSymbol(ctx, 17);
 			BTLZA_BitEnc_Write3Bits(ctx, j-3);
 			i+=j;
 			l=0;
@@ -347,7 +435,7 @@ void BTLZA_BitEnc_EncodeLengths(BGBBTJ_BTLZA_Context *ctx, byte *cl, int nc)
 		if(j>2)
 		{
 			if(j>6)j=6;
-			BTLZA_BitEnc_EncodeSymbol(ctx, 16);
+			BTLZA_BitEnc_EncodeClSymbol(ctx, 16);
 			BTLZA_BitEnc_Write2Bits(ctx, j-3);
 			i+=j;
 
@@ -356,17 +444,88 @@ void BTLZA_BitEnc_EncodeLengths(BGBBTJ_BTLZA_Context *ctx, byte *cl, int nc)
 		}
 
 		l=cl[i++];
-		BTLZA_BitEnc_EncodeSymbol(ctx, l);
+		BTLZA_BitEnc_EncodeClSymbol(ctx, l);
 
 //		fprintf(stderr, "L%d ", l);
 
-		if((l<0) || (l>15))fprintf(stderr, "problem: bad code length noted\n");
+		if((l<0) || (l>15))fprintf(stderr,
+			"problem: bad code length noted\n");
+	}
+//	fprintf(stderr, "\n");
+}
+
+void BTLZA_BitEnc_EncodeLengthsRh(
+	BGBBTJ_BTLZA_Context *ctx, byte *cl, byte *lcl, int nc)
+{
+	int i, j, l;
+
+	i=0; l=-1;
+	while(i<nc)
+	{
+//		for(j=0; ((i+j)<nc) && (cl[i+j]==0); j++);
+		for(j=0; ((i+j)<nc) && (cl[i+j]==lcl[i+j]); j++);
+		if(j>10)
+		{
+			if(j>138)j=138;
+			BTLZA_BitEnc_EncodeClSymbol(ctx, 18);
+			BTLZA_BitEnc_WriteNBits(ctx, j-11, 7);
+			i+=j;
+			l=cl[i-1];
+
+//			fprintf(stderr, "Z%d ", j);
+			continue;
+		}
+		if(j>2)
+		{
+			BTLZA_BitEnc_EncodeClSymbol(ctx, 17);
+			BTLZA_BitEnc_Write3Bits(ctx, j-3);
+			i+=j;
+			l=cl[i-1];
+
+//			fprintf(stderr, "Z%d ", j);
+			continue;
+		}
+
+		for(j=0; ((i+j)<nc) && (cl[i+j]==l); j++);
+		if(j>2)
+		{
+			if(j>6)j=6;
+			BTLZA_BitEnc_EncodeClSymbol(ctx, 16);
+			BTLZA_BitEnc_Write2Bits(ctx, j-3);
+			i+=j;
+
+//			fprintf(stderr, "R%d ", j);
+			continue;
+		}
+
+#if 1
+		if((cl[i]==(lcl[i]+1)) ||
+			(cl[i]==(lcl[i]-1)))
+		{
+			j=cl[i]-lcl[i];
+			j=(j+1)>>1;
+			BTLZA_BitEnc_EncodeClSymbol(ctx, 19);
+			BTLZA_BitEnc_WriteBit(ctx, j);
+
+			l=cl[i++];
+			continue;
+		}
+#endif
+
+		l=cl[i++];
+		BTLZA_BitEnc_EncodeClSymbol(ctx, l);
+
+//		fprintf(stderr, "L%d ", l);
+
+		if((l<0) || (l>15))fprintf(stderr,
+			"problem: bad code length noted\n");
 	}
 //	fprintf(stderr, "\n");
 }
 
 void BTLZA_BitEnc_EncodeLZRun(BGBBTJ_BTLZA_Context *ctx, byte *cs)
 {
+	int rh;
 	int l, d;
 	int i, j, k;
 
@@ -404,14 +563,21 @@ void BTLZA_BitEnc_EncodeLZRun(BGBBTJ_BTLZA_Context *ctx, byte *cs)
 		k=btlza_dbase1[i]+(1<<btlza_dextra1[i]);
 		if((j>=btlza_dbase1[i]) && (j<k))
 		{
-			if(!ctx->bs_dtab_len[i])
-				fprintf(stderr, "BTLZA_BitEnc_EncodeLZRun: "
-					"no dist sym %d, %d\n", i, j);
+//			if(!ctx->bs_dtab_len[i])
+//				fprintf(stderr, "BTLZA_BitEnc_EncodeLZRun: "
+//					"no dist sym %d, %d\n", i, j);
 
-			BTLZA_BitEnc_WriteNBits(ctx, ctx->bs_dtab_code[i],
-				ctx->bs_dtab_len[i]);
+//			BTLZA_BitEnc_WriteNBits(ctx, ctx->bs_dtab_code[i],
+//				ctx->bs_dtab_len[i]);
 
-			BTLZA_BitEnc_WriteNBits(ctx, j-btlza_dbase1[i], btlza_dextra1[i]);
+//			rh=(ctx->bs_rhtab_drov++)&7;
+//			BTLZA_BitEnc_WriteNBits(ctx, ctx->bs_dtab_code2[rh][i],
+//				ctx->bs_dtab_len2[rh][i]);
+
+			BTLZA_BitEnc_EncodeDistanceSymbol(ctx, i);
+
+			BTLZA_BitEnc_WriteNBits(ctx,
+				j-btlza_dbase1[i], btlza_dextra1[i]);
 			break;
 		}
 	}
@@ -443,6 +609,13 @@ int BTLZA_BitEnc_EncodeBlockStatic(BGBBTJ_BTLZA_Context *ctx,
 	byte *ibuf, int isz, int last)
 {
 	int n;
+
+	ctx->BS_EncodeSymbol=
+		BTLZA_BitEnc_EncodeSymbolBasic;
+	ctx->BS_EncodeDistanceSymbol=
+		BTLZA_BitEnc_EncodeDistanceSymbolBasic;
+	ctx->BS_EncodeClSymbol=
+		BTLZA_BitEnc_EncodeSymbolBasic;
 
 	n=BTLZA_Encode_LZCompressBuffer(ctx,
 		ibuf, ctx->lz_tbuf, ctx->lz_mbuf, isz);
@@ -492,10 +665,17 @@ int BTLZA_BitEnc_EncodeBlockDynamic(BGBBTJ_BTLZA_Context *ctx,
 //	static byte *tbuf=NULL, *mbuf=NULL;
 //	static int tsz, msz;
 
-	int lstat[320], dstat[64], hstat[24];
-	byte lcl[320], dcl[64], hcl[24], hcl2[24];
+	int lstat[384], dstat[64], hstat[24];
+	byte lcl[384], dcl[64], hcl[24], hcl2[24];
 	int lc, dc, hc;
 	int i, j, n;
+
+	ctx->BS_EncodeSymbol=
+		BTLZA_BitEnc_EncodeSymbolBasic;
+	ctx->BS_EncodeDistanceSymbol=
+		BTLZA_BitEnc_EncodeDistanceSymbolBasic;
+	ctx->BS_EncodeClSymbol=
+		BTLZA_BitEnc_EncodeSymbolBasic;
 
 	n=BTLZA_Encode_LZCompressBuffer(ctx,
 		ibuf, ctx->lz_tbuf, ctx->lz_mbuf, isz);
@@ -579,16 +759,73 @@ int BTLZA_BitEnc_EncodeBlockDynamic(BGBBTJ_BTLZA_Context *ctx,
 	return(0);
 }
 
+int bgbrasw_log2f8(int val)
+{
+	int i, j, k;
+	
+	i=val<<8; j=0;
+	while(i>=512)
+		{ i=i>>1; j++; }
+	k=(j<<8)|(i&255);
+	return(k);
+}
+
+int bgbrasw_exp2f8(int val)
+{
+	int i, j, k;
+	
+	i=256|(val&255); j=(val>>8);
+	while(j--)
+		i=i<<1;
+	k=(i>>8);
+	return(k);
+}
+
+int bgbrasw_log2f12(int val)
+{
+	int i, j, k;
+	
+	i=val<<12; j=0;
+	while(i>=8192)
+		{ i=i>>1; j++; }
+	k=(j<<12)|(i&4095);
+	return(k);
+}
+
+int bgbrasw_exp2f12(int val)
+{
+	int i, j, k;
+	
+	i=4096|(val&4095); j=(val>>12);
+	while(j--)
+		i=i<<1;
+	k=(i>>12);
+	return(k);
+}
+
 int BTLZA_BitEnc_EncodeBlockBTLZH(BGBBTJ_BTLZA_Context *ctx,
 	byte *ibuf, int isz, int last)
 {
 	static int lorder[]={
-		16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15};
+		16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15, 19,
+		20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
-	int lstat[512], dstat[128], hstat[24];
-	byte lcl[512], dcl[128], hcl[24], hcl2[24];
+	int lstat[512], dstat[128], hstat[32];
+	int lstat2[512], dstat2[128], hstat2[32];
+	int lstat3[384], dstat3[64];
+//	byte lcl[512], dcl[128], hcl[24], hcl2[24];
+	byte lcl[384*8], dcl[64*8], hcl[32], hcl2[32];
+	int tlcl[384], tlcl2[384], tdcl[128];
+	int hnrh, tcnt;
 	int lc, dc, hc;
-	int i, j, n;
+	int i, j, k, n;
+
+	ctx->BS_EncodeSymbol=
+		BTLZA_BitEnc_EncodeSymbolBasic;
+	ctx->BS_EncodeDistanceSymbol=
+		BTLZA_BitEnc_EncodeDistanceSymbolBasic;
+	ctx->BS_EncodeClSymbol=
+		BTLZA_BitEnc_EncodeSymbolBasic;
 
 	n=BTLZA_Encode_LZCompressBuffer(ctx,
 		ibuf, ctx->lz_tbuf, ctx->lz_mbuf, isz);
@@ -603,22 +840,144 @@ int BTLZA_BitEnc_EncodeBlockBTLZH(BGBBTJ_BTLZA_Context *ctx,
 			dstat[i]++;
 	}
 
+#if 1
+	for(i=0; i<384; i++)
+		{ ctx->lzf_lstat[i]=lstat[i]; }
+	for(i=0; i<64; i++)
+		{ ctx->lzf_dstat[i]=dstat[i]; }
+#endif
+
+	hnrh=0;
+	if(ctx->bs_flags&BGBBTJ_ZFL_RINGHUFF)
+	{
+//		hnrh=4;
+		hnrh=2;
+		ctx->bs_rhtab_lrov=0;
+		ctx->bs_rhtab_drov=0;
+	}
+
 //	for(i=0; i<64; i++)
 //		dstat[i]++;
 
 //	BTLZA_BitEnc_BuildLengths(lstat, 288, lcl, 15);
 //	BTLZA_BitEnc_BuildLengths(dstat, 32, dcl, 15);
-	BTLZA_BitEnc_BuildLengthsAdjust(lstat, 320, lcl, 15);
-	BTLZA_BitEnc_BuildLengthsAdjust(dstat, 64, dcl, 15);
+//	BTLZA_BitEnc_BuildLengthsAdjust(lstat, 320, lcl, 15);
+//	BTLZA_BitEnc_BuildLengthsAdjust(dstat, 64, dcl, 15);
+
+//	for(i=0; i<384; i++)
+//		{ lstat2[i]=lstat[i]; }
+
+	if(hnrh>1)
+	{
+		ctx->BS_EncodeSymbol=
+			BTLZA_BitEnc_EncodeSymbolRingHuff;
+		ctx->BS_EncodeDistanceSymbol=
+			BTLZA_BitEnc_EncodeDistanceSymbolRingHuff;
+
+#if 1
+		tcnt=0;
+		for(i=0; i<384; i++)
+			tcnt+=lstat[i];
+
+		k=tcnt;
+		for(i=0; i<384; i++)
+		{
+			lstat3[i]=lstat[i]*(65536.0/(tcnt+1));
+//			if(lstat[i] && (lstat3[i]<256))
+//				lstat3[i]=256;
+			if(lstat[i] && !lstat3[i])
+				lstat3[i]=1;
+//			if(lstat[i] && (lstat3[i]<16))
+//				lstat3[i]=16;
+//			tlcl[i]=(16<<8)-bgbrasw_log2f8(lstat3[i]);
+//			tlcl[i]=bgbrasw_log2f8(lstat3[i]);
+			tlcl[i]=bgbrasw_log2f12(lstat3[i]);
+//			tlcl2[i]=0;
+//			tlcl2[i]=tlcl[i]&255;
+
+			k=k*65521;
+			tlcl2[i]=(k>>16)&255;
+		}
+#endif
+
+		for(i=0; i<384; i++)
+			{ lstat2[i]=lstat[i]; }
+		for(i=0; i<64; i++)
+			{ dstat2[i]=dstat[i]; }
+
+		for(i=0; i<hnrh; i++)
+		{
+#if 1
+			for(j=0; j<384; j++)
+			{
+//				k=tlcl[j]&255;
+//				k=tlcl[j]&4095;
+//				if((k<64) || (k>=192))
+//				if((k<96) || (k>=160))
+//				if((k<112) || (k>=144))
+//				if(1)
+//				if((k<96*16) || (k>=160*16))
+				if((k<85*16) || (k>=171*16))
+				{
+					lstat2[j]=lstat3[j];
+					continue;
+				}
+			
+				tlcl2[j]+=tlcl[j]&255;
+//				k=(tlcl[i]>>8)+(tlcl2[i]>>8);
+//				k=tlcl[i]+tlcl2[i];
+//				k=(tlcl[j]&(~255))+tlcl2[j];
+//				tlcl2[j]=tlcl2[j]&255;
+//				k=1<<k;
+//				k=k+(((i^j)&1)?32:(-32));
+//				k=k+(((i^j)&1)?16:(-16));
+				k=tlcl[j];
+//				k=k+(((i^j)&1)?512:(-512));
+//				k=k+(((i^j)&1)?1024:(-1024));
+				k=k+(((i^j)&1)?2048:(-2048));
+//				k=bgbrasw_exp2f8(k);
+				k=bgbrasw_exp2f12(k);
+				
+				lstat2[j]=(lstat3[j]+k)>>1;
+//				lstat2[j]=(3*lstat3[j]+k)>>2;
+//				lstat2[j]=lstat3[j];
+
+//				if(lstat[j] && !lstat2[j])
+//					lstat2[j]=1;
+			}
+
+//			for(i=0; i<64; i++)
+//				{ dstat2[i]=dstat[i]; }
+#endif
+
+			j=BTLZA_BitEnc_BuildLengthsAdjust(
+				lstat2, 384, lcl+i*384, 15);
+			j=BTLZA_BitEnc_BuildLengthsAdjust(
+				dstat2, 64, dcl+i*64, 15);
+
+#if 1
+//			for(j=0; j<320; j++)
+//				{ lstat2[i]+=lstat2[i]>>8; }
+			for(j=0; j<64; j++)
+				{ dstat2[i]+=dstat2[i]>>8; }
+#endif
+		}
+	}else
+	{
+		BTLZA_BitEnc_BuildLengthsAdjust(lstat, 384, lcl, 15);
+		BTLZA_BitEnc_BuildLengthsAdjust(dstat, 64, dcl, 15);
+	}
 
 	for(i=0; i<64; i++)if(dcl[i])break;
 	if(i==64)for(i=0; i<64; i++)dcl[i]=6;
 
-	for(lc=257; lc<320; lc++)
+//	for(lc=257; lc<320; lc++)
+	for(lc=257; lc<384; lc++)
 	{
-		for(i=lc; i<320; i++)
+//		for(i=lc; i<320; i++)
+		for(i=lc; i<384; i++)
 			if(lcl[i])break;
-		if(i==320)break;
+		if(i==384)break;
 	}
 
 	for(dc=1; dc<64; dc++)
@@ -629,25 +988,60 @@ int BTLZA_BitEnc_EncodeBlockBTLZH(BGBBTJ_BTLZA_Context *ctx,
 	}
 
 	for(i=0; i<24; i++)hstat[i]=0;
-	BTLZA_BitEnc_StatLengths(ctx, lcl, lc, hstat);
-	BTLZA_BitEnc_StatLengths(ctx, dcl, dc, hstat);
-//	BTLZA_BitEnc_BuildLengths(hstat, 24, hcl, 7);
-	BTLZA_BitEnc_BuildLengthsAdjust(hstat, 24, hcl, 7);
 
-	for(i=0; i<19; i++)hcl2[i]=hcl[lorder[i]];
-
-	for(hc=4; hc<19; hc++)
+	if(hnrh>1)
 	{
-		for(i=hc; i<19; i++)
+		BTLZA_BitEnc_StatLengths(ctx, lcl, lc, hstat);
+		BTLZA_BitEnc_StatLengths(ctx, dcl, dc, hstat);
+
+		for(i=1; i<hnrh; i++)
+		{
+			BTLZA_BitEnc_StatLengthsRh(ctx,
+				lcl+i*384, lcl+(i-1)*384, lc, hstat);
+			BTLZA_BitEnc_StatLengthsRh(ctx,
+				dcl+i*64, dcl+(i-1)*64, dc, hstat);
+		}
+	}else
+	{
+		BTLZA_BitEnc_StatLengths(ctx, lcl, lc, hstat);
+		BTLZA_BitEnc_StatLengths(ctx, dcl, dc, hstat);
+	}
+
+//	BTLZA_BitEnc_StatLengths(ctx, lcl, lc, hstat);
+//	BTLZA_BitEnc_StatLengths(ctx, dcl, dc, hstat);
+//	BTLZA_BitEnc_BuildLengths(hstat, 24, hcl, 7);
+	i=BTLZA_BitEnc_BuildLengthsAdjust(hstat, 24, hcl, 7);
+	if(i<0)
+	{
+		printf("BTLZA_BitEnc_EncodeBlockBTLZH: Build Length Error %d\n", i);
+		return(i);
+	}
+
+	for(i=0; i<24; i++)hcl2[i]=hcl[lorder[i]];
+
+	for(hc=4; hc<24; hc++)
+	{
+		for(i=hc; i<24; i++)
 			if(hcl2[i])break;
-		if(i==19)break;
+		if(i==24)break;
 	}
 
 	BTLZA_BitEnc_WriteBit(ctx, last);
 	BTLZA_BitEnc_Write2Bits(ctx, 3);
 	BTLZA_BitEnc_Write3Bits(ctx, 2);
 
-	BTLZA_BitEnc_Write3Bits(ctx, 0);
+	switch(hnrh)
+	{
+	case 0: case 1:	i=0; break;
+	case 2:				i=1; break;
+	case 4:				i=2; break;
+	case 8:				i=3; break;
+	default:			i=0; break;
+	}
+	BTLZA_BitEnc_Write3Bits(ctx, i);
+	
+//	BTLZA_BitEnc_Write3Bits(ctx, 0);
+//	BTLZA_BitEnc_Write3Bits(ctx, hnrh);
 
 	BTLZA_BitEnc_Write7Bits(ctx, lc-257);
 	BTLZA_BitEnc_Write6Bits(ctx, dc-1);
@@ -661,18 +1055,56 @@ int BTLZA_BitEnc_EncodeBlockBTLZH(BGBBTJ_BTLZA_Context *ctx,
 		ctx->bs_ltab_idx, ctx->bs_ltab_next);
 	if(j<0)return(j);
 
-	BTLZA_BitEnc_EncodeLengths(ctx, lcl, lc);
-	BTLZA_BitEnc_EncodeLengths(ctx, dcl, dc);
+//	BTLZA_BitEnc_EncodeLengths(ctx, lcl, lc);
+//	BTLZA_BitEnc_EncodeLengths(ctx, dcl, dc);
 
-	j=BTLZA_BitDec_SetupTable(lcl, lc,
-		ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
-		ctx->bs_ltab_idx, ctx->bs_ltab_next);
-	if(j<0)return(j);
+	if(hnrh>1)
+	{
+		BTLZA_BitEnc_EncodeLengths(ctx, lcl, lc);
+		BTLZA_BitEnc_EncodeLengths(ctx, dcl, dc);
 
-	j=BTLZA_BitDec_SetupTable(dcl, dc,
-		ctx->bs_dtab_code, ctx->bs_dtab_mask, ctx->bs_dtab_len,
-		ctx->bs_dtab_idx, ctx->bs_dtab_next);
-	if(j<0)return(j);
+		for(i=1; i<hnrh; i++)
+		{
+			BTLZA_BitEnc_EncodeLengthsRh(ctx,
+				lcl+i*384, lcl+(i-1)*384, lc);
+			BTLZA_BitEnc_EncodeLengthsRh(ctx,
+				dcl+i*64, dcl+(i-1)*64, dc);
+		}
+
+		BTLZA_BitDec_CheckSetupRingHuffTables(ctx, hnrh);
+
+		for(j=0; j<hnrh; j++)
+		{
+			i=BTLZA_BitDec_SetupTable(lcl+(j*384), lc,
+				ctx->bs_ltab_code2[j], ctx->bs_ltab_mask2[j],
+				ctx->bs_ltab_len2[j],
+				ctx->bs_ltab_idx2[j], ctx->bs_ltab_next2[j]);
+			if(i<0)
+				return(i);
+
+			i=BTLZA_BitDec_SetupTable(dcl+(j*64), dc,
+				ctx->bs_dtab_code2[j], ctx->bs_dtab_mask2[j],
+				ctx->bs_dtab_len2[j],
+				ctx->bs_dtab_idx2[j], ctx->bs_dtab_next2[j]);
+			if(i<0)
+				return(i);
+		}
+	}else
+	{
+		BTLZA_BitEnc_EncodeLengths(ctx, lcl, lc);
+		BTLZA_BitEnc_EncodeLengths(ctx, dcl, dc);
+
+		j=BTLZA_BitDec_SetupTable(lcl, lc,
+			ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
+			ctx->bs_ltab_idx, ctx->bs_ltab_next);
+		if(j<0)return(j);
+
+		j=BTLZA_BitDec_SetupTable(dcl, dc,
+			ctx->bs_dtab_code, ctx->bs_dtab_mask, ctx->bs_dtab_len,
+			ctx->bs_dtab_idx, ctx->bs_dtab_next);
+		if(j<0)return(j);
+	}
+
 
 	BTLZA_BitEnc_EncodeLZBuffer(ctx, ctx->lz_tbuf, ctx->lz_mbuf, n);
 
@@ -702,6 +1134,7 @@ int BTLZA_BitEnc_EncodeStream_I(BGBBTJ_BTLZA_Context *ctx,
 	byte *ibuf, byte *obuf, int isz, int osz)
 {
 	byte *s;
+	int tcnt;
 	int i, j, k;
 
 	ctx->BS_WriteByte=BTLZA_BitEnc_WriteByteBasic;
@@ -719,6 +1152,12 @@ int BTLZA_BitEnc_EncodeStream_I(BGBBTJ_BTLZA_Context *ctx,
 	if(ctx->bs_flags&BGBBTJ_ZFL_ARITH)
 	{
 		BTLZA_BitEnc_EncodeBeginArithmetic(ctx);
+	}
+
+	if(ctx->bs_flags&BGBBTJ_ZFL_PRELOAD)
+	{
+		k=ctx->lz_wsize;
+		BTLZA_Encode_UpdateWindowString(ctx, ibuf-k, k);
 	}
 
 	s=ibuf;
@@ -747,6 +1186,27 @@ int BTLZA_BitEnc_EncodeStream_I(BGBBTJ_BTLZA_Context *ctx,
 	j=BTLZA_BitEnc_EncodeBlock(ctx, s, i, 1);
 //	j=BTLZA_BitEnc_EncodeBlockStatic(ctx, s, i, 1);
 	if(j<0)return(j);
+
+#if 0
+	tcnt=0;
+	for(i=0; i<384; i++)
+		tcnt+=ctx->lzf_lstat[i];
+
+	for(i=0; i<384; i++)
+	{
+		if(!ctx->lzf_lstat[i])
+			continue;
+	
+		j=ctx->lzf_lstat[i]*(65536.0/(tcnt+1));
+		if(ctx->lzf_lstat[i] && !j)
+			j=1;
+		k=4096-bgbrasw_log2f8(j);
+		if(k>(4*256))
+			continue;
+		printf("%d:%.2f ", i, k/256.0);
+	}
+	printf("  \n");
+#endif
 
 	BTLZA_BitEnc_FlushBits(ctx);
 	return(ctx->ct-obuf);
@@ -798,19 +1258,25 @@ BGBBTJ_API int BTLZA_BitEnc_EncodeStream64Lvl(
 	return(i);
 }
 
+static int btlza_xlvl_sd[10]={
+	  0,   1,    4,   16,    64,
+	256, 256, 1024, 4096, 16384};
+static int btlza_xlvl_msz[10]={
+	256, 256, 256, 256, 4096,
+	16384, 32768, 32768, 65536, 65536};
+static int btlza_xlvl_wsz[10]={
+	1<<12, 1<<14, 1<<15, 1<<15, 1<<17,
+	1<<18, 1<<19, 1<<19, 1<<20, 1<<20};
+
+BGBBTJ_API int BTLZA_BitEnc_EncodeXLvlWinSize(int lvl)
+{
+	return(btlza_xlvl_wsz[lvl&15]);
+}
+
 BGBBTJ_API int BTLZA_BitEnc_EncodeStreamXLvl(
 	byte *ibuf, byte *obuf,
 	int isz, int osz, int lvl)
 {
-	static int sd[10]={
-		  0,   1,    4,   16,    64,
-		256, 256, 1024, 4096, 16384};
-	static int wsz[10]={
-		1<<12, 1<<14, 1<<15, 1<<15, 1<<17,
-		1<<18, 1<<19, 1<<19, 1<<20, 1<<20};
-	static int msz[10]={
-		256, 256, 256, 256, 4096,
-		16384, 32768, 32768, 65536, 65536};
 	BGBBTJ_BTLZA_Context *ctx;
 	int i;
 
@@ -822,7 +1288,7 @@ BGBBTJ_API int BTLZA_BitEnc_EncodeStreamXLvl(
 	}
 
 	ctx=BTLZA_AllocContext();
-	ctx->lz_sdepth=sd[lvl&15];
+	ctx->lz_sdepth=btlza_xlvl_sd[lvl&15];
 //	ctx->lz_maxdist=262144-16384;
 //	ctx->lz_maxlen=16384;
 //	ctx->lz_wsize=262144;
@@ -834,9 +1300,9 @@ BGBBTJ_API int BTLZA_BitEnc_EncodeStreamXLvl(
 //	ctx->lz_wsize=(1<<20);
 //	ctx->lz_wmask=(1<<20);
 
-	ctx->lz_maxlen=msz[lvl&15];
-	ctx->lz_wsize=wsz[lvl&15];
-	ctx->lz_wmask=wsz[lvl&15];
+	ctx->lz_maxlen=btlza_xlvl_msz[lvl&15];
+	ctx->lz_wsize=btlza_xlvl_wsz[lvl&15];
+	ctx->lz_wmask=btlza_xlvl_wsz[lvl&15]-1;
 	ctx->lz_maxdist=ctx->lz_wsize-ctx->lz_maxlen-4;
 
 	i=BTLZA_BitEnc_EncodeStream_I(ctx, ibuf, obuf, isz, osz);
@@ -935,12 +1401,16 @@ BGBBTJ_API int BTLZA_BitEnc_EncodeStreamXLvlZlTest(
 	int isz, int osz, int lvl)
 {
 	byte *tbuf;
+	int wsz;
 	int i, j, k, l;
 
 	i=BTLZA_BitEnc_EncodeStreamXLvlZl(ibuf, obuf, isz, osz, lvl);
 
-	tbuf=malloc(isz+32768);
-	BTLZA_DecodeStreamSzZl(obuf, tbuf, i, isz+32768, &j, 0);
+	wsz=BTLZA_BitEnc_EncodeXLvlWinSize(lvl);
+
+	tbuf=malloc(wsz+isz+32768);
+	memcpy(tbuf, ibuf-wsz, wsz);
+	BTLZA_DecodeStreamSzZl(obuf, tbuf+wsz, i, isz+32768, &j, 0);
 	if(j!=isz)
 	{
 		fprintf(stderr, "BTLZA_BitEnc_EncodeStream64LvlZlTest: "
@@ -950,7 +1420,7 @@ BGBBTJ_API int BTLZA_BitEnc_EncodeStreamXLvlZlTest(
 	}
 	
 	for(k=0; k<isz; k++)
-		if(tbuf[k]!=ibuf[k])
+		if(tbuf[wsz+k]!=ibuf[k])
 			break;
 	if(k<isz)
 	{

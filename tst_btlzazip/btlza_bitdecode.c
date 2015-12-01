@@ -257,6 +257,8 @@ int BTLZA_BitDec_DecodeSymbol(BGBBTJ_BTLZA_Context *ctx)
 	{ return(ctx->BS_DecodeSymbol(ctx)); }
 int BTLZA_BitDec_DecodeDistanceSymbol(BGBBTJ_BTLZA_Context *ctx)
 	{ return(ctx->BS_DecodeDistanceSymbol(ctx)); }
+int BTLZA_BitDec_DecodeClSymbol(BGBBTJ_BTLZA_Context *ctx)
+	{ return(ctx->BS_DecodeClSymbol(ctx)); }
 
 int BTLZA_BitDec_DecodeSymbolBasic(BGBBTJ_BTLZA_Context *ctx)
 {
@@ -354,6 +356,62 @@ int BTLZA_BitDec_DecodeDistanceSymbolBasic2(BGBBTJ_BTLZA_Context *ctx)
 	return(j);
 }
 
+#if 1
+int BTLZA_BitDec_DecodeSymbolRingHuff(BGBBTJ_BTLZA_Context *ctx)
+{
+	int rh;
+	int i, j;
+
+	rh=(ctx->bs_rhtab_lrov++)&7;
+
+//	i=BTLZA_BitDec_PeekWord(ctx);
+	i=(ctx->bs_win>>ctx->bs_pos)&65535;
+	j=ctx->bs_ltab_idx2[rh][i&0xFF];
+
+	if((i&ctx->bs_ltab_mask2[rh][j])==ctx->bs_ltab_code2[rh][j])
+	{
+		BTLZA_BitDec_SkipNBitsBasic(ctx, ctx->bs_ltab_len2[rh][j]);
+		return(j);
+	}else
+	{
+		j=ctx->bs_ltab_next2[rh][j];
+	}
+
+	while((i&ctx->bs_ltab_mask2[rh][j])!=ctx->bs_ltab_code2[rh][j])
+		j=ctx->bs_ltab_next2[rh][j];
+
+	BTLZA_BitDec_SkipNBitsBasic(ctx, ctx->bs_ltab_len2[rh][j]);
+	return(j);
+}
+
+int BTLZA_BitDec_DecodeDistanceSymbolRingHuff(BGBBTJ_BTLZA_Context *ctx)
+{
+	int rh;
+	int i, j;
+
+	rh=(ctx->bs_rhtab_drov++)&7;
+
+//	i=BTLZA_BitDec_PeekWord(ctx);
+	i=(ctx->bs_win>>ctx->bs_pos)&65535;
+	j=ctx->bs_dtab_idx2[rh][i&0xFF];
+
+	if((i&ctx->bs_dtab_mask2[rh][j])==ctx->bs_dtab_code2[rh][j])
+	{
+		BTLZA_BitDec_SkipNBitsBasic(ctx, ctx->bs_dtab_len2[rh][j]);
+		return(j);
+	}else
+	{
+		j=ctx->bs_dtab_next2[rh][j];
+	}
+
+	while((i&ctx->bs_dtab_mask2[rh][j])!=ctx->bs_dtab_code2[rh][j])
+		j=ctx->bs_dtab_next2[rh][j];
+
+	BTLZA_BitDec_SkipNBitsBasic(ctx, ctx->bs_dtab_len2[rh][j]);
+	return(j);
+}
+#endif
+
 int BTLZA_BitDec_DecodeSymbolReadBit(BGBBTJ_BTLZA_Context *ctx)
 {
 	int i, j, k, l;
@@ -428,7 +486,7 @@ int BTLZA_BitDec_DecodeCodeLengths(BGBBTJ_BTLZA_Context *ctx,
 	i=0; k=0;
 	while(i<ncl)
 	{
-		j=BTLZA_BitDec_DecodeSymbol(ctx);
+		j=BTLZA_BitDec_DecodeClSymbol(ctx);
 		if(j<0)return(j);
 
 		if(j<16)
@@ -460,6 +518,66 @@ int BTLZA_BitDec_DecodeCodeLengths(BGBBTJ_BTLZA_Context *ctx,
 			continue;
 		}
 
+		if(j==19)
+		{
+			j=BTLZA_BitDec_ReadBit(ctx)*2-1;
+			k=k+j;
+			cl[i++]=k;
+			continue;
+		}
+
+		return(-7);
+	}
+	return(0);
+}
+
+int BTLZA_BitDec_DecodeCodeLengthsRh(BGBBTJ_BTLZA_Context *ctx,
+	byte *cl, byte *lcl, int ncl)
+{
+	int i, j, k;
+
+	i=0; k=0;
+	while(i<ncl)
+	{
+		j=BTLZA_BitDec_DecodeClSymbol(ctx);
+		if(j<0)return(j);
+
+		if(j<16)
+		{
+			k=j;
+			cl[i++]=j;
+			continue;
+		}
+
+		if(j==16)
+		{
+			j=BTLZA_BitDec_Read2Bits(ctx)+3;
+			while(j--)cl[i++]=k;
+			continue;
+		}
+
+		if(j==17)
+		{
+			j=BTLZA_BitDec_Read3Bits(ctx)+3;
+			while(j--)
+				{ k=lcl[i]; cl[i++]=k; }
+			continue;
+		}
+		if(j==18)
+		{
+			j=BTLZA_BitDec_ReadNBits(ctx, 7)+11;
+			while(j--)
+				{ k=lcl[i]; cl[i++]=k; }
+			continue;
+		}
+
+		if(j==19)
+		{
+			j=BTLZA_BitDec_ReadBit(ctx)*2-1;
+			k=lcl[i]+j; cl[i++]=k;
+			continue;
+		}
+
 		return(-7);
 	}
 	return(0);
@@ -468,7 +586,7 @@ int BTLZA_BitDec_DecodeCodeLengths(BGBBTJ_BTLZA_Context *ctx,
 int BTLZA_BitDec_DecodeHeader(BGBBTJ_BTLZA_Context *ctx)
 {
 	static int lorder[]={
-		16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15};
+		16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15, 19};
 
 	byte hcl[32], lcl[512], dcl[32];
 	int hl, hd, hc;
@@ -477,6 +595,7 @@ int BTLZA_BitDec_DecodeHeader(BGBBTJ_BTLZA_Context *ctx)
 	hl=BTLZA_BitDec_ReadNBits(ctx, 5)+257;
 	hd=BTLZA_BitDec_ReadNBits(ctx, 5)+1;
 	hc=BTLZA_BitDec_ReadNBits(ctx, 4)+4;
+	ctx->bs_rhtab_n=0;	/* Narrow header can't use RingHuff */
 
 //	printf("%d %d %d\n", hl, hd, hc);
 
@@ -538,22 +657,118 @@ int BTLZA_BitDec_DecodeHeader(BGBBTJ_BTLZA_Context *ctx)
 	return(0);
 }
 
+int BTLZA_BitDec_CheckSetupRingHuffTables(
+	BGBBTJ_BTLZA_Context *ctx, int hnrh)
+{
+	int i, j, k;
+
+	if(hnrh>1)
+	{
+		if(hnrh>ctx->bs_rhtab_sz)
+		{
+			if(ctx->bs_ltab_rhuff)
+			{
+				free(ctx->bs_ltab_rhuff);
+				free(ctx->bs_dtab_rhuff);
+				ctx->bs_ltab_rhuff=NULL;
+				ctx->bs_dtab_rhuff=NULL;
+			}
+		}
+		
+		if(!ctx->bs_ltab_rhuff)
+		{
+			i=hnrh*(384*8)+(hnrh*512);
+			j=hnrh*(64*8)+(hnrh*512);
+			ctx->bs_ltab_rhuff=malloc(i);
+			ctx->bs_dtab_rhuff=malloc(j);
+			ctx->bs_rhtab_sz=hnrh;
+		}
+		
+		for(i=0; i<hnrh; i++)
+		{
+			ctx->bs_ltab_idx2[i]=(u16 *)(ctx->bs_ltab_rhuff+(i*512));
+			ctx->bs_dtab_idx2[i]=(u16 *)(ctx->bs_dtab_rhuff+(i*512));
+
+			ctx->bs_ltab_code2[i]=(u16 *)(ctx->bs_ltab_rhuff+
+				(hnrh*512)+(i*384*8)+(0*384));
+			ctx->bs_ltab_mask2[i]=(u16 *)(ctx->bs_ltab_rhuff+
+				(hnrh*512)+(i*384*8)+(2*384));
+			ctx->bs_ltab_next2[i]=(u16 *)(ctx->bs_ltab_rhuff+
+				(hnrh*512)+(i*384*8)+(4*384));
+			ctx->bs_ltab_len2[i]=(byte *)(ctx->bs_ltab_rhuff+
+				(hnrh*512)+(i*384*8)+(6*384));
+
+			ctx->bs_dtab_code2[i]=(u16 *)(ctx->bs_dtab_rhuff+
+				(hnrh*512)+(i*64*8)+(0*64));
+			ctx->bs_dtab_mask2[i]=(u16 *)(ctx->bs_dtab_rhuff+
+				(hnrh*512)+(i*64*8)+(2*64));
+			ctx->bs_dtab_next2[i]=(u16 *)(ctx->bs_dtab_rhuff+
+				(hnrh*512)+(i*64*8)+(4*64));
+			ctx->bs_dtab_len2[i]=(byte *)(ctx->bs_dtab_rhuff+
+				(hnrh*512)+(i*64*8)+(6*64));
+		}
+		for(; i<8; i++)
+		{
+			k=i&(hnrh-1);
+			ctx->bs_ltab_idx2[i]=ctx->bs_ltab_idx2[k];
+			ctx->bs_dtab_idx2[i]=ctx->bs_dtab_idx2[k];
+			ctx->bs_ltab_code2[i]=ctx->bs_ltab_code2[k];
+			ctx->bs_ltab_mask2[i]=ctx->bs_ltab_mask2[k];
+			ctx->bs_ltab_next2[i]=ctx->bs_ltab_next2[k];
+			ctx->bs_ltab_len2[i]=ctx->bs_ltab_len2[k];
+			ctx->bs_dtab_code2[i]=ctx->bs_dtab_code2[k];
+			ctx->bs_dtab_mask2[i]=ctx->bs_dtab_mask2[k];
+			ctx->bs_dtab_next2[i]=ctx->bs_dtab_next2[k];
+			ctx->bs_dtab_len2[i]=ctx->bs_dtab_len2[k];
+		}
+	}else
+	{
+		for(i=0; i<8; i++)
+		{
+			ctx->bs_ltab_idx2[i]=ctx->bs_ltab_idx;
+			ctx->bs_dtab_idx2[i]=ctx->bs_dtab_idx;
+			ctx->bs_ltab_code2[i]=ctx->bs_ltab_code;
+			ctx->bs_ltab_mask2[i]=ctx->bs_ltab_mask;
+			ctx->bs_ltab_next2[i]=ctx->bs_ltab_next;
+			ctx->bs_ltab_len2[i]=ctx->bs_ltab_len;
+			ctx->bs_dtab_code2[i]=ctx->bs_dtab_code;
+			ctx->bs_dtab_mask2[i]=ctx->bs_dtab_mask;
+			ctx->bs_dtab_next2[i]=ctx->bs_dtab_next;
+			ctx->bs_dtab_len2[i]=ctx->bs_dtab_len;
+		}
+	}
+	ctx->bs_rhtab_n=hnrh;
+}
 
 int BTLZA_BitDec_DecodeHeaderBTLZH(BGBBTJ_BTLZA_Context *ctx)
 {
 	static int lorder[]={
-		16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15};
+		16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15, 19,
+		20, 21, 22, 23, 24, 25, 26, 27};
 
-	byte hcl[64], lcl[512], dcl[64];
-	int hl, hd, hc, hr;
-	int i, j;
+//	byte hcl[64], lcl[512], dcl[64];
+	byte hcl[64], lcl[384*8], dcl[64*8];
+	int hl, hd, hc, hr, hnrh;
+	int i, j, k;
 
 	hr=BTLZA_BitDec_ReadNBits(ctx, 3);
-	if(hr!=0)return(-1);
+	if(hr!=0)
+	{
+		if(hr&4)
+			return(-1);
+		hnrh=1<<(hr&3);
+		ctx->bs_rhtab_lrov=0;
+		ctx->bs_rhtab_drov=0;
+	}else
+	{
+		hnrh=0;
+	}
 	
 	hl=BTLZA_BitDec_ReadNBits(ctx, 7)+257;
 	hd=BTLZA_BitDec_ReadNBits(ctx, 6)+1;
 	hc=BTLZA_BitDec_ReadNBits(ctx, 5)+4;
+
+	BTLZA_BitDec_CheckSetupRingHuffTables(ctx, hnrh);
 
 //	printf("%d %d %d\n", hl, hd, hc);
 
@@ -569,8 +784,8 @@ int BTLZA_BitDec_DecodeHeaderBTLZH(BGBBTJ_BTLZA_Context *ctx)
 		ctx->bs_ltab_idx, ctx->bs_ltab_next);
 	if(j<0)
 	{
-		printf("Codes Table Problem %d\n", j);
-		for(i=0; i<20; i++)printf("%d:%d ", i, hcl[i]);
+		printf("LZH Codes Table Problem %d\n", j);
+		for(i=0; i<24; i++)printf("%d:%d ", i, hcl[i]);
 		printf("\n");
 		return(j);
 	}
@@ -580,36 +795,57 @@ int BTLZA_BitDec_DecodeHeaderBTLZH(BGBBTJ_BTLZA_Context *ctx)
 	i=BTLZA_BitDec_DecodeCodeLengths(ctx, dcl, hd);
 	if(i<0)return(i);
 
-//	for(i=0; i<hl; i++)
-//	{
-//		j=lcl[i];
-//		if(j)printf("%d:%d ", i, j);
-//	}
-//	printf("\n");
-
-//	for(i=0; i<hd; i++)printf("%d:%d ", i, dcl[i]);
-//	printf("\n");
-
-	j=BTLZA_BitDec_SetupTable(lcl, hl,
-		ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
-		ctx->bs_ltab_idx, ctx->bs_ltab_next);
-	if(j<0)
+	if(hnrh>1)
 	{
-		printf("Literal/Length Table Problem %d\n", j);
-		for(i=0; i<hl; i++)printf("%d:%d ", i, lcl[i]);
-		printf("\n");
-		return(j);
-	}
+		for(j=1; j<hnrh; j++)
+		{
+			i=BTLZA_BitDec_DecodeCodeLengthsRh(ctx,
+				lcl+(j*384), lcl+((j-1)*384), hl);
+			if(i<0)return(i);
+			i=BTLZA_BitDec_DecodeCodeLengthsRh(ctx,
+				dcl+(j*64), dcl+((j-1)*64), hd);
+			if(i<0)return(i);
+		}
 
-	j=BTLZA_BitDec_SetupTable(dcl, hd,
-		ctx->bs_dtab_code, ctx->bs_dtab_mask, ctx->bs_dtab_len,
-		ctx->bs_dtab_idx, ctx->bs_dtab_next);
-	if(j<0)
+		for(j=0; j<hnrh; j++)
+		{
+			i=BTLZA_BitDec_SetupTable(lcl+(j*384), hl,
+				ctx->bs_ltab_code2[j], ctx->bs_ltab_mask2[j],
+				ctx->bs_ltab_len2[j],
+				ctx->bs_ltab_idx2[j], ctx->bs_ltab_next2[j]);
+			if(i<0)
+				return(i);
+
+			i=BTLZA_BitDec_SetupTable(dcl+(j*64), hd,
+				ctx->bs_dtab_code2[j], ctx->bs_dtab_mask2[j],
+				ctx->bs_dtab_len2[j],
+				ctx->bs_dtab_idx2[j], ctx->bs_dtab_next2[j]);
+			if(i<0)
+				return(i);
+		}
+	}else
 	{
-		printf("Distance Table Problem %d\n", j);
-		for(i=0; i<hd; i++)printf("%d:%d ", i, dcl[i]);
-		printf("\n");
-		return(j);
+		j=BTLZA_BitDec_SetupTable(lcl, hl,
+			ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
+			ctx->bs_ltab_idx, ctx->bs_ltab_next);
+		if(j<0)
+		{
+			printf("Literal/Length Table Problem %d\n", j);
+			for(i=0; i<hl; i++)printf("%d:%d ", i, lcl[i]);
+			printf("\n");
+			return(j);
+		}
+
+		j=BTLZA_BitDec_SetupTable(dcl, hd,
+			ctx->bs_dtab_code, ctx->bs_dtab_mask, ctx->bs_dtab_len,
+			ctx->bs_dtab_idx, ctx->bs_dtab_next);
+		if(j<0)
+		{
+			printf("Distance Table Problem %d\n", j);
+			for(i=0; i<hd; i++)printf("%d:%d ", i, dcl[i]);
+			printf("\n");
+			return(j);
+		}
 	}
 
 	return(0);
@@ -642,6 +878,9 @@ int BTLZA_BitDec_DecodeStaticHeader2(BGBBTJ_BTLZA_Context *ctx)
 		hl=384;
 		for(i=0; i<255; i++)lcl[i]=9;
 		for(i=256; i<384; i++)lcl[i]=8;
+		break;
+	case 7:
+		return(0);
 		break;
 	default:
 		return(-1);
@@ -912,6 +1151,26 @@ int BTLZA_BitDec_DecodeBlockData(BGBBTJ_BTLZA_Context *ctx)
 	else
 		{ ctx->lbase=btlza_lbase1; ctx->lextra=btlza_lextra1; }
 
+	if(ctx->bs_rhtab_n>1)
+	{
+		ctx->BS_DecodeSymbol=
+			BTLZA_BitDec_DecodeSymbolRingHuff;
+		ctx->BS_DecodeDistanceSymbol=
+			BTLZA_BitDec_DecodeDistanceSymbolRingHuff;
+	}else if(ctx->ctxbits)
+	{
+		ctx->BS_DecodeSymbol=
+			BTLZA_BitDec_DecodeSymbolBasic;
+		ctx->BS_DecodeDistanceSymbol=
+			BTLZA_BitDec_DecodeDistanceSymbolBasic;
+	}else
+	{
+		ctx->BS_DecodeSymbol=
+			BTLZA_BitDec_DecodeSymbolBasic2;
+		ctx->BS_DecodeDistanceSymbol=
+			BTLZA_BitDec_DecodeDistanceSymbolBasic2;
+	}
+
 	while(1)
 	{
 		i=BTLZA_BitDec_DecodeSymbol(ctx);
@@ -958,6 +1217,7 @@ int BTLZA_BitDec_DecodeHeaderBTArith(BGBBTJ_BTLZA_Context *ctx)
 	{
 		//Switch to Byte mode
 		BTLZA_BitArith_SetupEndDecode(ctx);
+		ctx->ctxbits=0;
 		if(ctx->bs_flags&BGBBTJ_ZFL_ESCAPE_FF)
 			{ ctx->BS_ReadByte=BTLZA_BitDec_ReadByteEscape; }
 		else
@@ -978,6 +1238,7 @@ int BTLZA_BitDec_DecodeHeaderBTArith(BGBBTJ_BTLZA_Context *ctx)
 		BTLZA_BitArith_SetupBeginDecode(ctx);
 		ctx->BS_ReadByte=BTLZA_BitDec_ReadByteArithLE;
 		ctx->BS_DecodeSymbol=BTLZA_BitDec_DecodeSymbolBasic;
+		ctx->BS_DecodeClSymbol=BTLZA_BitDec_DecodeSymbolBasic;
 		ctx->BS_DecodeDistanceSymbol=BTLZA_BitDec_DecodeDistanceSymbolBasic;
 
 		ctx->bs_win=0;
@@ -1118,6 +1379,7 @@ int BTLZA_BitDec_DecodeStreamSz(BGBBTJ_BTLZA_Context *ctx,
 	}
 	
 	ctx->BS_DecodeSymbol=BTLZA_BitDec_DecodeSymbolBasic2;
+	ctx->BS_DecodeClSymbol=BTLZA_BitDec_DecodeSymbolBasic2;
 	ctx->BS_DecodeDistanceSymbol=BTLZA_BitDec_DecodeDistanceSymbolBasic2;
 	ctx->BS_ReadExtraNBits=BTLZA_BitDec_ReadExtraNBitsBasic;
 	ctx->BS_ReadNBits=BTLZA_BitDec_ReadNBitsBasic;

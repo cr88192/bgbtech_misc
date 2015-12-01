@@ -14,6 +14,8 @@
 #define BGBBTJ_ZFL_ISBTLZH		16
 #define BGBBTJ_ZFL_ARITH		32
 #define BGBBTJ_ZFL_FASTENC		64
+#define BGBBTJ_ZFL_RINGHUFF		128
+#define BGBBTJ_ZFL_PRELOAD		256
 
 #include <btlzazip_btlza.h>
 #include <btlzazip_auto.h>

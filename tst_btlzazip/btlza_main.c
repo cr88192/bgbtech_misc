@@ -136,8 +136,10 @@ void btlza_free(void *ptr)
 int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 {
 	byte tb[4096];
-	byte *tbuf1, *tbuf2, *tbuf3;
+	byte *tbuf1, *tbuf2, *tbuf3, *tbuf4;
+	byte *tbufe;
 	int szbuf1, szbuf2;
+	int blsz, wisz;
 	int t0, t1, t2, t3;
 	int i0, i1, i2, i3;
 	s64 aisz, aosz;
@@ -145,7 +147,7 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 
 	tbuf1=NULL;	szbuf1=1<<16;
 	tbuf2=NULL;	szbuf2=1<<24;
-	tbuf3=NULL;
+	tbuf3=NULL; tbufe=NULL;
 
 	aisz=0; aosz=0; t0=clock();
 	while(!feof(ifd))
@@ -206,10 +208,14 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 			fread(tbuf1, 1, i2, ifd);
 			
 			if(!tbuf2)
-				{ tbuf2=malloc(szbuf2); }
+				{ tbuf2=malloc(szbuf2); tbufe=NULL; }
+			if(tbufe)
+				{ memcpy(tbuf2, tbufe-wisz, wisz); }
+			tbuf4=tbuf2+wisz;
 			
 //			i=BTLZA_DecodeStreamZl(tbuf1, tbuf2, szbuf1, szbuf2);
-			j=BTLZA_DecodeStreamSzZl(tbuf1, tbuf2, i2, szbuf2, &i, 0);
+//			j=BTLZA_DecodeStreamSzZl(tbuf1, tbuf2, i2, szbuf2, &i, 0);
+			j=BTLZA_DecodeStreamSzZl(tbuf1, tbuf4, i2, szbuf2, &i, 0);
 			if(j<0)
 			{
 				fprintf(stderr, "BTLZA_DecodeFileStream: "
@@ -217,9 +223,12 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 				break;
 			}
 			
+//			tbufe=tbuf2+i;
+			tbufe=tbuf4+i;
+			
 			if(mode==1)
 			{
-				fwrite(tbuf2, 1, i, ofd);
+				fwrite(tbuf4, 1, i, ofd);
 				aisz+=i1;
 				aosz+=i;
 				continue;
@@ -241,7 +250,7 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 				aisz+=i1;
 				aosz+=i;
 				
-				if(!memcmp(tbuf2, tbuf3, i))
+				if(!memcmp(tbuf4, tbuf3, i))
 				{
 //					fprintf(stderr, "Match %d bytes\n", i);
 					continue;
@@ -250,10 +259,10 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 				fprintf(stderr, "\n");
 				
 				for(j=0; j<i; j++)
-					if(tbuf2[j]!=tbuf3[j])
+					if(tbuf4[j]!=tbuf3[j])
 						break;
 				fprintf(stderr, "%d/%d: %02X!=%02X\n",
-					j, i, tbuf2[j], tbuf3[j]);
+					j, i, tbuf4[j], tbuf3[j]);
 				continue;
 			}
 
@@ -266,6 +275,8 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 			i1=(i1<<8)|fgetc(ifd);
 			i1=(i1<<8)|fgetc(ifd);
 //			fread(tb+4, 1, i1-4, ifd);
+
+			if(i1<0)break;
 
 			if(!tbuf1 || (i1>szbuf1))
 			{
@@ -286,6 +297,71 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 					continue;
 				}
 			}
+
+			if((tbuf1[4]=='B') && (tbuf1[5]=='I'))
+			{
+				if(!tbuf2)
+					{ tbuf2=malloc(szbuf2); }			
+				if(tbufe)
+					{ memcpy(tbuf2, tbufe-wisz, wisz); }
+				tbuf4=tbuf2+wisz;
+			
+				i2=i1-6;
+			
+//				i=BTLZA_DecodeStreamZl(tbuf1, tbuf2, szbuf1, szbuf2);
+				j=BTLZA_DecodeStreamSzZl(
+					tbuf1+6, tbuf4, i2, szbuf2, &i, 0);
+				if(j<0)
+				{
+					fprintf(stderr, "BTLZA_DecodeFileStream: "
+						"Stream Error %d\n", j);
+					break;
+				}
+			
+				tbufe=tbuf4+i;
+
+				if(mode==1)
+				{
+					fwrite(tbuf4, 1, i, ofd);
+					aisz+=i1;
+					aosz+=i;
+					continue;
+				}
+
+				if(mode==3)
+				{
+					aisz+=i1;
+					aosz+=i;
+					continue;
+				}
+
+				if(mode==2)
+				{
+					if(!tbuf3)
+						{ tbuf3=malloc(szbuf2); }
+					fread(tbuf3, 1, i, ofd);
+
+					aisz+=i1;
+					aosz+=i;
+
+					if(!memcmp(tbuf4, tbuf3, i))
+					{
+//						fprintf(stderr, "Match %d bytes\n", i);
+						continue;
+					}
+
+					fprintf(stderr, "\n");
+				
+					for(j=0; j<i; j++)
+						if(tbuf4[j]!=tbuf3[j])
+							break;
+					fprintf(stderr, "%d/%d: %02X!=%02X\n",
+						j, i, tbuf4[j], tbuf3[j]);
+					continue;
+				}
+
+				continue;
+			}
 			
 			continue;
 		}
@@ -301,7 +377,10 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 			if(	(tb[4]=='B') && (tb[5]=='T') &&
 				(tb[6]=='L') && (tb[7]=='Z'))
 			{
-				szbuf2=1<<tb[10];
+//				szbuf2=1<<tb[10];
+				blsz=1<<tb[10];
+				wisz=1<<tb[11];
+				szbuf2=blsz+wisz;
 				tbuf2=realloc(tbuf2, szbuf2);
 			}
 			continue;
@@ -360,12 +439,13 @@ int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
 		18, 19, 19, 20, 20};
 
 	byte tb[1024];
-	byte *tbuf1, *tbuf2;
+	byte *tbuf1, *tbuf2, *tbuf3;
 	byte *ct;
 	int szbuf1, szbuf2;
 	int t0, t1, t2, t3;
 	s64 aisz, aosz;
-	int bsz, wsz;
+	int bsz, wsz, bsz2, wsz2;
+	int lbok;
 	int i, j, k, l;
 
 	wsz=lwsz[lvl&15];
@@ -397,11 +477,15 @@ int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
 
 	fwrite(tb, 1, k, ofd);
 
-	szbuf1=1<<bsz;
+	bsz2=1<<bsz;
+	wsz2=1<<wsz;
+	szbuf1=bsz2+wsz2;
 	szbuf2=1<<(bsz+1);
 	tbuf1=malloc(szbuf1);
 	tbuf2=malloc(szbuf2);
+	tbuf3=tbuf1+wsz2;
 	aisz=0; aosz=0;
+	lbok=0;
 
 	t0=clock();
 	while(!feof(ifd))
@@ -418,10 +502,13 @@ int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
 		}
 	
 		i=1<<bsz;
-		j=fread(tbuf1, 1, i, ifd);
+		j=fread(tbuf3, 1, i, ifd);
 		if(j<=0)break;
-//		k=BTLZA_BitEnc_EncodeStreamXLvlZl(tbuf1, tbuf2, j, szbuf2, lvl);
-		k=BTLZA_BitEnc_EncodeStreamXLvlZlTest(tbuf1, tbuf2, j, szbuf2, lvl);
+
+		l=lvl;
+		if(lbok)l|=(BGBBTJ_ZFL_PRELOAD<<8);
+//		k=BTLZA_BitEnc_EncodeStreamXLvlZl(tbuf3, tbuf2, j, szbuf2, lvl);
+		k=BTLZA_BitEnc_EncodeStreamXLvlZlTest(tbuf3, tbuf2, j, szbuf2, l);
 
 		if((k<0) || (k>=(j+2)))
 		{
@@ -431,7 +518,7 @@ int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
 				fputc(0xE3, ofd);	fputc(l>>16, ofd);
 				fputc(l>> 8, ofd);	fputc(l    , ofd);
 				fputc('S'  , ofd);	fputc('T'  , ofd);
-				fwrite(tbuf1, 1, j, ofd);
+				fwrite(tbuf3, 1, j, ofd);
 			}else
 			{
 				l=j+8;
@@ -439,7 +526,7 @@ int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
 				fputc(l>>24, ofd);	fputc(l>>16, ofd);
 				fputc(l>> 8, ofd);	fputc(l    , ofd);
 				fputc('S'  , ofd);	fputc('T'  , ofd);
-				fwrite(tbuf1, 1, j, ofd);
+				fwrite(tbuf3, 1, j, ofd);
 			}
 
 			aisz+=j;		aosz+=l;
@@ -461,6 +548,10 @@ int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
 			fwrite(tbuf2, 1, k, ofd);
 		}
 		
+		/* preload dictionary for subsequent block */
+		memcpy(tbuf1, tbuf3+j-wsz2, wsz2);
+		lbok=1;
+
 		aisz+=j;
 		aosz+=l;
 	}
@@ -486,6 +577,7 @@ void help(char *pgm)
 	"  -1 .. -9     Compression Level\n"
 	"  -1a .. -9a   Compression Level (With Arithmetic, *)\n"
 	"  -fe          Use fast encoder\n"
+	"  -rh          Use RingHuff encoding\n"
 	"  -h           This message\n"
 	"  --help       This message\n"
 	"\n"
@@ -563,6 +655,8 @@ int main(int argc, char *argv[])
 
 			if(!strcmp(argv[i], "-fe"))
 				{ lvflag|=BGBBTJ_ZFL_FASTENC; continue; }
+			if(!strcmp(argv[i], "-rh"))
+				{ lvflag|=BGBBTJ_ZFL_RINGHUFF; continue; }
 
 			if(!strcmp(argv[i], "-h"))
 				{ mode=-1; continue; }

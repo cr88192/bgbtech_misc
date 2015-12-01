@@ -590,5 +590,10 @@ BGBBTJ_API int BTLZA_BitEncF_EncodeStreamXLvlZlc(
 
 	j=BTLZA_BitEncF_EncodeStreamXLvl(ibuf, obuf+1, isz, osz-1, lvl);
 	obuf[0]=0x8A;	
+
+	k=(obuf[0]<<8)+obuf[1];
+	if(!(k%31))
+		obuf[0]=0xBA;
+
 	return(j+1);
 }
