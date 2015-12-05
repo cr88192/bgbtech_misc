@@ -17,6 +17,12 @@
 #define BGBBTJ_ZFL_RINGHUFF		128
 #define BGBBTJ_ZFL_PRELOAD		256
 
+#ifdef _MSC_VER
+#define force_inline __forceinline
+#else
+#define force_inline
+#endif
+
 #include <btlzazip_btlza.h>
 #include <btlzazip_auto.h>
 

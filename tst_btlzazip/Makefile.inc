@@ -6,6 +6,7 @@ SRCS = \
 	btlza_bitstream.c	\
 	btlza_decode.c		\
 	btlza_encode.c		\
+	bipro_merge0.c		\
 	btlza_main.c
 
 HDRS = btlzazip_auto.h

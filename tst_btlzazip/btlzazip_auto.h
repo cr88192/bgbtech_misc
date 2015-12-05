@@ -16,7 +16,9 @@ BGBBTJ_API int BTLZA_BitEncF_EncodeStreamXLvlZlc(byte *ibuf, byte *obuf, int isz
 //AHSRC:btlza_bitdecode.c
 int BTLZA_BitDec_TransposeByte(int v);
 int BTLZA_BitDec_TransposeWord(int v);
-int BTLZA_BitDec_SetupTable(byte *cl, int ncl,u16 *tc, u16 *tm, byte *tl, u16 *ti, u16 *tn);
+int BTLZA_BitDec_DecodeSymbolPartBits(int bits, int nbits, u16 *tc, u16 *tm, byte *tl, u32 *ti, u16 *tn);
+int BTLZA_BitDec_SetupTable(byte *cl, int ncl,u16 *tc, u16 *tm, byte *tl, u32 *ti, u16 *tn);
+int BTLZA_BitDec_SetupTableI(byte *cl, int ncl,u16 *tc, u16 *tm, byte *tl, u32 *ti, u16 *tn, int flag);
 int BTLZA_BitDec_SetupStatic(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_DecodeSymbol(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_DecodeDistanceSymbol(BGBBTJ_BTLZA_Context *ctx);
@@ -30,6 +32,7 @@ int BTLZA_BitDec_DecodeDistanceSymbolRingHuff(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_DecodeSymbolReadBit(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_DecodeDistanceSymbolReadBit(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_DecodeDistance(BGBBTJ_BTLZA_Context *ctx);
+int BTLZA_BitDec_DecodeDistanceBasic2(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_DecodeCodeLengths(BGBBTJ_BTLZA_Context *ctx,byte *cl, int ncl);
 int BTLZA_BitDec_DecodeCodeLengthsRh(BGBBTJ_BTLZA_Context *ctx,byte *cl, byte *lcl, int ncl);
 int BTLZA_BitDec_DecodeHeader(BGBBTJ_BTLZA_Context *ctx);
@@ -37,7 +40,14 @@ int BTLZA_BitDec_CheckSetupRingHuffTables(BGBBTJ_BTLZA_Context *ctx, int hnrh);
 int BTLZA_BitDec_DecodeHeaderBTLZH(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_DecodeStaticHeader2(BGBBTJ_BTLZA_Context *ctx);
 void BTLZA_BitDec_MemCpy(byte *dst, byte *src, int len);
+void BTLZA_BitDec_MemCpy(byte *dst, byte *src, int len);
+void BTLZA_BitDec_MemCpy(byte *dst, byte *src, int len);
+int BTLZA_BitDec_DecodeRunLzMatch(BGBBTJ_BTLZA_Context *ctx, int sym);
+int BTLZA_BitDec_DecodeRunExtMatch(BGBBTJ_BTLZA_Context *ctx, int sym);
 int BTLZA_BitDec_DecodeRun(BGBBTJ_BTLZA_Context *ctx, int sym);
+int BTLZA_BitDec_DecodeRunBasic2(BGBBTJ_BTLZA_Context *ctx, int sym);
+int BTLZA_BitDec_DecodeBlockDataI(BGBBTJ_BTLZA_Context *ctx);
+int BTLZA_BitDec_DecodeBlockDataBasic2I(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_DecodeBlockData(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_AlignBitsEnd(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_BitDec_DecodeHeaderBTArith(BGBBTJ_BTLZA_Context *ctx);
@@ -215,6 +225,7 @@ int BTLZA_Encode_CheckAllocWindow(BGBBTJ_BTLZA_Context *ctx);
 int BTLZA_Encode_EncodeStream_I(BGBBTJ_BTLZA_Context *ctx,byte *ibuf, byte *obuf, int isz, int osz);
 int BTLZA_Encode_EncodeStreamLvl(byte *ibuf, byte *obuf,int isz, int osz, int l);
 int BTLZA_Encode_EncodeStreamLvlTest(byte *ibuf, byte *obuf,int isz, int osz, int lvl);
+//AHSRC:bipro_merge0.c
 //AHSRC:btlza_main.c
 void BGBBTJ_BufPNG_DataAdler32_Step16(byte *buf, int *rs1, int *rs2);
 u32 BGBBTJ_BufPNG_DataAdler32(void *buf, int sz, u32 lcrc);

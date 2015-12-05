@@ -149,6 +149,11 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 	tbuf2=NULL;	szbuf2=1<<24;
 	tbuf3=NULL; tbufe=NULL;
 
+	if(mode==3)
+	{
+		BIPRO_ProfilerSetActive(1);
+	}
+
 	aisz=0; aosz=0; t0=clock();
 	while(!feof(ifd))
 	{
@@ -204,14 +209,14 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 			i2=i1-4;
 			if(i0==0xEC)
 				i2=i1-6;
-			
-			fread(tbuf1, 1, i2, ifd);
-			
+						
 			if(!tbuf2)
 				{ tbuf2=malloc(szbuf2); tbufe=NULL; }
 			if(tbufe)
 				{ memcpy(tbuf2, tbufe-wisz, wisz); }
 			tbuf4=tbuf2+wisz;
+
+			fread(tbuf1, 1, i2, ifd);
 			
 //			i=BTLZA_DecodeStreamZl(tbuf1, tbuf2, szbuf1, szbuf2);
 //			j=BTLZA_DecodeStreamSzZl(tbuf1, tbuf2, i2, szbuf2, &i, 0);
@@ -289,6 +294,21 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 			
 			if((tbuf1[4]=='S') && (tbuf1[5]=='T'))
 			{
+				if(!tbuf2)
+					{ tbuf2=malloc(szbuf2); }
+				i2=i1-6;
+				if(i2>=wisz)
+				{
+					memcpy(tbuf2, tbuf1+i1-wisz, wisz);
+					tbufe=tbuf2+wisz;
+				}else
+				{
+					if(tbufe)
+						{ memcpy(tbuf2, tbufe-(wisz-i2), wisz-i2); }
+					memcpy(tbuf2+(wisz-i2), tbuf1+6, i2);
+					tbufe=tbuf2+wisz;
+				}
+
 				if(mode==1)
 				{
 					fwrite(tbuf1+6, 1, i1-6, ofd);
@@ -296,6 +316,10 @@ int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag)
 					aosz+=i1-6;
 					continue;
 				}
+
+				aisz+=i1;
+				aosz+=i1-6;
+				continue;
 			}
 
 			if((tbuf1[4]=='B') && (tbuf1[5]=='I'))

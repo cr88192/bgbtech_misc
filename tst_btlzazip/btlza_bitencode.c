@@ -815,8 +815,8 @@ int BTLZA_BitEnc_EncodeBlockBTLZH(BGBBTJ_BTLZA_Context *ctx,
 	int lstat3[384], dstat3[64];
 //	byte lcl[512], dcl[128], hcl[24], hcl2[24];
 	byte lcl[384*8], dcl[64*8], hcl[32], hcl2[32];
-	int tlcl[384], tlcl2[384], tdcl[128];
-	int hnrh, tcnt;
+	int tlcl[384], tlcl2[384], tdcl[64];
+	int hnrh, tcnt, tdcnt, hseed;
 	int lc, dc, hc;
 	int i, j, k, n;
 
@@ -878,13 +878,14 @@ int BTLZA_BitEnc_EncodeBlockBTLZH(BGBBTJ_BTLZA_Context *ctx,
 		tcnt=0;
 		for(i=0; i<384; i++)
 			tcnt+=lstat[i];
+		tdcnt=0;
+		for(i=0; i<64; i++)
+			tdcnt+=dstat[i];
 
 		k=tcnt;
 		for(i=0; i<384; i++)
 		{
 			lstat3[i]=lstat[i]*(65536.0/(tcnt+1));
-//			if(lstat[i] && (lstat3[i]<256))
-//				lstat3[i]=256;
 			if(lstat[i] && !lstat3[i])
 				lstat3[i]=1;
 //			if(lstat[i] && (lstat3[i]<16))
@@ -898,6 +899,18 @@ int BTLZA_BitEnc_EncodeBlockBTLZH(BGBBTJ_BTLZA_Context *ctx,
 			k=k*65521;
 			tlcl2[i]=(k>>16)&255;
 		}
+
+		for(i=0; i<64; i++)
+		{
+			dstat3[i]=dstat[i]*(65536.0/(tdcnt+1));
+			if(dstat[i] && !dstat3[i])
+				dstat3[i]=1;
+//			tdcl[i]=bgbrasw_log2f8(dstat3[i]);
+			tdcl[i]=bgbrasw_log2f12(dstat3[i]);
+
+//			k=k*65521;
+//			tlcl2[i]=(k>>16)&255;
+		}
 #endif
 
 		for(i=0; i<384; i++)
@@ -908,46 +921,54 @@ int BTLZA_BitEnc_EncodeBlockBTLZH(BGBBTJ_BTLZA_Context *ctx,
 		for(i=0; i<hnrh; i++)
 		{
 #if 1
+			hseed=(tcnt+1)*(tdcnt+1);
+
 			for(j=0; j<384; j++)
 			{
-//				k=tlcl[j]&255;
-//				k=tlcl[j]&4095;
-//				if((k<64) || (k>=192))
-//				if((k<96) || (k>=160))
-//				if((k<112) || (k>=144))
-//				if(1)
-//				if((k<96*16) || (k>=160*16))
+				if((tlcl[j]>>12)<8)
+				{
+					lstat2[j]=lstat3[j];
+					continue;
+				}
+
+				k=tlcl[j]&4095;
 				if((k<85*16) || (k>=171*16))
 				{
 					lstat2[j]=lstat3[j];
 					continue;
 				}
 			
-				tlcl2[j]+=tlcl[j]&255;
-//				k=(tlcl[i]>>8)+(tlcl2[i]>>8);
-//				k=tlcl[i]+tlcl2[i];
-//				k=(tlcl[j]&(~255))+tlcl2[j];
-//				tlcl2[j]=tlcl2[j]&255;
-//				k=1<<k;
-//				k=k+(((i^j)&1)?32:(-32));
-//				k=k+(((i^j)&1)?16:(-16));
+//				tlcl2[j]+=tlcl[j]&255;
 				k=tlcl[j];
-//				k=k+(((i^j)&1)?512:(-512));
-//				k=k+(((i^j)&1)?1024:(-1024));
-				k=k+(((i^j)&1)?2048:(-2048));
-//				k=bgbrasw_exp2f8(k);
+//				k=k+(((i^j)&1)?2048:(-2048));
+				k=k+(((hseed>>16)&1)?2048:(-2048));
 				k=bgbrasw_exp2f12(k);
-				
 				lstat2[j]=(lstat3[j]+k)>>1;
-//				lstat2[j]=(3*lstat3[j]+k)>>2;
-//				lstat2[j]=lstat3[j];
-
-//				if(lstat[j] && !lstat2[j])
-//					lstat2[j]=1;
+				hseed=hseed*65521+1;
 			}
 
-//			for(i=0; i<64; i++)
-//				{ dstat2[i]=dstat[i]; }
+			for(j=0; j<64; j++)
+			{
+				if((tdcl[j]>>12)<8)
+				{
+					dstat2[j]=dstat3[j];
+					continue;
+				}
+
+				k=tdcl[j]&4095;
+				if((k<85*16) || (k>=171*16))
+				{
+					dstat2[j]=dstat3[j];
+					continue;
+				}
+			
+				k=tdcl[j];
+//				k=k+(((i^j)&1)?2048:(-2048));
+				k=k+(((hseed>>16)&1)?2048:(-2048));
+				k=bgbrasw_exp2f12(k);
+				dstat2[j]=(dstat3[j]+k)>>1;
+				hseed=hseed*65521+1;
+			}
 #endif
 
 			j=BTLZA_BitEnc_BuildLengthsAdjust(
@@ -958,8 +979,8 @@ int BTLZA_BitEnc_EncodeBlockBTLZH(BGBBTJ_BTLZA_Context *ctx,
 #if 1
 //			for(j=0; j<320; j++)
 //				{ lstat2[i]+=lstat2[i]>>8; }
-			for(j=0; j<64; j++)
-				{ dstat2[i]+=dstat2[i]>>8; }
+//			for(j=0; j<64; j++)
+//				{ dstat2[i]+=dstat2[i]>>8; }
 #endif
 		}
 	}else

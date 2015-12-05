@@ -93,19 +93,35 @@ int (*BS_WriteBit)(BGBBTJ_BTLZA_Context *ctx, int v);
 
 int *lbase, *lextra;
 
-u16 bs_ltab_idx[256];	//literal index table
-u16 bs_dtab_idx[256];	//distance index table
+u32 bs_ltab_idx[256];	//literal index table
+u32 bs_dtab_idx[256];	//distance index table
 
 u16 bs_ltab_code[384];	//literal codes
 u16 bs_ltab_mask[384];	//literal code masks
 u16 bs_ltab_next[384];	//literal table code chains
 byte bs_ltab_len[384];	//literal code lengths
 
-u16 bs_dtab_code[64];	//distance codes
-u16 bs_dtab_mask[64];	//distance code masks
-u16 bs_dtab_next[64];	//distance table code chains
-byte bs_dtab_len[64];	//distance code lengths
+u16 bs_dtab_code[256];	//distance codes
+u16 bs_dtab_mask[256];	//distance code masks
+u16 bs_dtab_next[256];	//distance table code chains
+byte bs_dtab_len[256];	//distance code lengths
 
+#if 1
+u32 bs_rtab_idx[256];	//literal index table
+u32 bs_stab_idx[256];	//distance index table
+
+u16 bs_rtab_code[256];	//distance codes
+u16 bs_rtab_mask[256];	//distance code masks
+u16 bs_rtab_next[256];	//distance table code chains
+byte bs_rtab_len[256];	//distance code lengths
+
+u16 bs_stab_code[256];	//distance codes
+u16 bs_stab_mask[256];	//distance code masks
+u16 bs_stab_next[256];	//distance table code chains
+byte bs_stab_len[256];	//distance code lengths
+#endif
+
+int bs_ltab_hint_next;
 
 //Ring Huff
 
@@ -117,8 +133,8 @@ byte bs_rhtab_n;		//number of ringhuff tables
 byte bs_rhtab_lrov;		//ringhuff literal rover
 byte bs_rhtab_drov;		//ringhuff distance rover
 
-u16 *bs_ltab_idx2[8];	//literal index table
-u16 *bs_dtab_idx2[8];	//distance index table
+u32 *bs_ltab_idx2[8];	//literal index table
+u32 *bs_dtab_idx2[8];	//distance index table
 
 u16 *bs_ltab_code2[8];	//literal codes
 u16 *bs_ltab_mask2[8];	//literal code masks
@@ -153,7 +169,7 @@ int lz_lastrun;		//last run length seen
 //LZ77 Fast State
 byte **lzf_hash;
 int lzf_lstat[512];
-int lzf_dstat[128];
+int lzf_dstat[256];
 int lzf_hstat[24];
 
 };
