@@ -121,6 +121,8 @@ u16 bs_stab_next[256];	//distance table code chains
 byte bs_stab_len[256];	//distance code lengths
 #endif
 
+// u32 bs_ltab_pidx[4096];	//literal pair index table
+
 int bs_ltab_hint_next;
 
 //Ring Huff

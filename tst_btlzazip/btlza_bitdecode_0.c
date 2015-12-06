@@ -168,6 +168,7 @@ int BTLZA_BitDec_SetupTableI(byte *cl, int ncl,
 		j<<=1;
 		j-=cnt[i];
 
+//		printf("%d %d %d\n", i, j, cnt[i]);
 		if(j<0)return(-10);	//over subscribed
 	}
 	if((j>0) && ((ncl-cnt[0])!=1))
@@ -227,6 +228,9 @@ int BTLZA_BitDec_SetupTableI(byte *cl, int ncl,
 			while(j--)
 			{
 				k=BTLZA_BitDec_TransposeByte(k2++);
+//				if(ti[k]==0xFFFF)
+				if(ti[k]!=0xFFFF)
+					ti[k]=i;
 				ti[k]=i;
 			}
 		}else
@@ -249,16 +253,67 @@ int BTLZA_BitDec_SetupTableI(byte *cl, int ncl,
 		return(-9);
 	}
 
-//	if(flag&1)
+	if(flag&1)
 		for(i=0; i<256; i++)
 	{
 		j=ti[i];
 		l=tl[j];
 		ti[i]|=(l&15)<<24;
+
+#if 0
+		if(j>=256)
+			continue;
+
+		k=BTLZA_BitDec_DecodeSymbolPartBits(i>>l, 8-l, tc, tm, tl, ti, tn);
+		if((k>=0) && (k<256))
+		{
+			ti[i]|=(k+1)<<9;
+			ti[i]|=(l+tl[k]&15)<<28;
+		}
+#endif
 	}
 
 	return(0);
 }
+
+int BTLZA_BitDec_SetupTableWi(byte *cl, int ncl,
+	u16 *tc, u16 *tm, byte *tl,
+	u32 *ti, u16 *tn, u32 *twi)
+{
+	int i, j, k, l;
+	
+	i=BTLZA_BitDec_SetupTableI(cl, ncl, tc, tm, tl, ti, tn, 1);
+	if(i<0)return(0);
+
+#if 0
+	for(i=0; i<4096; i++)
+	{
+		j=BTLZA_BitDec_DecodeSymbolPartBits(i, 12, tc, tm, tl, ti, tn);
+		if(j<0)
+		{
+			twi[i]=ti[i&255];
+			continue;
+		}
+
+		twi[i]=j;
+		l=tl[j];
+		twi[i]|=(l&15)<<24;
+
+		if(j>=256)
+			continue;
+
+		k=BTLZA_BitDec_DecodeSymbolPartBits(i>>l, 12-l, tc, tm, tl, ti, tn);
+		if((k>=0) && (k<256))
+		{
+			twi[i]|=(k+1)<<9;
+			twi[i]|=(l+tl[k]&15)<<28;
+		}
+	}
+#endif
+
+	return(0);
+}
+
 
 int BTLZA_BitDec_SetupStatic(BGBBTJ_BTLZA_Context *ctx)
 {
@@ -275,9 +330,12 @@ int BTLZA_BitDec_SetupStatic(BGBBTJ_BTLZA_Context *ctx)
 	hd=32;
 	for(i=0; i<32; i++)dcl[i]=5;
 
-	j=BTLZA_BitDec_SetupTable(lcl, hl,
+//	j=BTLZA_BitDec_SetupTable(lcl, hl,
+//		ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
+//		ctx->bs_ltab_idx, ctx->bs_ltab_next);
+	j=BTLZA_BitDec_SetupTableWi(lcl, hl,
 		ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
-		ctx->bs_ltab_idx, ctx->bs_ltab_next);
+		ctx->bs_ltab_idx, ctx->bs_ltab_next, ctx->bs_ltab_pidx);
 	if(j<0)
 	{
 		printf("Static Literal/Length Table Problem %d\n", j);
@@ -301,13 +359,22 @@ int BTLZA_BitDec_DecodeSymbol(BGBBTJ_BTLZA_Context *ctx)
 int BTLZA_BitDec_DecodeDistanceSymbol(BGBBTJ_BTLZA_Context *ctx)
 	{ return(ctx->BS_DecodeDistanceSymbol(ctx)); }
 int BTLZA_BitDec_DecodeClSymbol(BGBBTJ_BTLZA_Context *ctx)
-	{ return(ctx->BS_DecodeClSymbol(ctx)); }
+{ 
+	int i;
+	
+//	ctx->bs_ltab_hint_next=0;
+	i=ctx->BS_DecodeClSymbol(ctx);
+//	ctx->bs_ltab_hint_next=0;
+	
+	return(i);
+}
 
 int BTLZA_BitDec_DecodeSymbolBasic(BGBBTJ_BTLZA_Context *ctx)
 {
 	int i, j;
 
 	i=BTLZA_BitDec_PeekWord(ctx);
+//	i=(ctx->bs_win>>ctx->bs_pos)&65535;
 	j=ctx->bs_ltab_idx[i&0xFF]&511;
 
 	if((i&ctx->bs_ltab_mask[j])==ctx->bs_ltab_code[j])
@@ -331,6 +398,7 @@ int BTLZA_BitDec_DecodeDistanceSymbolBasic(BGBBTJ_BTLZA_Context *ctx)
 	int i, j;
 
 	i=BTLZA_BitDec_PeekWord(ctx);
+//	i=(ctx->bs_win>>ctx->bs_pos)&65535;
 	j=ctx->bs_dtab_idx[i&0xFF]&255;
 
 	if((i&ctx->bs_dtab_mask[j])==ctx->bs_dtab_code[j])
@@ -355,6 +423,7 @@ force_inline int BTLZA_BitDec_ReadNBitsBasic2(
 {
 	int i, j;
 
+#if 1
 	i=(ctx->bs_win>>ctx->bs_pos)&((1<<n)-1);
 	j=ctx->bs_pos+n;
 	if(j>=8)
@@ -370,6 +439,8 @@ force_inline int BTLZA_BitDec_ReadNBitsBasic2(
 				(ctx->cs[0]<<16)|(ctx->cs[1]<<24);
 			ctx->cs+=2;
 #endif
+//			ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+//			ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
 			ctx->bs_pos=j-16;
 		}else
 		{
@@ -381,6 +452,57 @@ force_inline int BTLZA_BitDec_ReadNBitsBasic2(
 		ctx->bs_pos=j;
 	}
 	return(i);
+#endif
+
+//	i=(ctx->bs_win>>ctx->bs_pos)&((1<<n)-1);
+//	ctx->bs_pos+=n;
+
+#if 0
+	if(ctx->bs_pos>=8)
+	{
+		if(ctx->bs_pos>=16)
+		{
+			ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+			ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+			ctx->bs_pos-=16;
+		}else
+		{
+			ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+			ctx->bs_pos-=8;
+		}
+	}
+#endif
+
+#if 0
+	if(ctx->bs_pos>=8)
+	{
+		do {
+			ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+			ctx->bs_pos-=8;
+		}while(ctx->bs_pos>=8);
+	}
+#endif
+
+#if 0
+	if(ctx->bs_pos>=8)
+	{
+		ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+		ctx->bs_pos-=8;
+
+		if(ctx->bs_pos>=8)
+		{
+			ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+			ctx->bs_pos-=8;
+			while(ctx->bs_pos>=8)
+			{
+				ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+				ctx->bs_pos-=8;
+			}
+		}
+	}
+#endif
+
+//	return(i);
 }
 
 force_inline void BTLZA_BitDec_SkipNBitsBasic2(
@@ -402,6 +524,9 @@ force_inline void BTLZA_BitDec_SkipNBitsBasic2(
 				(ctx->cs[0]<<16)|(ctx->cs[1]<<24);
 			ctx->cs+=2;
 #endif
+
+//			ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+//			ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
 			ctx->bs_pos=i-16;
 		}else
 		{
@@ -456,6 +581,42 @@ int BTLZA_BitDec_DecodeDistanceSymbolBasic2(BGBBTJ_BTLZA_Context *ctx)
 
 	BTLZA_BitDec_SkipNBitsBasic2(ctx, ctx->bs_dtab_len[j]);
 	return(j);
+}
+
+int BTLZA_BitDec_TryDecodeSymbolPairBasic2(
+	BGBBTJ_BTLZA_Context *ctx, int *symab)
+{
+	int i, j, k, j2, l, l2;
+
+	i=ctx->bs_win>>ctx->bs_pos;
+//	k=ctx->bs_ltab_idx[i&0xFF];
+	k=ctx->bs_ltab_pidx[i&0xFFF];
+	j=k&511;
+	l=(k>>24)&15;
+
+	if(l<=8)
+	{
+		j2=(k>>9)&511;
+		if(j2)
+		{
+			symab[0]=j;
+			symab[1]=j2-1;
+			l2=(k>>28)&15;
+			BTLZA_BitDec_SkipNBitsBasic2(ctx, l2);
+			return(2);
+		}
+
+		symab[0]=j;
+		BTLZA_BitDec_SkipNBitsBasic2(ctx, l);
+		return(1);
+	}
+
+	while((i&ctx->bs_ltab_mask[j])!=ctx->bs_ltab_code[j])
+		j=ctx->bs_ltab_next[j];
+
+	symab[0]=j;
+	BTLZA_BitDec_SkipNBitsBasic2(ctx, ctx->bs_ltab_len[j]);
+	return(1);
 }
 
 #if 1
@@ -564,13 +725,26 @@ int BTLZA_BitDec_DecodeDistance(BGBBTJ_BTLZA_Context *ctx)
 {
 
 	int i, j, k;
+
+//	i=BTLZA_BitDec_PeekWord(ctx);
+//	j=ctx->bs_dtab_idx[i&0xFF];
+
+//	while((i&ctx->bs_dtab_mask[j])!=ctx->bs_dtab_code[j])
+//		j=ctx->bs_dtab_next[j];
+//	BTLZA_BitDec_SkipNBits(ctx, ctx->bs_dtab_len[j]);
+
 	j=BTLZA_BitDec_DecodeDistanceSymbol(ctx);
 	k=btlza_dbase1[j]+BTLZA_BitDec_ReadExtraNBits(ctx, btlza_dextra1[j]);
+//	k=btlza_dbase1[j]+BTLZA_BitDec_ReadNBitsBasic2(ctx, btlza_dextra1[j]);
+
+//	k=btlza_dbase1[j]+BTLZA_BitDec_ReadNBits(ctx, btlza_dextra1[j]);
+
 	return(k);
 }
 
 int BTLZA_BitDec_DecodeDistanceBasic2(BGBBTJ_BTLZA_Context *ctx)
 {
+
 	int i, j, k;
 	j=BTLZA_BitDec_DecodeDistanceSymbolBasic2(ctx);
 	k=btlza_dbase1[j]+BTLZA_BitDec_ReadNBitsBasic2(ctx, btlza_dextra1[j]);
@@ -721,9 +895,22 @@ int BTLZA_BitDec_DecodeHeader(BGBBTJ_BTLZA_Context *ctx)
 	i=BTLZA_BitDec_DecodeCodeLengths(ctx, dcl, hd);
 	if(i<0)return(i);
 
-	j=BTLZA_BitDec_SetupTable(lcl, hl,
+//	for(i=0; i<hl; i++)
+//	{
+//		j=lcl[i];
+//		if(j)printf("%d:%d ", i, j);
+//	}
+//	printf("\n");
+
+//	for(i=0; i<hd; i++)printf("%d:%d ", i, dcl[i]);
+//	printf("\n");
+
+//	j=BTLZA_BitDec_SetupTable(lcl, hl,
+//		ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
+//		ctx->bs_ltab_idx, ctx->bs_ltab_next);
+	j=BTLZA_BitDec_SetupTableWi(lcl, hl,
 		ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
-		ctx->bs_ltab_idx, ctx->bs_ltab_next);
+		ctx->bs_ltab_idx, ctx->bs_ltab_next, ctx->bs_ltab_pidx);
 	if(j<0)
 	{
 		printf("Literal/Length Table Problem %d\n", j);
@@ -834,6 +1021,8 @@ int BTLZA_BitDec_DecodeHeaderBTLZH(BGBBTJ_BTLZA_Context *ctx)
 	static int lorder[]={
 		16, 17, 18, 0, 8,7, 9,6, 10,5, 11,4, 12,3, 13,2, 14,1, 15, 19,
 		20, 21, 22, 23, 24, 25, 26, 27};
+
+//	byte hcl[64], lcl[512], dcl[64];
 	byte hcl[64], lcl[384*8], dcl[64*8];
 	int hl, hd, hc, hr, hnrh;
 	int i, j, k;
@@ -857,9 +1046,14 @@ int BTLZA_BitDec_DecodeHeaderBTLZH(BGBBTJ_BTLZA_Context *ctx)
 
 	BTLZA_BitDec_CheckSetupRingHuffTables(ctx, hnrh);
 
+//	printf("%d %d %d\n", hl, hd, hc);
+
 	for(i=0; i<64; i++)hcl[i]=0;
 	for(i=0; i<hc; i++)
 		hcl[lorder[i]]=BTLZA_BitDec_ReadNBits(ctx, 3);
+
+//	for(i=0; i<20; i++)printf("%d:%d ", i, hcl[i]);
+//	printf("\n");
 
 	j=BTLZA_BitDec_SetupTable(hcl, 64,
 		ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
@@ -907,9 +1101,12 @@ int BTLZA_BitDec_DecodeHeaderBTLZH(BGBBTJ_BTLZA_Context *ctx)
 		}
 	}else
 	{
-		j=BTLZA_BitDec_SetupTable(lcl, hl,
+//		j=BTLZA_BitDec_SetupTable(lcl, hl,
+//			ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
+//			ctx->bs_ltab_idx, ctx->bs_ltab_next);
+		j=BTLZA_BitDec_SetupTableWi(lcl, hl,
 			ctx->bs_ltab_code, ctx->bs_ltab_mask, ctx->bs_ltab_len,
-			ctx->bs_ltab_idx, ctx->bs_ltab_next);
+			ctx->bs_ltab_idx, ctx->bs_ltab_next, ctx->bs_ltab_pidx);
 		if(j<0)
 		{
 			printf("Literal/Length Table Problem %d\n", j);
@@ -1029,24 +1226,30 @@ void BTLZA_BitDec_MemCpy(byte *dst, byte *src, int len)
 	s=src; t=dst; i=len;
 	d=dst-src;
 	te=dst+len;
+//	if((d>=8) || (d<0))
 	if(d>>3)
 	{
 		while(t<=(te-8))
+//		while((te-t)>=8)
 		{
 			*((s64 *)t)=*((s64 *)s);
 			t+=8; s+=8;
 		}
 		if(t<=(te-4))
+//		if((te-t)>=4)
 		{
 			*((u32 *)t)=*((u32 *)s);
 			t+=4; s+=4;
 		}
 		if(t<=(te-2))
+//		if((te-t)>=2)
 			{ *t++=*s++; *t++=*s++; }
 		if(t<te)
 			{ *t++=*s++; }
 		return;
-	}else if(d>>2)
+	}else
+//		if(d>=4)
+		if(d>>2)
 	{
 		while(t<=(te-8))
 		{
@@ -1093,9 +1296,188 @@ void BTLZA_BitDec_MemCpy(byte *dst, byte *src, int len)
 #endif
 
 
+#if 0
+void BTLZA_BitDec_MemCpy(byte *dst, byte *src, int len)
+{
+	memmove(dst, src, len);
+}
+#endif
+
+#if 0
+void BTLZA_BitDec_MemCpy(byte *dst, byte *src, int len)
+{
+	byte *s, *t, *te;
+#ifdef HAVE_SSE2
+	__m128i d128i, d128j, d128k, d128l;
+#endif
+#ifdef X86_64
+	s64 d;
+#else
+	int d;
+#endif
+	int i, j, k, l;
+
+#if defined(X86) || defined(X86_64) || defined(ARM)
+	s=src; t=dst; i=len;
+	d=dst-src;
+	te=dst+len;
+#if 1
+	if((d>=16) || (d<0))
+	{
+#ifdef HAVE_SSE2
+#if 0
+//		if((i>=32) && (d>=64))
+		if(((te-t)>=32) && (d>=64))
+		{
+			while(t<=(te-64))
+			{
+				d128i=_mm_loadu_si128((__m128i *)(s   ));
+				d128j=_mm_loadu_si128((__m128i *)(s+16));
+				d128k=_mm_loadu_si128((__m128i *)(s+32));
+				d128l=_mm_loadu_si128((__m128i *)(s+48));
+				_mm_storeu_si128((__m128i *)(t   ), d128i);
+				_mm_storeu_si128((__m128i *)(t+16), d128j);
+				_mm_storeu_si128((__m128i *)(t+32), d128k);
+				_mm_storeu_si128((__m128i *)(t+48), d128l);
+				t+=64; s+=64;
+			}
+
+			if(t<=(te-32))
+			{
+				d128i=_mm_loadu_si128((__m128i *)(s   ));
+				d128j=_mm_loadu_si128((__m128i *)(s+16));
+				_mm_storeu_si128((__m128i *)(t   ), d128i);
+				_mm_storeu_si128((__m128i *)(t+16), d128j);
+				t+=32; s+=32;
+			}
+
+			while(t<=(te-16))
+			{
+				d128i=_mm_loadu_si128((__m128i *)s);
+				_mm_storeu_si128((__m128i *)t, d128i);
+				t+=16; s+=16;
+			}
+		}
+#endif
+
+#if 0
+		while(t<=(te-16))
+		{
+			d128i=_mm_loadu_si128((__m128i *)s);
+			_mm_storeu_si128((__m128i *)t, d128i);
+			t+=16; s+=16;
+		}
+#endif
+
+#else
+		while(t<=(te-16))
+		{
+			((s64 *)t)[0]=((s64 *)s)[0];
+			((s64 *)t)[1]=((s64 *)s)[1];
+			t+=16; s+=16;
+		}
+#endif
+//		if(t<=(te-8))
+		while(t<=(te-8))
+		{
+			*((s64 *)t)=*((s64 *)s);
+			t+=8; s+=8;
+		}
+		if(t<=(te-4))
+		{
+			*((u32 *)t)=*((u32 *)s);
+			t+=4; s+=4;
+		}
+		if(t<=(te-2))
+		{
+			*t++=*s++; *t++=*s++;
+		}
+		if(t<te)
+			{ *t++=*s++; }
+		return;
+	}else if(d>=4)
+	{
+#if 0
+		while(i>=16)
+		{
+			((u32 *)t)[0]=((u32 *)s)[0];
+			((u32 *)t)[1]=((u32 *)s)[1];
+			((u32 *)t)[2]=((u32 *)s)[2];
+			((u32 *)t)[3]=((u32 *)s)[3];
+			t+=16; s+=16; i-=16;
+		}
+#endif
+
+//		if(i>=8)
+		while(i>=8)
+		{
+			((u32 *)t)[0]=((u32 *)s)[0];
+			((u32 *)t)[1]=((u32 *)s)[1];
+			t+=8; s+=8; i-=8;
+		}
+		if(i>=4)
+			{ *((int *)t)=*((int *)s); t+=4; s+=4; i-=4; }
+		if(i>=2)
+			{ *t++=*s++; *t++=*s++; i-=2; }
+		if(i) { *t++=*s++; }
+		return;
+	}else
+	{
+#if 0
+		while(i>=16)
+		{
+			t[ 0]=s[ 0];	t[ 1]=s[ 1];
+			t[ 2]=s[ 2];	t[ 3]=s[ 3];
+			t[ 4]=s[ 4];	t[ 5]=s[ 5];
+			t[ 6]=s[ 6];	t[ 7]=s[ 7];
+			t[ 8]=s[ 8];	t[ 9]=s[ 9];
+			t[10]=s[10];	t[11]=s[11];
+			t[12]=s[12];	t[13]=s[13];
+			t[14]=s[14];	t[15]=s[15];
+			t+=16; s+=16; i-=16;
+		}
+#endif
+//		if(i>=8)
+		while(i>=8)
+		{
+			t[ 0]=s[ 0];	t[ 1]=s[ 1];
+			t[ 2]=s[ 2];	t[ 3]=s[ 3];
+			t[ 4]=s[ 4];	t[ 5]=s[ 5];
+			t[ 6]=s[ 6];	t[ 7]=s[ 7];
+			t+=8; s+=8; i-=8;
+		}
+		if(i>=4)
+		{
+			t[ 0]=s[ 0];	t[ 1]=s[ 1];
+			t[ 2]=s[ 2];	t[ 3]=s[ 3];
+			t+=4; s+=4; i-=4;
+		}
+		if(i>=2)
+		{
+			*t++=*s++;	*t++=*s++;
+			i-=2;
+		}
+		if(i)*t++=*s++;
+//		while(i--)*t++=*s++;
+		return;
+	}
+#endif
+
+#else
+	s=src; t=dst; i=len;
+	while(i--)*t++=*s++;
+#endif
+}
+#endif
+
+
+#if 1
 void BTLZA_BitDec_MemCpyLax(byte *dst, byte *src, int len)
 {
 	byte *s, *t, *te;
+#ifdef HAVE_SSE2
+//	__m128i d128i;
+#endif
 #ifdef X86_64
 	s64 d;
 #else
@@ -1108,22 +1490,63 @@ void BTLZA_BitDec_MemCpyLax(byte *dst, byte *src, int len)
 	d=dst-src;
 	te=dst+len;
 	if(d>>3)
+//	if(d>>4)
 	{
+#if 0
+#ifdef HAVE_SSE2
+		while(t<te)
+		{
+			d128i=_mm_loadu_si128((__m128i *)s);
+			_mm_storeu_si128((__m128i *)t, d128i);
+			t+=16; s+=16;
+		}
+#else
 		while(t<te)
 		{
 			((s64 *)t)[0]=((s64 *)s)[0];
 			((s64 *)t)[1]=((s64 *)s)[1];
 			t+=16; s+=16;
 		}
+#endif
+#endif
+
+#if 1
+		while(t<te)
+		{
+			((s64 *)t)[0]=((s64 *)s)[0];
+			((s64 *)t)[1]=((s64 *)s)[1];
+			t+=16; s+=16;
+		}
+#endif
+#if 0
+		while(t<te)
+		{
+			*((s64 *)t)=*((s64 *)s);
+			t+=8; s+=8;
+		}
+#endif
 		return;
 	}else if(d>>2)
 	{
+#if 0
+		while(t<te)
+		{
+			((u32 *)t)[0]=((u32 *)s)[0];
+			((u32 *)t)[1]=((u32 *)s)[1];
+			((u32 *)t)[2]=((u32 *)s)[2];
+			((u32 *)t)[3]=((u32 *)s)[3];
+			t+=16; s+=16;
+		}
+#endif
+
+#if 1
 		while(t<te)
 		{
 			((u32 *)t)[0]=((u32 *)s)[0];
 			((u32 *)t)[1]=((u32 *)s)[1];
 			t+=8; s+=8;
 		}
+#endif
 		return;
 	}else
 	{
@@ -1138,6 +1561,8 @@ void BTLZA_BitDec_MemCpyLax(byte *dst, byte *src, int len)
 		return;
 	}
 #else
+//	s=src; t=dst; i=len;
+//	while(i--)*t++=*s++;
 	s=src; t=dst; te=dst+len;
 	while(t<te)
 	{
@@ -1149,6 +1574,7 @@ void BTLZA_BitDec_MemCpyLax(byte *dst, byte *src, int len)
 	}
 #endif
 }
+#endif
 
 
 int BTLZA_BitDec_DecodeRunLzMatch(BGBBTJ_BTLZA_Context *ctx, int sym)
@@ -1181,6 +1607,7 @@ force_inline int BTLZA_BitDec_DecodeRunLzMatchBasic2(
 	ctx->lz_lastrun=j;
 	s=ctx->ct-k;
 	i=j;
+//	BTLZA_BitDec_MemCpy(ctx->ct, s, i);
 	BTLZA_BitDec_MemCpyLax(ctx->ct, s, i);
 	ctx->ct+=i;
 	return(0);
@@ -1202,6 +1629,7 @@ int BTLZA_BitDec_DecodeRunExtMatch(BGBBTJ_BTLZA_Context *ctx, int sym)
 		k=ctx->lz_lastdist;
 		l=ctx->lz_lastrun;
 		s=ctx->ct-k; i=l;
+//		BTLZA_BitDec_MemCpy(ctx->ct, s, i);
 		BTLZA_BitDec_MemCpyLax(ctx->ct, s, i);
 		ctx->ct+=i;
 		break;
@@ -1210,6 +1638,7 @@ int BTLZA_BitDec_DecodeRunExtMatch(BGBBTJ_BTLZA_Context *ctx, int sym)
 		ctx->lz_lastdist=k;
 		l=ctx->lz_lastrun;
 		s=ctx->ct-k; i=l;
+//		BTLZA_BitDec_MemCpy(ctx->ct, s, i);
 		BTLZA_BitDec_MemCpyLax(ctx->ct, s, i);
 		ctx->ct+=i;
 		break;
@@ -1221,6 +1650,7 @@ int BTLZA_BitDec_DecodeRunExtMatch(BGBBTJ_BTLZA_Context *ctx, int sym)
 		ctx->lz_lastrun=l;
 		k=ctx->lz_lastdist;
 		s=ctx->ct-k; i=l;
+//		BTLZA_BitDec_MemCpy(ctx->ct, s, i);
 		BTLZA_BitDec_MemCpyLax(ctx->ct, s, i);
 		ctx->ct+=i;
 		break;
@@ -1281,6 +1711,34 @@ int BTLZA_BitDec_DecodeBlockDataBasic2I(BGBBTJ_BTLZA_Context *ctx)
 
 	while(1)
 	{
+#if 0
+		while(1)
+		{
+			i=BTLZA_BitDec_TryDecodeSymbolPairBasic2(ctx, sab);
+		
+			if(i>1)
+			{
+				*ctx->ct++=sab[0];
+				*ctx->ct++=sab[1];
+				continue;
+			}
+
+			i=sab[0];
+			if(i<256)
+			{
+				*ctx->ct++=i;
+				continue;
+			}
+
+			break;
+		}
+		if(i==256)break;
+
+		i=BTLZA_BitDec_DecodeRunBasic2(ctx, i);
+		if(i<0)return(i);
+#endif
+
+#if 1
 		i=BTLZA_BitDec_DecodeSymbolBasic2(ctx);
 		if(i<0)return(i);
 
@@ -1293,6 +1751,8 @@ int BTLZA_BitDec_DecodeBlockDataBasic2I(BGBBTJ_BTLZA_Context *ctx)
 
 		i=BTLZA_BitDec_DecodeRunBasic2(ctx, i);
 		if(i<0)return(i);
+#endif
+
 	}
 
 	return(0);
@@ -1387,6 +1847,10 @@ int BTLZA_BitDec_DecodeHeaderBTArith(BGBBTJ_BTLZA_Context *ctx)
 		ctx->bs_win=0;
 		ctx->bs_pos=32;
 		BTLZA_BitDec_ReadAdjust(ctx);
+
+//		ctx->BS_ReadByte=he?
+//			BTLZA_BitDec_ReadByteArithLE:
+//			BTLZA_BitDec_ReadByteArithBE;
 		return(0);
 	}
 	
@@ -1400,6 +1864,8 @@ int BTLZA_BitDec_DecodeBlock(BGBBTJ_BTLZA_Context *ctx)
 
 	fi=BTLZA_BitDec_ReadBit(ctx);
 	ty=BTLZA_BitDec_Read2Bits(ctx);
+
+//	printf("blk %d %d\n", fi, ty);
 
 	switch(ty)
 	{
@@ -1476,6 +1942,13 @@ int BTLZA_BitDec_DecodeBlock(BGBBTJ_BTLZA_Context *ctx)
 			if(i<0)return(i);
 			break;
 		}
+
+//		if(ty2==3)
+//		{
+//			i=BTLZA_Decode_DecodeBlockData(ctx);
+//			if(i<0)return(i);
+//			break;
+//		}
 
 		return(-2);
 		break;
