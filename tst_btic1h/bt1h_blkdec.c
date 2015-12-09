@@ -1640,6 +1640,13 @@ void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
 	int xs1, ys1, xs2, ys2, xf, yf;
 	int i, j;
 	
+	if((clrs>=BTIC1H_PXF_BC1) && (clrs<=BTIC1H_PXF_BC5))
+	{
+		i=(clrs-BTIC1H_PXF_BC1)+1;
+		BTIC1H_ConvImageS2TCn(block, blkstride, rgba, i, xs, ys);
+		return;
+	}
+
 	if((clrs==BTIC1H_PXF_YUYV) ||
 		(clrs==BTIC1H_PXF_UYVY))
 	{

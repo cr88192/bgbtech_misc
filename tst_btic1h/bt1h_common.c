@@ -42,6 +42,21 @@ typedef signed int s32;
 typedef unsigned long long u64;
 typedef signed long long s64;
 
+#ifdef _MSC_VER
+#define force_inline __forceinline
+#define default_inline __inline
+#endif
+
+#ifdef __GNUC__
+#define force_inline inline
+#define default_inline inline
+#endif
+
+#ifndef force_inline
+#define force_inline
+#define default_inline
+#endif
+
 
 #define RIFF_MAKETAG(a, b, c, d)	((a)+((b)<<8)+((c)<<16)+((d)<<24))
 #define RIFF_UNHEX_NIBBLE(a)		( \

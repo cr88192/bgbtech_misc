@@ -20,7 +20,76 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-int BTIC1H_Rice_NextByte(BTIC1H_Context *ctx)
+static const byte btic1h_rice_ntab[16]={
+	0, 0, 0, 0, 0, 0, 0, 0,
+	1, 1, 1, 1, 2, 2, 3, 4};
+
+static const byte btic1h_rice_ntab2[256]={
+	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 00-0F */
+	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 10-1F */
+	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 20-2F */
+	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 30-3F */
+	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 40-4F */
+	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 50-5F */
+	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 60-6F */
+	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 70-7F */
+	1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1,	/* 80-8F */
+	1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1,	/* 90-9F */
+	1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1,	/* A0-AF */
+	1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1,	/* B0-BF */
+	2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2,	/* C0-CF */
+	2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2,	/* D0-DF */
+	3, 3, 3, 3, 3, 3, 3, 3,  3, 3, 3, 3, 3, 3, 3, 3,	/* E0-EF */
+	4, 4, 4, 4, 4, 4, 4, 4,  5, 5, 5, 5, 6, 6, 7, 8};	/* F0-FF */
+
+static int btic1h_rice_valtab[16][256];
+
+int BTIC1H_Rice_InitTables()
+{
+	static int init=0;
+	int i, j, k, l, k1, k2;
+	
+	if(init)
+		return(0);
+	init=1;
+	
+	for(i=0; i<16; i++)
+		for(j=0; j<256; j++)
+	{
+		k1=btic1h_rice_ntab2[j];
+
+		l=i+k1+1;
+		if(l>8)
+		{
+			btic1h_rice_valtab[i][j]=-1;
+			continue;
+		}
+		
+		k=(k1<<i)|((j>>(8-l))&((1<<i)-1));
+		
+#if 1
+		k2=i;
+		if(k1!=1)
+		{
+			if(k1>1)
+			{
+				while(k1>1)
+					{ k2++; k1=k1>>1; }
+				if(k2>15)k2=15;
+			}else
+			{
+				if(k2>0)k2--;
+			}
+		}
+#endif
+		
+		btic1h_rice_valtab[i][j]=k|(l<<16)|(k2<<20);
+	}
+	
+	return(1);
+}
+
+force_inline int BTIC1H_Rice_NextByte(BTIC1H_Context *ctx)
 {
 	int i, j;
 
@@ -30,6 +99,8 @@ int BTIC1H_Rice_NextByte(BTIC1H_Context *ctx)
 
 int BTIC1H_Rice_SetupRead(BTIC1H_Context *ctx, byte *buf, int szbuf)
 {
+	BTIC1H_Rice_InitTables();
+
 	ctx->bs_pos=0;
 
 	ctx->bs_cs=buf;
@@ -56,7 +127,7 @@ int BTIC1H_Rice_ReadBit(BTIC1H_Context *ctx)
 	return(i);
 }
 
-int BTIC1H_Rice_ReadNBits(BTIC1H_Context *ctx, int n)
+force_inline int BTIC1H_Rice_ReadNBits(BTIC1H_Context *ctx, int n)
 {
 	int i, j, k;
 
@@ -69,6 +140,27 @@ int BTIC1H_Rice_ReadNBits(BTIC1H_Context *ctx, int n)
 	}
 	if(n>16)
 		return(-1);
+#endif
+
+#if 1
+	j=ctx->bs_pos;	k=ctx->bs_win;
+	i=(k>>(32-n-j))&((1<<n)-1);
+	j+=n;
+	if(j>=8)
+	{
+		if(j>=16)
+		{
+			k=(k<<8)|BTIC1H_Rice_NextByte(ctx);
+			k=(k<<8)|BTIC1H_Rice_NextByte(ctx);
+			j-=16;
+		}else
+		{
+			k=(k<<8)|BTIC1H_Rice_NextByte(ctx);
+			j-=8;
+		}
+		ctx->bs_win=k;
+	}
+	ctx->bs_pos=j;
 #endif
 
 //	if(!n)
@@ -90,7 +182,7 @@ int BTIC1H_Rice_ReadNBits(BTIC1H_Context *ctx, int n)
 	ctx->bs_pos=j;
 #endif
 
-#if 1
+#if 0
 	i=(ctx->bs_win>>(32-n-ctx->bs_pos))&((1<<n)-1);
 	ctx->bs_pos+=n;
 	while(ctx->bs_pos>=8)
@@ -102,7 +194,7 @@ int BTIC1H_Rice_ReadNBits(BTIC1H_Context *ctx, int n)
 	return(i);
 }
 
-int BTIC1H_Rice_ReadNBitsNoMask(BTIC1H_Context *ctx, int n)
+force_inline int BTIC1H_Rice_ReadNBitsNoMask(BTIC1H_Context *ctx, int n)
 {
 	int i, j, k;
 
@@ -192,14 +284,41 @@ u64 BTIC1H_Rice_Read48Bits(BTIC1H_Context *ctx)
 	return((i<<32)|(j<<16)|k);
 }
 
-void BTIC1H_Rice_SkipNBits(BTIC1H_Context *ctx, int n)
+force_inline void BTIC1H_Rice_SkipNBits(BTIC1H_Context *ctx, int n)
 {
+#if 1
+	int i, j;
+	i=ctx->bs_pos+n;
+	if(i>=8)
+	{
+		if(i>=16)
+		{
+//			ctx->bs_win=(ctx->bs_win<<8)|BTIC1H_Rice_NextByte(ctx);
+//			ctx->bs_win=(ctx->bs_win<<8)|BTIC1H_Rice_NextByte(ctx);
+			ctx->bs_win=(ctx->bs_win<<16)|
+				(ctx->bs_cs[0]<<8)|(ctx->bs_cs[1]);
+			ctx->bs_cs+=2;
+			ctx->bs_pos=i-16;
+		}else
+		{
+//			ctx->bs_win=(ctx->bs_win<<8)|BTIC1H_Rice_NextByte(ctx);
+			ctx->bs_win=(ctx->bs_win<<8)|(*ctx->bs_cs++);
+			ctx->bs_pos=i-8;
+		}
+	}else
+	{
+		ctx->bs_pos=i;
+	}
+#endif
+
+#if 0
 	ctx->bs_pos+=n;
 	while(ctx->bs_pos>=8)
 	{
 		ctx->bs_win=(ctx->bs_win<<8)|BTIC1H_Rice_NextByte(ctx);
 		ctx->bs_pos-=8;
 	}
+#endif
 }
 
 void BTIC1H_Rice_Skip8Bits(BTIC1H_Context *ctx)
@@ -214,7 +333,7 @@ int BTIC1H_Rice_PeekWord(BTIC1H_Context *ctx)
 	return(i);
 }
 
-int BTIC1H_Rice_PeekByte(BTIC1H_Context *ctx)
+force_inline int BTIC1H_Rice_PeekByte(BTIC1H_Context *ctx)
 {
 	int i;
 	i=(ctx->bs_win>>(24-ctx->bs_pos))&255;
@@ -229,29 +348,7 @@ int BTIC1H_Rice_PeekNibble(BTIC1H_Context *ctx)
 }
 
 
-static const byte btic1h_rice_ntab[16]={
-	0, 0, 0, 0, 0, 0, 0, 0,
-	1, 1, 1, 1, 2, 2, 3, 4};
-
-static const byte btic1h_rice_ntab2[256]={
-	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 00-0F */
-	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 10-1F */
-	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 20-2F */
-	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 30-3F */
-	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 40-4F */
-	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 50-5F */
-	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 60-6F */
-	0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,	/* 70-7F */
-	1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1,	/* 80-8F */
-	1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1,	/* 90-9F */
-	1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1,	/* A0-AF */
-	1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1,	/* B0-BF */
-	2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2,	/* C0-CF */
-	2, 2, 2, 2, 2, 2, 2, 2,  2, 2, 2, 2, 2, 2, 2, 2,	/* D0-DF */
-	3, 3, 3, 3, 3, 3, 3, 3,  3, 3, 3, 3, 3, 3, 3, 3,	/* E0-EF */
-	4, 4, 4, 4, 4, 4, 4, 4,  5, 5, 5, 5, 6, 6, 7, 8};	/* F0-FF */
-
-int BTIC1H_Rice_ReadRiceQ(BTIC1H_Context *ctx)
+default_inline int BTIC1H_Rice_ReadRiceQ(BTIC1H_Context *ctx)
 {
 	int i, j, k;
 
@@ -320,6 +417,7 @@ int BTIC1H_Rice_ReadAdRice2(BTIC1H_Context *ctx, int *rk)
 		{
 			while(i>1)
 				{ k++; i=i>>1; }
+			if(k>15)k=15;
 		}else
 		{
 			if(k>0)k--;
@@ -334,13 +432,13 @@ int BTIC1H_Rice_ReadAdRice2(BTIC1H_Context *ctx, int *rk)
 }
 
 #if 1
-int BTIC1H_Rice_ReadAdRice(BTIC1H_Context *ctx, int *rk)
+default_inline int BTIC1H_Rice_ReadAdRiceI(BTIC1H_Context *ctx, int *rk)
 {
 	int i, j, k, l;
 	
 	k=*rk;
-
 	i=BTIC1H_Rice_PeekByte(ctx);
+
 	if(i!=0xFF)
 	{
 		j=btic1h_rice_ntab2[i];
@@ -348,8 +446,8 @@ int BTIC1H_Rice_ReadAdRice(BTIC1H_Context *ctx, int *rk)
 		l=j+k+1;
 		if(l<=16)
 		{
-			i=BTIC1H_Rice_ReadNBits(ctx, l);
-//			i=BTIC1H_Rice_ReadNBitsNoMask(ctx, l);
+//			i=BTIC1H_Rice_ReadNBits(ctx, l);
+			i=BTIC1H_Rice_ReadNBitsNoMask(ctx, l);
 			i=(j<<k)|(i&((1<<k)-1));
 
 			if(j!=1)
@@ -380,6 +478,7 @@ int BTIC1H_Rice_ReadAdRice(BTIC1H_Context *ctx, int *rk)
 		{
 			while(i>1)
 				{ k++; i=i>>1; }
+			if(k>15)k=15;
 		}else
 		{
 			if(k>0)k--;
@@ -391,12 +490,58 @@ int BTIC1H_Rice_ReadAdRice(BTIC1H_Context *ctx, int *rk)
 	return(j);
 }
 
+default_inline int BTIC1H_Rice_ReadAdRice(BTIC1H_Context *ctx, int *rk)
+{
+	int i, j, k, l;
+	
+#if 1
+//	if(k<8)
+	if(1)
+	{
+		k=*rk;
+		i=BTIC1H_Rice_PeekByte(ctx);
+		j=btic1h_rice_valtab[k][i];
+		if(j>=0)
+		{
+			i=j&65535;
+			l=(j>>16)&15;
+			*rk=(j>>20)&15;
+			BTIC1H_Rice_SkipNBits(ctx, l);
+			return(i);
+		}
+	}
 #endif
 
-int BTIC1H_Rice_ReadAdSRice(BTIC1H_Context *ctx, int *rk)
+	i=BTIC1H_Rice_ReadAdRiceI(ctx, rk);
+	return(i);
+}
+
+#endif
+
+default_inline int BTIC1H_Rice_ReadAdSRice(BTIC1H_Context *ctx, int *rk)
 {
-	int i;
-	i=BTIC1H_Rice_ReadAdRice(ctx, rk);
+	int i, j, k, l;
+	
+#if 1
+//	if(k<8)
+	if(1)
+	{
+		k=*rk;
+		i=BTIC1H_Rice_PeekByte(ctx);
+		j=btic1h_rice_valtab[k][i];
+		if(j>=0)
+		{
+			i=j&65535;
+			l=(j>>16)&15;
+			*rk=(j>>20)&15;
+			i=(i>>1)^((i<<31)>>31);
+			BTIC1H_Rice_SkipNBits(ctx, l);
+			return(i);
+		}
+	}
+#endif
+
+	i=BTIC1H_Rice_ReadAdRiceI(ctx, rk);
 	i=(i>>1)^((i<<31)>>31);
 	return(i);
 }

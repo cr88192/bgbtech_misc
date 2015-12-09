@@ -918,8 +918,10 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 
 	dyem=qr*0.2;
 	duvem=qr*0.3;
+//	duvem=qr*0.4;
 	dyen=qr*0.4;
 	duven=qr*0.6;
+//	duven=qr*0.7;
 
 	cs=blks; cse=cs+nblks*stride;
 	csl=lblks; csle=lblks+nblks*stride;
@@ -934,7 +936,8 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 //	cd=(100-qf)/5;
 
 	cy=qr/6.5;
-	cu=qr/6;
+//	cu=qr/6;
+	cu=qr/4;
 	cd=qr/5;
 
 	if(cy<1)cy=1;
