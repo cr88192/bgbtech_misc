@@ -152,8 +152,8 @@ int main(int argc, char *argv[])
 	ibuf=BTIC1H_Img_LoadTGA("screencap0.tga", &xs, &ys);
 	ibuf2=BTIC1H_Img_LoadTGA("screencap0.tga", &xs1, &ys1);
 
-//	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs, &ys);
-//	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1_q95.tga", &xs1, &ys1);
+	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs, &ys);
+	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1_q95.tga", &xs1, &ys1);
 
 	yibuf=malloc(xs*ys*2);
 
@@ -408,7 +408,7 @@ int main(int argc, char *argv[])
 //			xs*ys*4, &xs1, &ys1, BTIC1H_PXF_RGBX);
 
 		BTIC1H_DecodeCtx(ctx, tbuf, obuf, ct1-tbuf,
-			xs*ys*4, &xs1, &ys1, BTIC1H_PXF_BC1);
+			xs*ys*4, &xs1, &ys1, BTIC1H_PXF_BC7);
 
 		nf++; t1=clock();
 		
@@ -443,8 +443,9 @@ int main(int argc, char *argv[])
 //		xs*ys*4, &xs1, &ys1, BTIC1H_PXF_RGBA);
 
 	BTIC1H_DecodeCtx(ctx, tbuf, tbuf1, ct1-tbuf,
-		xs*ys*4, &xs1, &ys1, BTIC1H_PXF_BC1);
-	BTIC1H_S2TC_DecodeImage(tbuf1, 8, obuf, xs, ys, 4, 0);
+		xs*ys*4, &xs1, &ys1, BTIC1H_PXF_BC7);
+//	BTIC1H_S2TC_DecodeImage(tbuf1, 16, obuf, xs, ys, 4, 0);
+	BTIC1H_BC7_DecodeImage(tbuf1, obuf, xs, ys, 4, 0);
 	
 	BTIC1H_Img_SaveTGA("tst1g_out0.tga", obuf, xs, ys);
 
