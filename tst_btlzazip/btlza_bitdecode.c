@@ -414,6 +414,22 @@ force_inline void BTLZA_BitDec_SkipNBitsBasic2(
 	}
 }
 
+force_inline void BTLZA_BitDec_SkipNBitsL8Basic2(
+	BGBBTJ_BTLZA_Context *ctx, int n)
+{
+	int i;
+
+	i=ctx->bs_pos+n;
+	if(i>=8)
+	{
+		ctx->bs_win=(ctx->bs_win>>8)|((*ctx->cs++)<<24);
+		ctx->bs_pos=i-8;
+	}else
+	{
+		ctx->bs_pos=i;
+	}
+}
+
 int BTLZA_BitDec_DecodeSymbolBasic2(BGBBTJ_BTLZA_Context *ctx)
 {
 	int i, j, k, j2, l, l2;
@@ -425,7 +441,7 @@ int BTLZA_BitDec_DecodeSymbolBasic2(BGBBTJ_BTLZA_Context *ctx)
 
 	if(l<=8)
 	{
-		BTLZA_BitDec_SkipNBitsBasic2(ctx, l);
+		BTLZA_BitDec_SkipNBitsL8Basic2(ctx, l);
 		return(j);
 	}
 
@@ -447,7 +463,7 @@ int BTLZA_BitDec_DecodeDistanceSymbolBasic2(BGBBTJ_BTLZA_Context *ctx)
 
 	if(l<=8)
 	{
-		BTLZA_BitDec_SkipNBitsBasic2(ctx, l);
+		BTLZA_BitDec_SkipNBitsL8Basic2(ctx, l);
 		return(j);
 	}
 

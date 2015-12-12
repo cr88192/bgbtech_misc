@@ -234,5 +234,6 @@ void *btlza_malloc(int sz);
 void btlza_free(void *ptr);
 int BTLZA_DecodeFileStream(FILE *ifd, FILE *ofd, int mode, int flag);
 int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,int lvl, int flag);
+int BTLZA_BenchLoadFile(FILE *ifd, int mode, int lvl, int flag);
 void help(char *pgm);
 int main(int argc, char *argv[]);

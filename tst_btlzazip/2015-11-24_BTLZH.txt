@@ -391,7 +391,11 @@ Symbol Ranges
 ** 1: Prior Length and Distance
 ** 2: Prior Length, Distance Follows
 ** 3: Prior Distance, Length Follows
+** 4: Diff Match, Length and Dist (SVLCA)
 * 334-365: (Possible) VLN Value
+
+
+Diff Match will be specific to diff mode, where it will encode a match relative to the same position in the previous file.
 
 
 === (Possible/Undecided) VLN ===

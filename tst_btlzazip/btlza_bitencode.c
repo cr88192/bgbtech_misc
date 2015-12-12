@@ -1430,7 +1430,8 @@ BGBBTJ_API int BTLZA_BitEnc_EncodeStreamXLvlZlTest(
 	wsz=BTLZA_BitEnc_EncodeXLvlWinSize(lvl);
 
 	tbuf=malloc(wsz+isz+32768);
-	memcpy(tbuf, ibuf-wsz, wsz);
+	if(lvl&(BGBBTJ_ZFL_PRELOAD<<8))
+		{ memcpy(tbuf, ibuf-wsz, wsz); }
 	BTLZA_DecodeStreamSzZl(obuf, tbuf+wsz, i, isz+32768, &j, 0);
 	if(j!=isz)
 	{

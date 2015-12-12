@@ -588,6 +588,64 @@ int BTLZA_EncodeFileStream(FILE *ifd, FILE *ofd, char *ifn,
 	return(0);
 }
 
+int BTLZA_BenchLoadFile(FILE *ifd, int mode, int lvl, int flag)
+{
+	byte *ibuf, *cbuf, *obuf;
+	s64 aisz, aosz;
+	int fsz, cbsz, cdsz;
+	int t0, t1, t2, t3;
+	int i, j, k;
+	
+	fseek(ifd, 0, 2);
+	fsz=ftell(ifd);
+	fseek(ifd, 0, 0);
+	
+	cbsz=fsz+(fsz>>1);
+	
+	ibuf=malloc(fsz);
+	cbuf=malloc(cbsz);
+	obuf=malloc(cbsz);
+
+	fread(ibuf, 1, fsz, ifd);
+
+	printf("Encode:\n");
+	t0=clock();
+	cdsz=BTLZA_BitEnc_EncodeStreamXLvlZlTest(ibuf, cbuf, fsz, cbsz, lvl);
+	t1=clock();
+
+	t2=t1-t0;
+	fprintf(stderr, "%.2fKiB/%.2fKiB Sz=%.2f%%(C=%.2f%%) %.3fKiB/s\n",
+		cdsz/1024.0, fsz/1024.0,
+		(100.0*cdsz)/(fsz+1), 100-((100.0*cdsz)/(fsz+1)),
+		(fsz/1024.0)/((t2+1.0)/CLOCKS_PER_SEC));
+
+	printf("Decode:\n");
+	t0=clock();
+	aisz=0; aosz=0;
+	while(1)
+	{
+		t1=clock();
+		t2=t1-t0;
+
+		fprintf(stderr, "%.2fKiB/%.2fKiB Sz=%.2f%% %.3fKiB/s\r",
+			aosz/1024.0, aisz/1024.0,
+			(100.0*aosz)/(aisz+1),
+			(aosz/1024.0)/((t2+1.0)/CLOCKS_PER_SEC));
+
+		j=BTLZA_DecodeStreamSzZl(
+			cbuf, obuf, cdsz, cbsz, &i, 0);
+
+		if(j<0)
+		{
+			printf("error %d\n", j);
+			break;
+		}
+		
+		aisz+=cdsz;
+		aosz+=i;
+	}
+}
+
 void help(char *pgm)
 {
 	fprintf(stderr, "usage: %s options* <infile> [-o <outfile>]\n", pgm);
@@ -602,6 +660,7 @@ void help(char *pgm)
 	"  -1a .. -9a   Compression Level (With Arithmetic, *)\n"
 	"  -fe          Use fast encoder\n"
 	"  -rh          Use RingHuff encoding\n"
+	"  -bf          Bench File\n"
 	"  -h           This message\n"
 	"  --help       This message\n"
 	"\n"
@@ -630,6 +689,8 @@ int main(int argc, char *argv[])
 				{ mode=2; continue; }
 			if(!strcmp(argv[i], "-ds"))
 				{ mode=3; continue; }
+			if(!strcmp(argv[i], "-bf"))
+				{ mode=4; continue; }
 
 			if(!strcmp(argv[i], "-c"))
 				{ flag|=1; continue; }
@@ -761,12 +822,18 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "Could not open output %s\n", tb);
 			return(-1);
 		}
-	}else
+	}else if(mode!=4)
 	{
 //		ofd=NULL;
 
 		fprintf(stderr, "No Output %s\n", tb);
 		return(-1);
+	}
+
+	if(mode==4)
+	{
+		BTLZA_BenchLoadFile(ifd, mode, lvl, flag);
+		return(0);
 	}
 	
 	if(mode==0)
