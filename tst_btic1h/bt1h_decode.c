@@ -28,14 +28,16 @@ int BTIC1H_ReadCommandCode(BTIC1H_Context *ctx)
 //	i=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_cmdidx));
 	i=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_cmdidx));
 
-	if((i>0) && (i<=16))
+//	if((i>0) && (i<=16))
 //	if((i>=0) && (i<16))
+	if((i>0) && (i<=256))
 	{
 		i--;
 
 		if(!i)
 		{
-			j=ctx->cmdwin[ctx->cmdwpos&15];
+//			j=ctx->cmdwin[ctx->cmdwpos&15];
+			j=ctx->cmdwin[ctx->cmdwpos&255];
 			if(j==0xFF)
 				{ *(int *)-1=-1; }
 			return(j);
@@ -44,10 +46,15 @@ int BTIC1H_ReadCommandCode(BTIC1H_Context *ctx)
 #if 1
 		if(i>0)
 		{
-			j=ctx->cmdwin[(ctx->cmdwpos+i+0)&15];
-			k=ctx->cmdwin[(ctx->cmdwpos+i-1)&15];
-			ctx->cmdwin[(ctx->cmdwpos+i-1)&15]=j;
-			ctx->cmdwin[(ctx->cmdwpos+i+0)&15]=k;
+//			j=ctx->cmdwin[(ctx->cmdwpos+i+0)&15];
+//			k=ctx->cmdwin[(ctx->cmdwpos+i-1)&15];
+//			ctx->cmdwin[(ctx->cmdwpos+i-1)&15]=j;
+//			ctx->cmdwin[(ctx->cmdwpos+i+0)&15]=k;
+
+			j=ctx->cmdwin[(ctx->cmdwpos+i+0)&255];
+			k=ctx->cmdwin[(ctx->cmdwpos+i-1)&255];
+			ctx->cmdwin[(ctx->cmdwpos+i-1)&255]=j;
+			ctx->cmdwin[(ctx->cmdwpos+i+0)&255]=k;
 
 			if(j==0xFF)
 				{ *(int *)-1=-1; }
@@ -88,7 +95,8 @@ int BTIC1H_ReadCommandCode(BTIC1H_Context *ctx)
 //		k=BTIC1H_Rice_ReadNBits(ctx, -i);
 
 		j=(byte)(--ctx->cmdwpos);
-		ctx->cmdwin[j&15]=k;
+//		ctx->cmdwin[j&15]=k;
+		ctx->cmdwin[j&255]=k;
 		return(k);	
 	}
 	
@@ -97,18 +105,107 @@ int BTIC1H_ReadCommandCode(BTIC1H_Context *ctx)
 }
 #endif
 
+int BTIC1H_ReadMaskCode(BTIC1H_Context *ctx)
+{
+	int i, j, k;
+	i=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_maskidx));
+	if(i>0)
+	{
+		i--;
+		if(i>0)
+		{
+			j=ctx->maskwin[i-1];
+			k=ctx->maskwin[i  ];
+			ctx->maskwin[i-1]=k;
+			ctx->maskwin[i  ]=j;
+		}else
+		{
+			k=ctx->maskwin[i  ];
+		}
+		return(k);
+	}
+	
+//	k=ctx->updmask<<1;
+	return(-1);
+}
+
+force_inline void BTIC1H_DecodeDeltaUpdateMask(BTIC1H_Context *ctx)
+{
+	int i;
+
+	i=BTIC1H_ReadMaskCode(ctx);
+	if(i>=0)
+	{
+		ctx->updmask=(i>>1)|128;
+		if(i&1)
+			{ ctx->nextupdmask=ctx->updmask; }
+	}
+}
+
+force_inline void BTIC1H_DecodeAbsUpdateMask(BTIC1H_Context *ctx)
+{
+	int i;
+
+	i=BTIC1H_ReadMaskCode(ctx);
+	if(i>=0)
+	{
+		ctx->absupdmask=(i>>1)|128;
+		if(i&1)
+			{ ctx->nextabsupdmask=ctx->absupdmask; }
+	}
+}
+
+force_inline void BTIC1H_DecodeUpdateMaskYUV(BTIC1H_Context *ctx)
+	{ BTIC1H_DecodeDeltaUpdateMask(ctx); }
+force_inline void BTIC1H_DecodeUpdateMaskYUVD(BTIC1H_Context *ctx)
+	{ BTIC1H_DecodeDeltaUpdateMask(ctx); }
+force_inline void BTIC1H_DecodeUpdateMaskYUVDyuv(BTIC1H_Context *ctx)
+	{ BTIC1H_DecodeDeltaUpdateMask(ctx); }
+
+force_inline void BTIC1H_DecodeAbsUpdateMaskYUV(BTIC1H_Context *ctx)
+	{ BTIC1H_DecodeAbsUpdateMask(ctx); }
+force_inline void BTIC1H_DecodeAbsUpdateMaskYUVD(BTIC1H_Context *ctx)
+	{ BTIC1H_DecodeAbsUpdateMask(ctx); }
+force_inline void BTIC1H_DecodeAbsUpdateMaskYUVDyuv(BTIC1H_Context *ctx)
+	{ BTIC1H_DecodeAbsUpdateMask(ctx); }
+
 void BTIC1H_DecodeDeltaYUV(BTIC1H_Context *ctx)
 {
 	int dy, du, dv;
 	int qdy, qdu, qdv;
 
-	qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dy));
-	qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
-	qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+	if(ctx->updmask)
+	{
+		BTIC1H_DecodeUpdateMaskYUV(ctx);
+		
+		if(ctx->updmask&1)
+		{
+			qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dy));
+			ctx->cy+=qdy*ctx->qfy;
+		}
 
-	ctx->cy+=qdy*ctx->qfy;
-	ctx->cu+=qdu*ctx->qfuv;
-	ctx->cv+=qdv*ctx->qfuv;
+		if(ctx->updmask&2)
+		{
+			qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+			ctx->cu+=qdu*ctx->qfuv;
+		}
+
+		if(ctx->updmask&4)
+		{
+			qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+			ctx->cv+=qdv*ctx->qfuv;
+		}
+		ctx->updmask=ctx->nextupdmask;
+	}else
+	{
+		qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dy));
+		qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+		qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+
+		ctx->cy+=qdy*ctx->qfy;
+		ctx->cu+=qdu*ctx->qfuv;
+		ctx->cv+=qdv*ctx->qfuv;
+	}
 	
 #ifdef BT1H_DEBUG_TRAPRANGE
 	if((ctx->cy<0) || (ctx->cy>255) ||
@@ -122,12 +219,55 @@ void BTIC1H_DecodeDeltaYUV(BTIC1H_Context *ctx)
 
 void BTIC1H_DecodeDeltaYUVD(BTIC1H_Context *ctx)
 {
+	int dy, du, dv;
+	int qdy, qdu, qdv;
 	int dd, qdd;
 
-	BTIC1H_DecodeDeltaYUV(ctx);
-	qdd=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ddy));
-	ctx->cd+=qdd*ctx->qfd;
-	ctx->dyuv=0;
+//	BTIC1H_DecodeDeltaYUV(ctx);
+
+	if(ctx->updmask)
+	{
+		BTIC1H_DecodeUpdateMaskYUVD(ctx);
+		
+		if(ctx->updmask&1)
+		{
+			qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dy));
+			ctx->cy+=qdy*ctx->qfy;
+		}
+
+		if(ctx->updmask&2)
+		{
+			qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+			ctx->cu+=qdu*ctx->qfuv;
+		}
+
+		if(ctx->updmask&4)
+		{
+			qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+			ctx->cv+=qdv*ctx->qfuv;
+		}
+
+		if(ctx->updmask&8)
+		{
+			qdd=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ddy));
+			ctx->cd+=qdd*ctx->qfd;
+		}
+
+		ctx->updmask=ctx->nextupdmask;
+		ctx->dyuv=0;
+	}else
+	{
+		qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dy));
+		qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+		qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+		qdd=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ddy));
+
+		ctx->cy+=qdy*ctx->qfy;
+		ctx->cu+=qdu*ctx->qfuv;
+		ctx->cv+=qdv*ctx->qfuv;
+		ctx->cd+=qdd*ctx->qfd;
+		ctx->dyuv=0;
+	}
 
 #ifdef BT1H_DEBUG_TRAPRANGE
 	if(	((ctx->cy<0) || (ctx->cy>255)) ||
@@ -164,9 +304,64 @@ void BTIC1H_DecodeDeltaUV(BTIC1H_Context *ctx)
 
 void BTIC1H_DecodeDeltaYUVDyuv(BTIC1H_Context *ctx)
 {
+//	int dy, du, dv;
+//	int qdy, qdu, qdv;
+
 	int dy, du, dv;
 	int qdy, qdu, qdv;
+	int dd, qdd;
 
+//	BTIC1H_DecodeDeltaYUV(ctx);
+
+	if(ctx->updmask)
+	{
+		BTIC1H_DecodeUpdateMaskYUVDyuv(ctx);
+		
+		if(ctx->updmask&1)
+		{	qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dy));
+			ctx->cy+=qdy*ctx->qfy;	}
+		if(ctx->updmask&2)
+		{	qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+			ctx->cu+=qdu*ctx->qfuv;	}
+		if(ctx->updmask&4)
+		{	qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+			ctx->cv+=qdv*ctx->qfuv;	}
+		if(ctx->updmask&8)
+		{	qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ddy));
+			ctx->cdy+=qdy*ctx->qfdy;	}
+		if(ctx->updmask&16)
+		{	qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dduv));
+			ctx->cdu+=qdu*ctx->qfduv;	}
+		if(ctx->updmask&32)
+		{	qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dduv));
+			ctx->cdv+=qdv*ctx->qfduv;	}
+
+		ctx->updmask=ctx->nextupdmask;
+		ctx->dyuv=1;
+	}else
+	{
+		qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dy));
+		qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+		qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_duv));
+//		qdd=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ddy));
+
+		ctx->cy+=qdy*ctx->qfy;
+		ctx->cu+=qdu*ctx->qfuv;
+		ctx->cv+=qdv*ctx->qfuv;
+//		ctx->cd+=qdd*ctx->qfd;
+
+		qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ddy));
+		qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dduv));
+		qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_dduv));
+
+		ctx->cdy+=qdy*ctx->qfdy;
+		ctx->cdu+=qdu*ctx->qfduv;
+		ctx->cdv+=qdv*ctx->qfduv;
+
+		ctx->dyuv=1;
+	}
+
+#if 0
 	BTIC1H_DecodeDeltaYUV(ctx);
 
 	qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ddy));
@@ -177,6 +372,7 @@ void BTIC1H_DecodeDeltaYUVDyuv(BTIC1H_Context *ctx)
 	ctx->cdu+=qdu*ctx->qfduv;
 	ctx->cdv+=qdv*ctx->qfduv;
 	ctx->dyuv=1;
+#endif
 
 #ifdef BT1H_DEBUG_TRAPRANGE
 	if(	((ctx->cy<0) || (ctx->cy>255)) ||
@@ -200,13 +396,38 @@ void BTIC1H_DecodeAbsYUV(BTIC1H_Context *ctx)
 	int dy, du, dv;
 	int qdy, qdu, qdv;
 
-	qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ay));
-	qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
-	qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+	if(ctx->absupdmask)
+	{
+		BTIC1H_DecodeAbsUpdateMaskYUV(ctx);
+		
+		if(ctx->absupdmask&1)
+		{
+			qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ay));
+			ctx->cy=ctx->absyuvbias+qdy*ctx->qfay;
+		}
 
-	ctx->cy=ctx->absyuvbias+qdy*ctx->qfay;
-	ctx->cu=ctx->absyuvbias+qdu*ctx->qfauv;
-	ctx->cv=ctx->absyuvbias+qdv*ctx->qfauv;
+		if(ctx->absupdmask&2)
+		{
+			qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+			ctx->cu=ctx->absyuvbias+qdu*ctx->qfauv;
+		}
+
+		if(ctx->absupdmask&4)
+		{
+			qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+			ctx->cv=ctx->absyuvbias+qdv*ctx->qfauv;
+		}
+		ctx->absupdmask=ctx->nextabsupdmask;
+	}else
+	{
+		qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ay));
+		qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+		qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+
+		ctx->cy=ctx->absyuvbias+qdy*ctx->qfay;
+		ctx->cu=ctx->absyuvbias+qdu*ctx->qfauv;
+		ctx->cv=ctx->absyuvbias+qdv*ctx->qfauv;
+	}
 }
 
 void BTIC1H_DecodeAbsY(BTIC1H_Context *ctx)
@@ -228,12 +449,54 @@ void BTIC1H_DecodeAbsUV(BTIC1H_Context *ctx)
 
 void BTIC1H_DecodeAbsYUVD(BTIC1H_Context *ctx)
 {
+	int dy, du, dv;
+	int qdy, qdu, qdv;
 	int dd, qdd;
 
-	BTIC1H_DecodeAbsYUV(ctx);
-	qdd=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ady));
-	ctx->cd=qdd*ctx->qfad;
-	ctx->dyuv=0;
+	if(ctx->absupdmask)
+	{
+		BTIC1H_DecodeAbsUpdateMaskYUVD(ctx);
+		
+		if(ctx->absupdmask&1)
+		{
+			qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ay));
+			ctx->cy=ctx->absyuvbias+qdy*ctx->qfay;
+		}
+
+		if(ctx->absupdmask&2)
+		{
+			qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+			ctx->cu=ctx->absyuvbias+qdu*ctx->qfauv;
+		}
+
+		if(ctx->absupdmask&4)
+		{
+			qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+			ctx->cv=ctx->absyuvbias+qdv*ctx->qfauv;
+		}
+
+		if(ctx->absupdmask&8)
+		{
+			qdd=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ady));
+			ctx->cd=qdd*ctx->qfad;
+		}
+
+		ctx->absupdmask=ctx->nextabsupdmask;
+		ctx->dyuv=0;
+	}else
+	{
+		qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ay));
+		qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+		qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+
+		ctx->cy=ctx->absyuvbias+qdy*ctx->qfay;
+		ctx->cu=ctx->absyuvbias+qdu*ctx->qfauv;
+		ctx->cv=ctx->absyuvbias+qdv*ctx->qfauv;
+
+		qdd=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ady));
+		ctx->cd=qdd*ctx->qfad;
+		ctx->dyuv=0;
+	}
 }
 
 void BTIC1H_DecodeAbsYUVDyuv(BTIC1H_Context *ctx)
@@ -241,16 +504,51 @@ void BTIC1H_DecodeAbsYUVDyuv(BTIC1H_Context *ctx)
 	int dy, du, dv;
 	int qdy, qdu, qdv;
 
-	BTIC1H_DecodeAbsYUV(ctx);
+	if(ctx->absupdmask)
+	{
+		BTIC1H_DecodeUpdateMaskYUVDyuv(ctx);
+		
+		if(ctx->absupdmask&1)
+		{	qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ay));
+			ctx->cy=ctx->absyuvbias+qdy*ctx->qfay;		}
+		if(ctx->absupdmask&2)
+		{	qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+			ctx->cu=ctx->absyuvbias+qdu*ctx->qfauv;		}
+		if(ctx->absupdmask&4)
+		{	qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+			ctx->cv=ctx->absyuvbias+qdv*ctx->qfauv;		}
 
-	qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ady));
-	qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_aduv));
-	qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_aduv));
+		if(ctx->absupdmask&8)
+		{	qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ady));
+			ctx->cdy=qdy*ctx->qfady;	}
+		if(ctx->absupdmask&16)
+		{	qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_aduv));
+			ctx->cdu=qdu*ctx->qfaduv;	}
+		if(ctx->absupdmask&32)
+		{	qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_aduv));
+			ctx->cdv=qdv*ctx->qfaduv;	}
 
-	ctx->cdy=qdy*ctx->qfady;
-	ctx->cdu=qdu*ctx->qfaduv;
-	ctx->cdv=qdv*ctx->qfaduv;
-	ctx->dyuv=1;
+		ctx->absupdmask=ctx->nextabsupdmask;
+		ctx->dyuv=0;
+	}else
+	{
+		qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ay));
+		qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+		qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_auv));
+
+		ctx->cy=ctx->absyuvbias+qdy*ctx->qfay;
+		ctx->cu=ctx->absyuvbias+qdu*ctx->qfauv;
+		ctx->cv=ctx->absyuvbias+qdv*ctx->qfauv;
+
+		qdy=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_ady));
+		qdu=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_aduv));
+		qdv=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_aduv));
+
+		ctx->cdy=qdy*ctx->qfady;
+		ctx->cdu=qdu*ctx->qfaduv;
+		ctx->cdv=qdv*ctx->qfaduv;
+		ctx->dyuv=0;
+	}
 }
 
 void BTIC1H_DecodeQfDeltaYUVD(BTIC1H_Context *ctx)
@@ -1246,7 +1544,7 @@ int BTIC1H_DecodeBlocksCtx(BTIC1H_Context *ctx,
 		case 0x24:
 			xo=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_parmvar));
 			k=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_parmix));
-			n=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_parmix));
+			n=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_cmdcnt));
 			for(i=0; i<n; i++)
 			{
 				yo=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_parmval));
@@ -1254,6 +1552,53 @@ int BTIC1H_DecodeBlocksCtx(BTIC1H_Context *ctx,
 			if(xo<0) { ret=-1; break; }
 			break;
 
+		case 0x25:
+			ret=-1; break;
+
+		case 0x26:
+			xo=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_parmvar));
+			if(xo<0)
+			{
+				if(xo==-1)
+				{
+					if(!ctx->updmask)
+					{
+						ctx->updmask=255;
+						ctx->nextupdmask=255;
+					}
+					break;
+				}
+				if(xo==-2)
+				{
+					if(!ctx->absupdmask)
+					{
+						ctx->absupdmask=255;
+						ctx->nextabsupdmask=255;
+					}
+					break;
+				}
+				ret=-1; break;
+			}
+			break;
+		case 0x27:
+			xo=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_parmvar));
+			if(xo<0)
+			{
+				if(xo==-1)
+				{
+					ctx->updmask=0;
+					ctx->nextupdmask=0;
+					break;
+				}
+				if(xo==-1)
+				{
+					ctx->absupdmask=0;
+					ctx->nextabsupdmask=0;
+					break;
+				}
+				ret=-1; break;
+			}
+			break;
 		case 0x28:
 			n=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_cmdcnt));
 			for(i=0; i<n; i++)

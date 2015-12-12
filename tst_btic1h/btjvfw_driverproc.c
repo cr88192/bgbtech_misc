@@ -491,7 +491,12 @@ static LRESULT btjvfw_decompress_query(BTIC1H_VidCodecCTX *ctx,
 			(lParam2->bmiHeader.biCompression!=BI_BITFIELDS) &&
 			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_RGBA) &&
 			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_YUY2) &&
-			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_UYVY))
+			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_UYVY) &&
+			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_DXT1) &&
+			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_DXT5) &&
+			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_BC1) &&
+			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_BC3) &&
+			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_BC7))
 		{
 			btjpg_printf("\tReject Out Format\n");
 			return(ICERR_BADFORMAT);
@@ -662,6 +667,17 @@ static LRESULT btjvfw_decompress_begin(BTIC1H_VidCodecCTX *ctx,
 			clrsfcc=BTIC1H_FCC_YUY2;
 		if(lParam2->bmiHeader.biCompression==BTIC1H_FCC_UYVY)
 			clrsfcc=BTIC1H_FCC_UYVY;
+
+		if(lParam2->bmiHeader.biCompression==BTIC1H_FCC_DXT1)
+			clrsfcc=BTIC1H_FCC_BC1;
+		if(lParam2->bmiHeader.biCompression==BTIC1H_FCC_DXT5)
+			clrsfcc=BTIC1H_FCC_BC3;
+		if(lParam2->bmiHeader.biCompression==BTIC1H_FCC_BC1)
+			clrsfcc=BTIC1H_FCC_BC1;
+		if(lParam2->bmiHeader.biCompression==BTIC1H_FCC_BC3)
+			clrsfcc=BTIC1H_FCC_BC3;
+		if(lParam2->bmiHeader.biCompression==BTIC1H_FCC_BC7)
+			clrsfcc=BTIC1H_FCC_BC7;
 
 		if((lParam2->bmiHeader.biCompression==BI_BITFIELDS) ||
 			(lParam2->bmiHeader.biCompression==BTIC1H_FCC_RGBA))

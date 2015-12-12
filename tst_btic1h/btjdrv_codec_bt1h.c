@@ -134,14 +134,18 @@ BTIC1H_VidCodecCTX *bt1h_begin_decompress(int fcc,
 //			info->flip=!info->flip;
 		}
 
-//		if(out->biCompression==BTIC1H_FCC_DXT1)
-//			{ info->clrs=BTIC1H_PXF_DXT1; }
-//		if(out->biCompression==BTIC1H_FCC_DXT5)
-//			{ info->clrs=BTIC1H_PXF_DXT5; }
+		if(out->biCompression==BTIC1H_FCC_DXT1)
+			{ info->clrs=BTIC1H_PXF_BC1; }
+		if(out->biCompression==BTIC1H_FCC_DXT5)
+			{ info->clrs=BTIC1H_PXF_BC3; }
+		if(out->biCompression==BTIC1H_FCC_BC1)
+			{ info->clrs=BTIC1H_PXF_BC1; }
+		if(out->biCompression==BTIC1H_FCC_BC3)
+			{ info->clrs=BTIC1H_PXF_BC3; }
 //		if(out->biCompression==BTIC1H_FCC_BC6H)
 //			{ info->clrs=BTIC1H_PXF_BC6H; }
-//		if(out->biCompression==BTIC1H_FCC_BC7)
-//			{ info->clrs=BTIC1H_PXF_BC7; }
+		if(out->biCompression==BTIC1H_FCC_BC7)
+			{ info->clrs=BTIC1H_PXF_BC7; }
 	}
 	else
 		{ info->clrs=BTIC1H_PXF_RGBA; }

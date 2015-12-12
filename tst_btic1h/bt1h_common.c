@@ -88,6 +88,12 @@ typedef signed long long s64;
 #define BTIC1H_FCC_YUY2	RIFF_MAKETAG('Y','U','Y','2')
 #define BTIC1H_FCC_UYVY	RIFF_MAKETAG('U','Y','V','Y')
 
+#define BTIC1H_FCC_DXT1	RIFF_MAKETAG('D','X','T','1')
+#define BTIC1H_FCC_DXT5	RIFF_MAKETAG('D','X','T','5')
+#define BTIC1H_FCC_BC1	RIFF_MAKETAG('B','C','1',' ')
+#define BTIC1H_FCC_BC3	RIFF_MAKETAG('B','C','3',' ')
+#define BTIC1H_FCC_BC7	RIFF_MAKETAG('B','C','7',' ')
+
 #define	BTIC1H_PXF_RGBA			 0	//RGBA(32)
 #define	BTIC1H_PXF_RGB			 1	//RGB(24)
 #define	BTIC1H_PXF_BGRA			 3	//BGRA(32)
@@ -182,7 +188,7 @@ int bs_bits;						//bitstream total bits
 byte *blks;							//blocks buffer
 byte *lblks;						//last-frame blocks buffer
 
-byte cmdwin[16];					//command window
+byte cmdwin[256];					//command window
 short cmdidx[256];					//command window index
 byte cmdwpos;						//command window position
 
@@ -201,7 +207,13 @@ int qfay, qfauv, qfad;				//AbsYUVD Quantization Factors
 int qfady, qfaduv;					//AbsDyuv Quantization Factors
 
 byte flip;							//Vertical Flip
-byte dyuv;
+byte dyuv;							//DYUV mode
+byte updmask;						//YUVD update mask.
+byte nextupdmask;					//Next YUVD update mask.
+byte tgtupdmask;					//Target YUVD update mask (encode).
+
+byte absupdmask;					//YUVD update mask (absolute).
+byte nextabsupdmask;				//Next YUVD update mask (absolute).
 
 u32 mark2;
 
@@ -213,6 +225,7 @@ int fx_qfady, fx_qfaduv;			//Fixed Point Quant Recip (AbsDyuv)
 int rk_cmdidx;						//
 int rk_cmdabs;						//
 int rk_cmdcnt;						//
+int rk_maskidx;						//
 
 int rk_parmxy;						//
 int rk_parmvar;						//
@@ -238,6 +251,10 @@ int cnt_cmds;						//
 int bits_cmdidx;					//
 int bits_cmdabs;					//
 
+int cnt_parms;						//
+int bits_parm;						//
+
+int bits_dumask;					//
 int bits_dyuv;						//
 int bits_dy;						//
 int bits_duv;						//
@@ -250,6 +267,14 @@ int bits_pix4x4x3;					//
 int bits_pix4x2;					//
 int bits_pix2x2;					//
 int bits_pix2x1;					//
+
+int cnt_dpts;						//count delta points
+int cnt_dzpts;						//count zero delta points
+
+int cnt_dcpts[8];					//count delta points
+int cnt_dczpts[8];					//count zero delta points
+byte maskwin[256];					//mask update window
+byte maskidx[256];					//mask update index
 
 u32 mark3;
 };

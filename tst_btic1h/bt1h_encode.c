@@ -110,10 +110,152 @@ int BTIC1H_EmitCommandCode(BTIC1H_Context *ctx, int cmd)
 	return(0);
 }
 
+int BTIC1H_EmitEnableDeltaMask(BTIC1H_Context *ctx)
+{
+	int bit0;
+
+	if(!ctx->updmask)
+	{
+		ctx->cnt_parms++;
+
+		BTIC1H_EmitCommandCode(ctx, 0x26);
+		bit0=ctx->bs_bits;
+		BTIC1H_Rice_WriteAdSRice(ctx, -1, &(ctx->rk_parmvar));
+		ctx->bits_parm+=ctx->bs_bits-bit0;
+		ctx->updmask=255;
+		ctx->nextupdmask=255;
+		ctx->tgtupdmask=255;
+	}
+	return(0);
+}
+
+int BTIC1H_EmitDisableDeltaMask(BTIC1H_Context *ctx)
+{
+	int bit0;
+
+	if(ctx->updmask)
+	{
+		ctx->cnt_parms++;
+
+		BTIC1H_EmitCommandCode(ctx, 0x27);
+		bit0=ctx->bs_bits;
+		BTIC1H_Rice_WriteAdSRice(ctx, -1, &(ctx->rk_parmvar));
+		ctx->bits_parm+=ctx->bs_bits-bit0;
+		ctx->updmask=0;
+		ctx->nextupdmask=0;
+	}
+	return(0);
+}
+
+int BTIC1H_EmitMaskCode(BTIC1H_Context *ctx, int val)
+{
+	int i, j, k;
+
+	if(val>=0)
+	{
+		i=ctx->maskidx[val];
+		if(i>0)
+		{
+			j=ctx->maskwin[i-1];
+			k=ctx->maskwin[i  ];
+			ctx->maskwin[i-1]=k;
+			ctx->maskwin[i  ]=j;
+			ctx->maskidx[k]=i-1;
+			ctx->maskidx[j]=i;
+		}
+		BTIC1H_Rice_WriteAdRice(ctx, i+1, &(ctx->rk_maskidx));
+		return(0);
+	}else
+	{
+		BTIC1H_Rice_WriteAdRice(ctx, 0, &(ctx->rk_maskidx));
+		return(0);
+	}
+}
+
+int BTIC1H_EmitCheckEnableDeltaMask(BTIC1H_Context *ctx)
+{
+	int i, j, k;
+	
+	i=ctx->cnt_dpts;
+	if(i<64)
+		return(0);
+	
+//	return(0);
+	
+//	j=(3*ctx->cnt_dpts)>>2;
+//	k=(1*ctx->cnt_dpts)>>2;
+
+	j=(2*ctx->cnt_dpts)>>2;
+	k=(1*ctx->cnt_dpts)>>2;
+
+//	j=(7*ctx->cnt_dpts)>>3;
+//	k=(3*ctx->cnt_dpts)>>3;
+	if(ctx->cnt_dzpts>j)
+		{ BTIC1H_EmitEnableDeltaMask(ctx); }
+	if(ctx->cnt_dzpts<k)
+		{ BTIC1H_EmitDisableDeltaMask(ctx); }
+
+	if(ctx->updmask)
+	{
+		ctx->tgtupdmask=255;
+		for(i=0; i<6; i++)
+		{
+			if((ctx->cnt_dcpts[i]>8) &&
+//				(ctx->cnt_dczpts[i]>((3*ctx->cnt_dcpts[i])>>2)))
+//				(ctx->cnt_dczpts[i]>((ctx->cnt_dcpts[i])>>1)))
+				(ctx->cnt_dczpts[i]>((ctx->cnt_dcpts[i])>>2)))
+					ctx->tgtupdmask&=~(1<<i);
+		}
+	}
+
+	return(0);
+}
+
+int BTIC1H_EmitDeltaMaskI(BTIC1H_Context *ctx, int um, int bn)
+{
+	int bit0, bm;
+	int i, j, k;
+	
+	bm=(1<<bn)-1;
+
+	if((ctx->updmask==(ctx->updmask|um)) &&
+		((ctx->updmask&bm)==((ctx->tgtupdmask|um)&bm)))
+	{
+		bit0=ctx->bs_bits;
+		BTIC1H_EmitMaskCode(ctx, -1);
+		ctx->bits_dumask+=ctx->bs_bits-bit0;
+		return(ctx->updmask|um);
+	}
+
+	if((ctx->tgtupdmask&bm)==((ctx->tgtupdmask|um)&bm))
+	{
+		j=ctx->tgtupdmask;
+		ctx->updmask=j;
+
+		bit0=ctx->bs_bits;
+		BTIC1H_EmitMaskCode(ctx, ((j<<1)|1)&255);
+		ctx->bits_dumask+=ctx->bs_bits-bit0;
+		return(ctx->tgtupdmask);
+	}
+
+	j=ctx->tgtupdmask|um;
+	bit0=ctx->bs_bits;
+	BTIC1H_EmitMaskCode(ctx, (j<<1)&255);
+	ctx->bits_dumask+=ctx->bs_bits-bit0;
+	return(ctx->tgtupdmask|um);
+}
+
+int BTIC1H_EmitDeltaMask3(BTIC1H_Context *ctx, int um)
+	{ return(BTIC1H_EmitDeltaMaskI(ctx, um, 3)); }
+int BTIC1H_EmitDeltaMask4(BTIC1H_Context *ctx, int um)
+	{ return(BTIC1H_EmitDeltaMaskI(ctx, um, 4)); }
+int BTIC1H_EmitDeltaMask6(BTIC1H_Context *ctx, int um)
+	{ return(BTIC1H_EmitDeltaMaskI(ctx, um, 6)); }
+
 int BTIC1H_EmitDeltaYUV(BTIC1H_Context *ctx,
 	int cy, int cu, int cv)
 {
-	int bit0;
+	int bit0, um;
 	int dy, du, dv, dd;
 	int py, pu, pv;
 	int qdy, qdu, qdv, qdd;
@@ -149,14 +291,47 @@ int BTIC1H_EmitDeltaYUV(BTIC1H_Context *ctx,
 //	ctx->cu+=qdu*ctx->qfuv;
 //	ctx->cv+=qdv*ctx->qfuv;
 
+#if 1
+	ctx->cnt_dpts+=3;
+	if(!qdy)ctx->cnt_dzpts++;
+	if(!qdu)ctx->cnt_dzpts++;
+	if(!qdv)ctx->cnt_dzpts++;
+//	BTIC1H_EmitCheckEnableDeltaMask(ctx);
+#endif
+
+#if 1
+	if(ctx->updmask)
+	{
+		ctx->cnt_dcpts[0]++;
+		ctx->cnt_dcpts[1]++;
+		ctx->cnt_dcpts[2]++;
+
+		if(!qdy)ctx->cnt_dczpts[0]++;
+		if(!qdu)ctx->cnt_dczpts[1]++;
+		if(!qdv)ctx->cnt_dczpts[2]++;
+	}
+#endif
+
+	if(ctx->updmask)
+	{
+		um=0;
+		if(qdy)um|=1;
+		if(qdu)um|=2;
+		if(qdv)um|=4;
+		um=BTIC1H_EmitDeltaMask3(ctx, um);
+	}else { um=255; }
+
 	bit0=ctx->bs_bits;
-	BTIC1H_Rice_WriteAdSRice(ctx, qdy, &(ctx->rk_dy));
+	if(um&1)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdy, &(ctx->rk_dy));
 	ctx->bits_dy+=ctx->bs_bits-bit0;
 	ctx->bits_dyuv+=ctx->bs_bits-bit0;
 
 	bit0=ctx->bs_bits;
-	BTIC1H_Rice_WriteAdSRice(ctx, qdu, &(ctx->rk_duv));
-	BTIC1H_Rice_WriteAdSRice(ctx, qdv, &(ctx->rk_duv));
+	if(um&2)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdu, &(ctx->rk_duv));
+	if(um&4)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdv, &(ctx->rk_duv));
 	ctx->bits_duv+=ctx->bs_bits-bit0;
 	ctx->bits_dyuv+=ctx->bs_bits-bit0;
 
@@ -205,7 +380,7 @@ int BTIC1H_EmitDeltaYUVD(BTIC1H_Context *ctx,
 int BTIC1H_EmitDeltaYUVD(BTIC1H_Context *ctx,
 	int cy, int cu, int cv, int cd)
 {
-	int bit0;
+	int bit0, um;
 	int by, bu, bv, bd;
 	int dy, du, dv, dd;
 	int py, pu, pv, pd;
@@ -233,19 +408,57 @@ int BTIC1H_EmitDeltaYUVD(BTIC1H_Context *ctx,
 	ctx->cy=py;		ctx->cu=pu;
 	ctx->cv=pv;		ctx->cd=pd;
 
+#if 1
+	ctx->cnt_dpts+=4;
+	if(!qdy)ctx->cnt_dzpts++;
+	if(!qdu)ctx->cnt_dzpts++;
+	if(!qdv)ctx->cnt_dzpts++;
+	if(!qdd)ctx->cnt_dzpts++;
+//	BTIC1H_EmitCheckEnableDeltaMask(ctx);
+#endif
+
+#if 1
+	if(ctx->updmask)
+	{
+		ctx->cnt_dcpts[0]++;
+		ctx->cnt_dcpts[1]++;
+		ctx->cnt_dcpts[2]++;
+		ctx->cnt_dcpts[3]++;
+
+		if(!qdy)ctx->cnt_dczpts[0]++;
+		if(!qdu)ctx->cnt_dczpts[1]++;
+		if(!qdv)ctx->cnt_dczpts[2]++;
+		if(!qdd)ctx->cnt_dczpts[3]++;
+	}
+#endif
+
+	if(ctx->updmask)
+	{
+		um=0;
+		if(qdy)um|=1;
+		if(qdu)um|=2;
+		if(qdv)um|=4;
+		if(qdd)um|=8;
+		um=BTIC1H_EmitDeltaMask4(ctx, um);
+	}else { um=255; }
+
 	bit0=ctx->bs_bits;
-	BTIC1H_Rice_WriteAdSRice(ctx, qdy, &(ctx->rk_dy));
+	if(um&1)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdy, &(ctx->rk_dy));
 	ctx->bits_dy+=ctx->bs_bits-bit0;
 	ctx->bits_dyuv+=ctx->bs_bits-bit0;
 
 	bit0=ctx->bs_bits;
-	BTIC1H_Rice_WriteAdSRice(ctx, qdu, &(ctx->rk_duv));
-	BTIC1H_Rice_WriteAdSRice(ctx, qdv, &(ctx->rk_duv));
+	if(um&2)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdu, &(ctx->rk_duv));
+	if(um&4)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdv, &(ctx->rk_duv));
 	ctx->bits_duv+=ctx->bs_bits-bit0;
 	ctx->bits_dyuv+=ctx->bs_bits-bit0;
 
 	bit0=ctx->bs_bits;
-	BTIC1H_Rice_WriteAdSRice(ctx, qdd, &(ctx->rk_ddy));
+	if(um&8)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdd, &(ctx->rk_ddy));
 	ctx->bits_ddy+=ctx->bs_bits-bit0;
 
 #ifdef BT1H_DEBUG_TRAPRANGE
@@ -267,7 +480,7 @@ int BTIC1H_EmitDeltaYUVDyuv(BTIC1H_Context *ctx,
 	int cy, int cu, int cv,
 	int cdy, int cdu, int cdv)
 {
-	int bit0;
+	int bit0, um;
 	int by, bu, bv, bdy, bdu, bdv;
 	int dy, du, dv, ddy, ddu, ddv;
 	int py, pu, pv, pdy, pdu, pdv;
@@ -315,24 +528,69 @@ int BTIC1H_EmitDeltaYUVDyuv(BTIC1H_Context *ctx,
 	ctx->cv=pv;		ctx->cdy=pdy;
 	ctx->cdu=pdu;	ctx->cdv=pdv;
 
+	ctx->cnt_dpts+=6;
+	if(!qdy)ctx->cnt_dzpts++;
+	if(!qdu)ctx->cnt_dzpts++;
+	if(!qdv)ctx->cnt_dzpts++;
+	if(!qddy)ctx->cnt_dzpts++;
+	if(!qddu)ctx->cnt_dzpts++;
+	if(!qddv)ctx->cnt_dzpts++;
+
+#if 1
+	if(ctx->updmask)
+	{
+		ctx->cnt_dcpts[0]++;
+		ctx->cnt_dcpts[1]++;
+		ctx->cnt_dcpts[2]++;
+		ctx->cnt_dcpts[3]++;
+		ctx->cnt_dcpts[4]++;
+		ctx->cnt_dcpts[5]++;
+
+		if(!qdy)ctx->cnt_dczpts[0]++;
+		if(!qdu)ctx->cnt_dczpts[1]++;
+		if(!qdv)ctx->cnt_dczpts[2]++;
+		if(!qddy)ctx->cnt_dczpts[3]++;
+		if(!qddu)ctx->cnt_dczpts[4]++;
+		if(!qddv)ctx->cnt_dczpts[5]++;
+	}
+#endif
+
+	if(ctx->updmask)
+	{
+		um=0;
+		if(qdy)um|=1;
+		if(qdu)um|=2;
+		if(qdv)um|=4;
+		if(qddy)um|=8;
+		if(qddu)um|=16;
+		if(qddv)um|=32;
+		um=BTIC1H_EmitDeltaMask6(ctx, um);
+	}else { um=255; }
+
 	bit0=ctx->bs_bits;
-	BTIC1H_Rice_WriteAdSRice(ctx, qdy, &(ctx->rk_dy));
+	if(um&1)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdy, &(ctx->rk_dy));
 	ctx->bits_dy+=ctx->bs_bits-bit0;
 	ctx->bits_dyuv+=ctx->bs_bits-bit0;
 
 	bit0=ctx->bs_bits;
-	BTIC1H_Rice_WriteAdSRice(ctx, qdu, &(ctx->rk_duv));
-	BTIC1H_Rice_WriteAdSRice(ctx, qdv, &(ctx->rk_duv));
+	if(um&2)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdu, &(ctx->rk_duv));
+	if(um&4)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdv, &(ctx->rk_duv));
 	ctx->bits_duv+=ctx->bs_bits-bit0;
 	ctx->bits_dyuv+=ctx->bs_bits-bit0;
 
 	bit0=ctx->bs_bits;
-	BTIC1H_Rice_WriteAdSRice(ctx, qddy, &(ctx->rk_ddy));
+	if(um&8)
+		BTIC1H_Rice_WriteAdSRice(ctx, qddy, &(ctx->rk_ddy));
 	ctx->bits_ddy+=ctx->bs_bits-bit0;
 
 	bit0=ctx->bs_bits;
-	BTIC1H_Rice_WriteAdSRice(ctx, qddu, &(ctx->rk_dduv));
-	BTIC1H_Rice_WriteAdSRice(ctx, qddv, &(ctx->rk_dduv));
+	if(um&16)
+		BTIC1H_Rice_WriteAdSRice(ctx, qddu, &(ctx->rk_dduv));
+	if(um&32)
+		BTIC1H_Rice_WriteAdSRice(ctx, qddv, &(ctx->rk_dduv));
 	ctx->bits_dduv+=ctx->bs_bits-bit0;
 	ctx->bits_dyuv+=ctx->bs_bits-bit0;
 
@@ -427,6 +685,7 @@ int BTIC1H_EmitDeltaAD(BTIC1H_Context *ctx, int cy, int cd)
 int BTIC1H_EmitDeltaQfYUVD(BTIC1H_Context *ctx,
 	int cy, int cuv, int cd)
 {
+	int bit0;
 	int dy, duv, dd;
 	int qdy, qdu, qdv, qdd;
 	
@@ -442,15 +701,19 @@ int BTIC1H_EmitDeltaQfYUVD(BTIC1H_Context *ctx,
 	ctx->fx_qfuv=4096/cuv;
 	ctx->fx_qfd =4096/cd;
 
+	ctx->cnt_parms++;
+	bit0=ctx->bs_bits;
 	BTIC1H_Rice_WriteAdSRice(ctx, dy, &(ctx->rk_qfy));
 	BTIC1H_Rice_WriteAdSRice(ctx, duv, &(ctx->rk_qfuv));
 	BTIC1H_Rice_WriteAdSRice(ctx, dd, &(ctx->rk_qfdy));
+	ctx->bits_parm+=ctx->bs_bits-bit0;
 	return(0);
 }
 
 int BTIC1H_EmitDeltaQfYUVDyuv(BTIC1H_Context *ctx,
 	int cy, int cuv, int cdy, int cduv)
 {
+	int bit0;
 	int dy, duv, ddy, dduv;
 	int qdy, qdu, qdv, qdd;
 	
@@ -469,16 +732,20 @@ int BTIC1H_EmitDeltaQfYUVDyuv(BTIC1H_Context *ctx,
 	ctx->fx_qfdy =4096/cdy;
 	ctx->fx_qfduv=4096/cduv;
 
+	ctx->cnt_parms++;
+	bit0=ctx->bs_bits;
 	BTIC1H_Rice_WriteAdSRice(ctx, dy, &(ctx->rk_qfy));
 	BTIC1H_Rice_WriteAdSRice(ctx, duv, &(ctx->rk_qfuv));
 	BTIC1H_Rice_WriteAdSRice(ctx, ddy, &(ctx->rk_qfdy));
 	BTIC1H_Rice_WriteAdSRice(ctx, dduv, &(ctx->rk_qfduv));
+	ctx->bits_parm+=ctx->bs_bits-bit0;
 	return(0);
 }
 
 int BTIC1H_EmitDeltaQfAD(BTIC1H_Context *ctx,
 	int cy, int cd)
 {
+	int bit0;
 	int dy, duv, dd;
 	int qdy, qdu, qdv, qdd;
 	
@@ -491,8 +758,11 @@ int BTIC1H_EmitDeltaQfAD(BTIC1H_Context *ctx,
 	ctx->fx_qfy=4096/cy;
 	ctx->fx_qfd=4096/cd;
 
+	ctx->cnt_parms++;
+	bit0=ctx->bs_bits;
 	BTIC1H_Rice_WriteAdSRice(ctx, dy, &(ctx->rk_qfy));
 	BTIC1H_Rice_WriteAdSRice(ctx, dd, &(ctx->rk_qfdy));
+	ctx->bits_parm+=ctx->bs_bits-bit0;
 	return(0);
 }
 
@@ -1023,6 +1293,8 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 			}
 #endif
 		}
+
+		BTIC1H_EmitCheckEnableDeltaMask(ctx);
 
 		cy=cs[0]; cu=cs[1]; cv=cs[2]; cd=cs[3];
 		
@@ -1960,7 +2232,7 @@ int BTIC1H_DestroyContext(BTIC1H_Context *ctx)
 
 void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 {
-	int i;
+	int i, j, k;
 
 	ctx->mark1=0x12345678;
 	ctx->mark2=0x12488421;
@@ -1979,6 +2251,11 @@ void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 	
 	ctx->absyuvbias=128;
 	ctx->dyuv=0;
+	ctx->updmask=0;
+	ctx->nextupdmask=0;
+	ctx->absupdmask=0;
+	ctx->nextabsupdmask=0;
+	ctx->tgtupdmask=0;
 	
 	ctx->cdy=0;		ctx->cdu=0;		ctx->cdv=0;
 
@@ -1993,6 +2270,7 @@ void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 
 	ctx->rk_parmxy=2;	ctx->rk_parmvar=2;
 	ctx->rk_parmval=2;	ctx->rk_parmix=2;
+	ctx->rk_maskidx=2;
 
 	ctx->rk_dy=2;		ctx->rk_duv=2;
 	ctx->rk_ddy=2;		ctx->rk_dduv=2;
@@ -2007,6 +2285,9 @@ void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 	ctx->cnt_cmds=0;		ctx->bits_cmdidx=0;
 	ctx->bits_cmdabs=0;
 
+	ctx->cnt_parms=0;		ctx->bits_parm=0;
+
+	ctx->bits_dumask=0;
 	ctx->bits_dyuv=0;		ctx->bits_dy=0;
 	ctx->bits_duv=0;		ctx->bits_ddy=0;
 	ctx->bits_dduv=0;
@@ -2015,6 +2296,23 @@ void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 	ctx->bits_pix4x4x3=0;	ctx->bits_pix4x2=0;
 	ctx->bits_pix2x2=0;		ctx->bits_pix2x1=0;
 #endif
+
+	ctx->cnt_dpts=0;
+	ctx->cnt_dzpts=0;
+	
+	for(i=0; i<8; i++)
+	{
+		ctx->cnt_dcpts[i]=0;
+		ctx->cnt_dczpts[i]=0;
+	}
+
+	for(i=0; i<256; i++)
+	{
+//		j=~i;
+		j=255-i;
+		ctx->maskwin[i]=j;
+		ctx->maskidx[j]=i;
+	}
 }
 
 int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
@@ -2131,8 +2429,15 @@ void BTIC1H_DumpEncodeStats(BTIC1H_Context *ctx)
 		ctx->bits_cmdidx+ctx->bits_cmdabs,
 		ctx->bits_cmdidx, ctx->bits_cmdabs,
 		(ctx->bits_cmdidx+ctx->bits_cmdabs)/(ctx->cnt_cmds+1.0));
-	printf("dyuv=%d dy=%d duv=%d ddy=%d\n",
-		ctx->bits_dyuv, ctx->bits_dy, ctx->bits_duv, ctx->bits_ddy);
+
+	printf("nparms=%d, bits=%d parmavg=%f\n",
+		ctx->cnt_parms,
+		ctx->bits_parm,
+		(ctx->bits_parm)/(ctx->cnt_parms+1.0));
+
+	printf("dyuv=%d dy=%d duv=%d ddy=%d dumask=%d\n",
+		ctx->bits_dyuv, ctx->bits_dy, ctx->bits_duv,
+		ctx->bits_ddy, ctx->bits_dumask);
 	printf("4x4=%d 4x4x1=%d 4x4x3=%d 4x2=%d 2x2=%d 2x1=%d\n",
 		ctx->bits_pix4x4, ctx->bits_pix4x4x1,
 		ctx->bits_pix4x4x3, ctx->bits_pix4x2,
@@ -2144,11 +2449,14 @@ void BTIC1H_DumpEncodeStats(BTIC1H_Context *ctx)
 		(ctx->bits_cmdidx+ctx->bits_cmdabs)*rfbits,
 		ctx->bits_cmdidx*rfbits,
 		ctx->bits_cmdabs*rfbits);
+	printf("nparms=%d, bits=%2.02f%%\n",
+		ctx->cnt_parms, ctx->bits_parm*rfbits);
 	printf(	"dyuvd=%2.02f%% dyuv=%2.02f%% "
-			"dy=%2.02f%% duv=%2.02f%% ddy=%2.02f%%\n",
+			"dy=%2.02f%% duv=%2.02f%% ddy=%2.02f%% dumask=%2.02f%%\n",
 		(ctx->bits_dyuv+ctx->bits_ddy)*rfbits,
 		ctx->bits_dyuv*rfbits, ctx->bits_dy*rfbits,
-		ctx->bits_duv*rfbits, ctx->bits_ddy*rfbits);
+		ctx->bits_duv*rfbits, ctx->bits_ddy*rfbits,
+		ctx->bits_dumask*rfbits);
 	printf("pixel_data=%2.02f%%\n",
 		(ctx->bits_pix4x4+ctx->bits_pix4x4x1+
 		ctx->bits_pix4x4x3+ctx->bits_pix4x2+
@@ -2158,6 +2466,21 @@ void BTIC1H_DumpEncodeStats(BTIC1H_Context *ctx)
 		ctx->bits_pix4x4*rfbits, ctx->bits_pix4x4x1*rfbits,
 		ctx->bits_pix4x4x3*rfbits, ctx->bits_pix4x2*rfbits,
 		ctx->bits_pix2x2*rfbits, ctx->bits_pix2x1*rfbits);
+	
+	printf("Rice K factors:\n");
+	printf( "  cmdidx=%d cmdabs=%d cmdcnt=%d maskidx=%d\n",
+		ctx->rk_cmdidx, ctx->rk_cmdabs, ctx->rk_cmdcnt,
+		ctx->rk_maskidx);
+	printf( "  parmxy=%d parmvar=%d parmval=%d parmix=%d\n",
+		ctx->rk_parmxy, ctx->rk_parmvar,
+		ctx->rk_parmval, ctx->rk_parmix);
+	printf( "  dy=%d duv=%d ddy=%d dduv=%d\n",
+		ctx->rk_dy, ctx->rk_duv, ctx->rk_ddy, ctx->rk_dduv);
+	printf( "  ay=%d auv=%d ady=%d aduv=%d\n",
+		ctx->rk_ay, ctx->rk_auv, ctx->rk_ady, ctx->rk_aduv);
+	printf( "  qfy=%d qfuv=%d qfdy=%d qfduv=%d\n",
+		ctx->rk_qfy, ctx->rk_qfuv, ctx->rk_qfdy, ctx->rk_qfduv);
+
 	printf("\n");
 }
 
