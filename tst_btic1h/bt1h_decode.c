@@ -23,7 +23,8 @@ THE SOFTWARE.
 #if 1
 int BTIC1H_ReadCommandCode(BTIC1H_Context *ctx)
 {
-	int i, j, k;
+	int i0, i1, i2, i3;
+	int i, j, k, l;
 	
 //	i=BTIC1H_Rice_ReadAdSRice(ctx, &(ctx->rk_cmdidx));
 	i=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_cmdidx));
@@ -51,10 +52,12 @@ int BTIC1H_ReadCommandCode(BTIC1H_Context *ctx)
 //			ctx->cmdwin[(ctx->cmdwpos+i-1)&15]=j;
 //			ctx->cmdwin[(ctx->cmdwpos+i+0)&15]=k;
 
-			j=ctx->cmdwin[(ctx->cmdwpos+i+0)&255];
-			k=ctx->cmdwin[(ctx->cmdwpos+i-1)&255];
-			ctx->cmdwin[(ctx->cmdwpos+i-1)&255]=j;
-			ctx->cmdwin[(ctx->cmdwpos+i+0)&255]=k;
+			i0=(ctx->cmdwpos+i+0)&255;
+			i1=(ctx->cmdwpos+i-1)&255;
+
+			j=ctx->cmdwin[i0];	k=ctx->cmdwin[i1];
+			ctx->cmdwin[i1]=j;	ctx->cmdwin[i0]=k;
+			ctx->cmdidx[k]=i0;	ctx->cmdidx[j]=i1;
 
 			if(j==0xFF)
 				{ *(int *)-1=-1; }
@@ -96,6 +99,7 @@ int BTIC1H_ReadCommandCode(BTIC1H_Context *ctx)
 
 		j=(byte)(--ctx->cmdwpos);
 //		ctx->cmdwin[j&15]=k;
+		l=ctx->cmdwin[j&255];
 		ctx->cmdwin[j&255]=k;
 		return(k);	
 	}

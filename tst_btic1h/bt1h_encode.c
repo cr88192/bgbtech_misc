@@ -1206,8 +1206,8 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 //	cd=(100-qf)/5;
 
 	cy=qr/6.5;
-//	cu=qr/6;
-	cu=qr/4;
+	cu=qr/6;
+//	cu=qr/4;
 	cd=qr/5;
 
 	if(cy<1)cy=1;

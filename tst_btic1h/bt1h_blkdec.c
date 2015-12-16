@@ -1361,6 +1361,213 @@ void BTIC1H_DecodeBlockMB2B_P420_YUV(byte *block,
 	}
 }
 
+void BTIC1H_DecodeBlockMB2B_I4XX_YUY(byte *block,
+	byte *rgba, int xstride, int ystride, int tflip)
+{
+	byte clry[8];
+	byte clru[4];
+	byte clrv[4];
+
+	u64 pxb2;
+	byte *ct;
+	int cy, cu, cv, cd, cdu, cdv;
+	int cya, cyb, cua, cub, cva, cvb;
+	int cy0, cy1, cy2, cy3;
+	int cu1, cv1;
+	int cr, cg, cb, ca;
+	int cr0, cg0, cb0;
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+	int cr3, cg3, cb3;
+	int bt, pxb, pxb1;
+	int i0, i1, i2, i3, i4, i5, i6, i7;
+	int i, j, k, l;
+	
+	i=block[3];
+	cd=i; bt=0;
+	cdu=0; cdv=0;
+	
+	cy=block[0];	cu=block[1];
+	cv=block[2];	bt=block[4];
+	cd=((block[5]-128)<<1);
+	cdu=((block[8]-128)<<1);
+	cdv=((block[9]-128)<<1);
+
+	cya=cy-(cd>>1);		cyb=cya+cd;
+	cua=cu-(cdu>>1);	cub=cua+cdu;
+	cva=cv-(cdv>>1);	cvb=cva+cdv;
+	
+	if((cya|cyb|cua|cub|cva|cvb)>>8)
+	{
+		cya=clamp255(cya);
+		cyb=clamp255(cyb);
+		cua=clamp255(cua);
+		cub=clamp255(cub);
+		cva=clamp255(cva);
+		cvb=clamp255(cvb);
+	}
+	
+	if((bt==21) || (bt==22))
+	{
+		clry[0]=cya;	clry[7]=cyb;
+		clru[0]=cua;	clrv[0]=cva;
+		clru[3]=cub;	clrv[3]=cvb;
+
+		clry[1]=(clry[0]*14+clry[7]* 2)>>4;
+		clry[2]=(clry[0]*11+clry[7]* 5)>>4;
+		clry[3]=(clry[0]* 9+clry[7]* 7)>>4;
+		clry[4]=(clry[0]* 7+clry[7]* 9)>>4;
+		clry[5]=(clry[0]* 5+clry[7]*11)>>4;
+		clry[6]=(clry[0]* 2+clry[7]*14)>>4;
+
+		clru[1]=(clru[0]*11+clru[3]* 5)>>4;
+		clrv[1]=(clrv[0]*11+clrv[3]* 5)>>4;
+		clru[2]=(clru[0]* 5+clru[3]*11)>>4;
+		clrv[2]=(clrv[0]* 5+clrv[3]*11)>>4;
+	}
+	else
+	{
+		clry[0]=cya;	clru[0]=cua;	clrv[0]=cva;
+		clry[3]=cyb;	clru[3]=cub;	clrv[3]=cvb;
+
+		clry[1]=(clry[0]*11+clry[3]* 5)>>4;
+		clru[1]=(clru[0]*11+clru[3]* 5)>>4;
+		clrv[1]=(clrv[0]*11+clrv[3]* 5)>>4;
+
+		clry[2]=(clry[0]* 5+clry[3]*11)>>4;
+		clru[2]=(clru[0]* 5+clru[3]*11)>>4;
+		clrv[2]=(clrv[0]* 5+clrv[3]*11)>>4;
+	}
+			
+	if(bt==20)
+	{
+		pxb=block[10];
+		pxb1=block[11];
+
+		for(i=0; i<2; i++)
+			for(j=0; j<2; j++)
+		{
+			i0=(block[12+(2*i+0)]>>(6-2*(2*j+0)))&3;
+			i1=(block[12+(2*i+0)]>>(6-2*(2*j+1)))&3;
+			i2=(block[12+(2*i+1)]>>(6-2*(2*j+0)))&3;
+			i3=(block[12+(2*i+1)]>>(6-2*(2*j+1)))&3;
+
+			l=2*i+j;
+			i4=(pxb>>(6-2*l))&3;
+			i5=(pxb1>>(6-2*l))&3;
+
+			cy0=clry[i0];	cy1=clry[i1];
+			cy2=clry[i2];	cy3=clry[i3];
+			cu =clru[i4];	cv =clrv[i5];
+			
+			i0=(i*2+0)*ystride+(j*2+0)*xstride;
+			i1=(i*2+0)*ystride+(j*2+1)*xstride;
+			i2=(i*2+1)*ystride+(j*2+0)*xstride;
+			i3=(i*2+1)*ystride+(j*2+1)*xstride;
+
+			if(tflip&1)
+			{
+				rgba[i0+0]=cu;	rgba[i0+1]=cy0;
+				rgba[i1+0]=cv;	rgba[i1+1]=cy1;
+				rgba[i2+0]=cu;	rgba[i2+1]=cy2;
+				rgba[i3+0]=cv;	rgba[i3+1]=cy3;
+			}else
+			{
+				rgba[i0+0]=cy0;	rgba[i0+1]=cu;
+				rgba[i1+0]=cy1;	rgba[i1+1]=cv;
+				rgba[i2+0]=cy2;	rgba[i2+1]=cu;
+				rgba[i3+0]=cy3;	rgba[i3+1]=cv;
+			}
+		}
+		return;
+	}
+
+	if(bt==21)
+	{	
+		i=(block[10]<<8)|block[11];
+		j=(block[12]<<8)|block[13];
+		k=(block[14]<<8)|block[15];
+		pxb2=(((u64)i)<<32)|(((u64)j)<<16)|k;
+
+		pxb=(block[16]<<24)|(block[17]<<16)|(block[18]<<8)|(block[19]);
+		pxb1=(block[20]<<24)|(block[21]<<16)|(block[22]<<8)|(block[23]);
+	
+		for(i=0; i<4; i++)
+			for(j=0; j<4; j++)
+		{
+			k=i*ystride+j*xstride;
+			i0=(pxb2>>(45-3*(i*4+j)))&7;
+			i1=(pxb>>(30-2*(i*4+j)))&3;
+			i2=(pxb1>>(30-2*(i*4+j)))&3;
+
+			cy=clry[i0];
+			cu=clru[i1];
+			cv=clrv[i2];
+
+			if(tflip&1)
+			{
+				rgba[k+0]=(j&1)?cv:cu;
+				rgba[k+1]=cy;
+			}else
+			{
+				rgba[k+0]=cy;
+				rgba[k+1]=(j&1)?cv:cu;
+			}
+		}
+		return;
+	}
+
+	if(bt==22)
+	{	
+		i=(block[10]<<8)|block[11];
+		j=(block[12]<<8)|block[13];
+		k=(block[14]<<8)|block[15];
+		pxb2=(((u64)i)<<32)|(((u64)j)<<16)|k;
+
+		pxb=block[6];
+		pxb1=block[7];
+	
+		for(i=0; i<2; i++)
+			for(j=0; j<2; j++)
+		{
+			i4=(i*2+0)*4;	i5=(i*2+1)*4;
+			i6=(j*2+0);		i7=(j*2+1);
+			i0=(pxb2>>(45-3*(i4+i6)))&7;
+			i1=(pxb2>>(45-3*(i4+i7)))&7;
+			i2=(pxb2>>(45-3*(i5+i6)))&7;
+			i3=(pxb2>>(45-3*(i5+i7)))&7;
+
+			l=2*i+j;
+			i4=(pxb>>(6-2*l))&3;
+			i5=(pxb1>>(6-2*l))&3;
+
+			cy0=clry[i0];	cy1=clry[i1];
+			cy2=clry[i2];	cy3=clry[i3];
+			cu =clru[i4];	cv =clrv[i5];
+
+			i0=(i*2+0)*ystride+(j*2+0)*xstride;
+			i1=(i*2+0)*ystride+(j*2+1)*xstride;
+			i2=(i*2+1)*ystride+(j*2+0)*xstride;
+			i3=(i*2+1)*ystride+(j*2+1)*xstride;
+
+			if(tflip&1)
+			{
+				rgba[i0+0]=cu;	rgba[i0+1]=cy0;
+				rgba[i1+0]=cv;	rgba[i1+1]=cy1;
+				rgba[i2+0]=cu;	rgba[i2+1]=cy2;
+				rgba[i3+0]=cv;	rgba[i3+1]=cy3;
+			}else
+			{
+				rgba[i0+0]=cy0;	rgba[i0+1]=cu;
+				rgba[i1+0]=cy1;	rgba[i1+1]=cv;
+				rgba[i2+0]=cy2;	rgba[i2+1]=cu;
+				rgba[i3+0]=cy3;	rgba[i3+1]=cv;
+			}
+		}
+		return;
+	}
+}
+
 void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
@@ -1368,7 +1575,7 @@ void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
 //	u32 clri[8];
 	u64 pxb2;
 	byte *ct;
-	int cy, cu, cv, cd, cya, cyb;
+	int cy, cu, cv, cd, cya, cyb, cdu, cdv;
 	int cy1, cu1, cv1;
 	int cr, cg, cb;
 	int cr1, cg1, cb1;
@@ -1429,6 +1636,25 @@ void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
 			BTIC1H_DecodeBlockMB2B_PYUV_YUY(block, rgba,
 				xstride, ystride, tflip);
 			return;
+		}else if((block[4]==14) || (block[4]==15) ||
+			(block[4]==19))
+		{
+			bt=block[4];
+			cd=((block[5]-128)<<1);
+			cdu=((block[8]-128)<<1);
+			cdv=((block[9]-128)<<1);
+			
+			if(bt==15)bt=6;
+			if(bt==19)bt=1;
+		}else if((block[4]==20) || (block[4]==21) ||
+			(block[4]==22))
+		{
+			BTIC1H_DecodeBlockMB2B_I4XX_YUY(block, rgba,
+				xstride, ystride, tflip);
+			return;
+		}
+		else
+		{
 		}
 	}
 
@@ -1454,8 +1680,8 @@ void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
 	{
 		clr[0]=clamp255(cya);
 		clr[3]=clamp255(cyb);
-		clr[ 1]=(clr[0]*11+clr[3]* 5)>>4;
-		clr[ 2]=(clr[0]* 5+clr[3]*11)>>4;
+		clr[1]=(clr[0]*11+clr[3]* 5)>>4;
+		clr[2]=(clr[0]* 5+clr[3]*11)>>4;
 	}
 	
 //	cu=128; cv=128;
@@ -1588,6 +1814,30 @@ void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
 			i0=(j>>9)&7; i1=(j>>6)&7;  i2=(j>>3)&7;  i3=j&7;
 			ct[0]=clr[i0]; ct[1]=cu;  ct[2]=clr[i1]; ct[3]=cv;
 			ct[4]=clr[i2]; ct[5]=cu;  ct[6]=clr[i3]; ct[7]=cv;
+		}
+		return;
+	}else if(bt==14)
+	{
+		for(i=0; i<4; i++)
+		{
+			ct=rgba+(i*ystride);
+			i0=(block[12+i]>>6)&3;
+			i1=(block[12+i]>>4)&3;
+			i2=(block[12+i]>>2)&3;
+			i3=(block[12+i]   )&3;
+			if(tflip&1)
+			{
+				ct[0]=cu; ct[1]=clr[i0];
+				ct[2]=cv; ct[3]=clr[i1];
+				ct[4]=cu; ct[5]=clr[i2];
+				ct[6]=cv; ct[7]=clr[i3];
+			}else
+			{
+				ct[0]=clr[i0]; ct[1]=cu;
+				ct[2]=clr[i1]; ct[3]=cv;
+				ct[4]=clr[i2]; ct[5]=cu;
+				ct[6]=clr[i3]; ct[7]=cv;
+			}
 		}
 		return;
 	}
