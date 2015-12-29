@@ -55,11 +55,12 @@ int BTIC1H_EmitCommandCode(BTIC1H_Context *ctx, int cmd)
 	int bit0;
 	int i, j, k;
 	
-	ctx->cnt_cmds++;
-
 	if((cmd<0) || (cmd>=64))
 		{ *(int *)-1=-1; }
                           
+	ctx->cnt_cmds++;
+	ctx->stat_cmds[cmd]++;
+
 	j=ctx->cmdidx[cmd];
 	i=(byte)(j-ctx->cmdwpos);
 	if(j>0)
@@ -107,6 +108,20 @@ int BTIC1H_EmitCommandCode(BTIC1H_Context *ctx, int cmd)
 	ctx->cmdwin[j&15]=cmd;
 	ctx->cmdidx[cmd&255]=j;
 
+	return(0);
+}
+
+int BTIC1H_EmitParmVarVal(BTIC1H_Context *ctx, int var, int val)
+{
+	int bit0;
+
+	ctx->cnt_parms++;
+
+	BTIC1H_EmitCommandCode(ctx, 0x23);
+	bit0=ctx->bs_bits;
+	BTIC1H_Rice_WriteAdSRice(ctx, var, &(ctx->rk_parmvar));
+	BTIC1H_Rice_WriteAdSRice(ctx, val, &(ctx->rk_parmval));
+	ctx->bits_parm+=ctx->bs_bits-bit0;
 	return(0);
 }
 
@@ -1186,12 +1201,15 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 //	dye=qr*0.3;
 //	duve=qr*0.4;
 
-	dyem=qr*0.2;
-	duvem=qr*0.3;
-//	duvem=qr*0.4;
-	dyen=qr*0.4;
-	duven=qr*0.6;
-//	duven=qr*0.7;
+//	dyem=qr*0.2;
+//	duvem=qr*0.3;
+//	dyen=qr*0.4;
+//	duven=qr*0.6;
+
+	dyem=qr*0.3;
+	duvem=qr*0.5;
+	dyen=qr*0.6;
+	duven=qr*0.9;
 
 	cs=blks; cse=cs+nblks*stride;
 	csl=lblks; csle=lblks+nblks*stride;
@@ -1205,10 +1223,18 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 //	cu=(100-qf)/6;
 //	cd=(100-qf)/5;
 
-	cy=qr/6.5;
-	cu=qr/6;
-//	cu=qr/4;
-	cd=qr/5;
+	if(lblks)
+	{
+		cy=qr/5;
+		cu=qr/4;
+		cd=qr/3;
+	}else
+	{
+		cy=qr/6.5;
+		cu=qr/6;
+//		cu=qr/4;
+		cd=qr/5;
+	}
 
 	if(cy<1)cy=1;
 	if(cu<1)cu=1;
@@ -2256,8 +2282,13 @@ void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 	ctx->absupdmask=0;
 	ctx->nextabsupdmask=0;
 	ctx->tgtupdmask=0;
+	ctx->colorpred=0;
 	
 	ctx->cdy=0;		ctx->cdu=0;		ctx->cdv=0;
+
+	ctx->lcy=0;	ctx->lcu=0;
+	ctx->lcv=0;	ctx->lcd=0;
+	ctx->lcdy=0; ctx->lcdu=0; ctx->lcdv=0;
 
 	ctx->qfy=1;		ctx->qfuv=1;	ctx->qfd=1;
 	ctx->qfdy=1;	ctx->qfduv=1;
@@ -2281,7 +2312,7 @@ void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 	ctx->rk_qfy=3;		ctx->rk_qfuv=3;
 	ctx->rk_qfdy=3;		ctx->rk_qfduv=3;
 
-#if 1
+#if 0
 	ctx->cnt_cmds=0;		ctx->bits_cmdidx=0;
 	ctx->bits_cmdabs=0;
 
@@ -2313,6 +2344,18 @@ void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 		ctx->maskwin[i]=j;
 		ctx->maskidx[j]=i;
 	}
+}
+
+void BTIC1H_SetupDecodeContextInitial(BTIC1H_Context *ctx)
+{
+	int i, j, k;
+
+	BTIC1H_SetupContextInitial(ctx);
+
+	for(i=0; i<256; i++)
+		{ ctx->cmdwin[i]=i; }
+	for(i=0; i<256; i++)
+		{ ctx->cmdidx[i]=i; }
 }
 
 int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
@@ -2349,7 +2392,10 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	BTIC1H_EncodeBlocksCtx(ctx,
 		ctx->blks, (qfl&BTIC1H_QFL_PFRAME)?ctx->lblks:NULL,
 		ctx->nblks, 32, &i, qfl);
-	
+	ctx->bits_total+=ctx->bs_bits;
+	ctx->cnt_statframes++;
+	ctx->cnt_totqfl+=qfl&127;
+
 	BTIC1H_Rice_FlushBits(ctx);
 	sz=ctx->bs_ct-dst;
 	dst[0]=0xE1;
@@ -2367,6 +2413,7 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 		BTIC1H_EncodeAlphaBlocksCtx(ctx,
 			ctx->blks+24, (qfl&BTIC1H_QFL_PFRAME)?(ctx->lblks+24):NULL,
 			ctx->nblks, 32, &i, qfl);
+		ctx->bits_total+=ctx->bs_bits;
 	
 		BTIC1H_Rice_FlushBits(ctx);
 		sz1=ctx->bs_ct-ct;
@@ -2416,14 +2463,41 @@ byte *BTIC1H_EncodeBlocksBuffer(byte *obuf,
 	return(ctx->bs_ct);
 }
 
+void BTIC1H_ClearEncodeStats(BTIC1H_Context *ctx)
+{
+	int i;
+
+	ctx->bits_total=0;
+	ctx->cnt_statframes=0;
+	ctx->cnt_totqfl=0;
+
+	ctx->bs_bits=0;			ctx->cnt_cmds=0;
+	ctx->bits_cmdidx=0;		ctx->bits_cmdabs=0;
+	ctx->cnt_parms=0;		ctx->bits_parm=0;
+
+	ctx->bits_dyuv=0;		ctx->bits_dy=0;
+	ctx->bits_duv=0;		ctx->bits_ddy=0;
+	ctx->bits_dumask=0;
+
+	ctx->bits_pix4x4=0;		ctx->bits_pix4x4x1=0;
+	ctx->bits_pix4x4x3=0;	ctx->bits_pix4x2=0;
+	ctx->bits_pix2x2=0;		ctx->bits_pix2x1=0;
+	
+	for(i=0; i<256; i++)
+		ctx->stat_cmds[i]=0;
+}
+
 void BTIC1H_DumpEncodeStats(BTIC1H_Context *ctx)
 {
 	double rfbits;
-	int i;
+	int i, j, k;
 	
-	rfbits=100.0/ctx->bs_bits;
+	rfbits=100.0/ctx->bits_total;
 	
-	printf("total_bits=%d\n", ctx->bs_bits);
+	printf("total_bits=%d, frames=%d, avg_bits_frame=%d avg_qfl=%d\n",
+		ctx->bits_total, ctx->cnt_statframes,
+		ctx->bits_total/(ctx->cnt_statframes+1),
+		ctx->cnt_totqfl/(ctx->cnt_statframes+1));
 	printf("ncmds=%d, bits=%d: cmdidx=%d cmdabs=%d, cmdavg=%f\n",
 		ctx->cnt_cmds,
 		ctx->bits_cmdidx+ctx->bits_cmdabs,
@@ -2481,6 +2555,25 @@ void BTIC1H_DumpEncodeStats(BTIC1H_Context *ctx)
 	printf( "  qfy=%d qfuv=%d qfdy=%d qfduv=%d\n",
 		ctx->rk_qfy, ctx->rk_qfuv, ctx->rk_qfdy, ctx->rk_qfduv);
 
+	printf("\n");
+
+	printf("Command Stats:\n");
+	printf("  ");
+	j=0;
+	for(i=0; i<256; i++)
+	{
+		if(!ctx->stat_cmds[i])
+			continue;
+		if(j>=4)
+		{
+			printf("\n  ");
+			j=0;
+		}
+		printf("%02X:%7d,%.2f%% ",
+			i, ctx->stat_cmds[i], 
+			(100.0*ctx->stat_cmds[i])/(ctx->cnt_cmds+1.0));
+		j++;
+	}
 	printf("\n");
 }
 

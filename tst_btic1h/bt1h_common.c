@@ -187,6 +187,7 @@ int bs_bits;						//bitstream total bits
 
 byte *blks;							//blocks buffer
 byte *lblks;						//last-frame blocks buffer
+byte *blksfl;
 
 byte cmdwin[256];					//command window
 short cmdidx[256];					//command window index
@@ -203,6 +204,9 @@ int absyuvbias;						//Absolute YUV Bias
 int cdy, cdu, cdv;					//Dyuv
 int qfdy, qfduv;					//Dyuf Quantization Factors
 
+int lcy, lcu, lcv, lcd;				//Last YUVD
+int lcdy, lcdu, lcdv;				//Last Dyuv
+
 int qfay, qfauv, qfad;				//AbsYUVD Quantization Factors
 int qfady, qfaduv;					//AbsDyuv Quantization Factors
 
@@ -214,6 +218,7 @@ byte tgtupdmask;					//Target YUVD update mask (encode).
 
 byte absupdmask;					//YUVD update mask (absolute).
 byte nextabsupdmask;				//Next YUVD update mask (absolute).
+byte colorpred;						//Color Prediction Mode
 
 u32 mark2;
 
@@ -247,6 +252,10 @@ int rk_qfuv;						//
 int rk_qfdy;						//
 int rk_qfduv;						//
 
+int bits_total;						//
+int cnt_statframes;					//
+int cnt_totqfl;						//quality
+
 int cnt_cmds;						//
 int bits_cmdidx;					//
 int bits_cmdabs;					//
@@ -275,6 +284,8 @@ int cnt_dcpts[8];					//count delta points
 int cnt_dczpts[8];					//count zero delta points
 byte maskwin[256];					//mask update window
 byte maskidx[256];					//mask update index
+
+int stat_cmds[256];
 
 u32 mark3;
 };
@@ -321,6 +332,9 @@ int sz_audStrd;
 int viQuality;
 int viNextIFrame;
 int viFlags;
+
+int viFrameAvg;
+int viRunQuality;
 
 int (*decompress_frame)(BTIC1H_VidCodecCTX *ctx,
 	void *src, void *dst, int ssz, int dsz);

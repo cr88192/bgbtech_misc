@@ -62,8 +62,15 @@ int bt1h_compress_frame(BTIC1H_VidCodecCTX *ctx,
 	if(clrs==-1)
 		{ clrs=info->clrs; }
 
-	sz=BTIC1H_EncodeCtx(ctx->data, src, dst, dsz,
+	sz=BTIC1H_EncodeCtx(info, src, dst, dsz,
 		info->xs, info->ys, qfl, clrs);
+
+	if(info->bits_total>=(1<<27))
+	{
+		BTIC1H_DumpEncodeStats(info);
+		BTIC1H_ClearEncodeStats(info);
+	}
+	
 	*rfl=qfl;
 	return(sz);
 }

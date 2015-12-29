@@ -807,16 +807,22 @@ void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
 
 			if(xstride==4)
 			{
+//				pxb2=(((u64)l)<<32)|l;
+			
 				ct=rgba;
+//				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
 				*(u32 *)(ct+ 0)=l;	*(u32 *)(ct+ 4)=l;
 				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=l;
 				ct=ct+ystride;
+//				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
 				*(u32 *)(ct+ 0)=l;	*(u32 *)(ct+ 4)=l;
 				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=l;
 				ct=ct+ystride;
+//				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
 				*(u32 *)(ct+ 0)=l;	*(u32 *)(ct+ 4)=l;
 				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=l;
 				ct=ct+ystride;
+//				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
 				*(u32 *)(ct+ 0)=l;	*(u32 *)(ct+ 4)=l;
 				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=l;
 				return;
@@ -1441,6 +1447,8 @@ void BTIC1H_DecodeBlockMB2B_I4XX_YUY(byte *block,
 			
 	if(bt==20)
 	{
+//		return;
+	
 		pxb=block[10];
 		pxb1=block[11];
 
@@ -1518,7 +1526,9 @@ void BTIC1H_DecodeBlockMB2B_I4XX_YUY(byte *block,
 	}
 
 	if(bt==22)
-	{	
+	{
+//		return;
+
 		i=(block[10]<<8)|block[11];
 		j=(block[12]<<8)|block[13];
 		k=(block[14]<<8)|block[15];
@@ -1718,10 +1728,15 @@ void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
 	{
 		pxb=block[6];
 
-		i0=(block[4+i]>>6)&3;
-		i1=(block[4+i]>>4)&3;
-		i2=(block[4+i]>>2)&3;
-		i3=(block[4+i]   )&3;
+		i0=(pxb>>6)&3;
+		i1=(pxb>>4)&3;
+		i2=(pxb>>2)&3;
+		i3=(pxb   )&3;
+
+//		i0=(block[4+i]>>6)&3;
+//		i1=(block[4+i]>>4)&3;
+//		i2=(block[4+i]>>2)&3;
+//		i3=(block[4+i]   )&3;
 
 		if(tflip&1)
 		{
@@ -1882,7 +1897,8 @@ void BTIC1H_DecodeImageMB2B(byte *block, int blkstride,
 	}
 }
 
-void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
+void BTIC1H_DecodeImageMB2B_ClrsBfl(
+	byte *block, byte *blockfl, int blkstride,
 	byte *rgba, int xs, int ys, int clrs)
 {
 	byte *rgba2;
@@ -1926,6 +1942,8 @@ void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
 		for(i=0; i<ys1; i++)
 			for(j=0; j<xs1; j++)
 		{
+			if(blockfl && (blockfl[i*xs2+j]&1))
+				continue;
 			BTIC1H_DecodeBlockMB2B_YUY(
 				block+(i*xs2+j)*blkstride,
 				rgba2+(i*4*ystr)+(j*4*xstr),
@@ -1964,6 +1982,8 @@ void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
 	{
 		for(j=0; j<xs1; j++)
 		{
+			if(blockfl && (blockfl[i*xs2+j]&1))
+				continue;
 			BTIC1H_DecodeBlockMB2B_RGBI(
 				block+(i*xs2+j)*blkstride,
 				rgba2+(i*4*ystr)+(j*4*xstr),
@@ -1981,6 +2001,8 @@ void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
 		}
 		if(xf)
 		{
+			if(blockfl && (blockfl[i*xs2+j]&1))
+				continue;
 #if 1
 			BTIC1H_DecodeBlockMB2B_EdgeRGBI(
 				block+(i*xs2+j)*blkstride,
@@ -1993,6 +2015,8 @@ void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
 	{
 		for(j=0; j<xs1; j++)
 		{
+			if(blockfl && (blockfl[i*xs2+j]&1))
+				continue;
 			BTIC1H_DecodeBlockMB2B_EdgeRGBI(
 				block+(i*xs2+j)*blkstride,
 				rgba2+(i*4*ystr)+(j*4*xstr),
@@ -2000,6 +2024,8 @@ void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
 		}
 		if(xf)
 		{
+			if(blockfl && (blockfl[i*xs2+j]&1))
+				return;
 #if 1
 			BTIC1H_DecodeBlockMB2B_EdgeRGBI(
 				block+(i*xs2+j)*blkstride,
@@ -2008,4 +2034,11 @@ void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
 #endif
 		}
 	}
+}
+
+void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
+	byte *rgba, int xs, int ys, int clrs)
+{
+	BTIC1H_DecodeImageMB2B_ClrsBfl(
+		block, NULL, blkstride, rgba, xs, ys, clrs);
 }

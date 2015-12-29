@@ -234,16 +234,15 @@ C(XX), expresses a logical command number in Hex:
 
 The RIdx is an index into a 256-entry rotating table of commands:
 * RIdx=0: Use command at index 0, table is unchanged.
-* RIdx=1..255: Use command at entry RIdx, Swap entries RIdx and RIdx-1.
+* (Drop) RIdx=1..255: Use command at entry RIdx, Swap entries RIdx and RIdx-1.
+* (New) RIdx=1..31: Use command at entry RIdx, Swap entries RIdx and RIdx-1.
+* (New) RIdx=32..255: Rotate back one place and swap new 0 and old RIdx.
 
 CmdAbs:
 * Table rotates back 1 place, command added to front of table.
 * Initial contents of the table are undefined and may not be used.
 * If the command exists at a prior location in the table, a hole is created.
-** The hole remains present, but it is invalid and may not be referenced.
-** Because of holes, commands may fall off the end of the table.
-** Swapping a value into a hole is undefined.
-** If a hole falls off the end of the table, it disappears.
+** A value may fall off the end, but is swapped into the hole.
 
 RunCount will be AdRice, with 0 as a reserved value.
 
@@ -393,6 +392,18 @@ ParmVar and FlagID:
 ** An unknown value here is ignored.
 * Values less than 0 indicate features which change the bitstream.
 ** An unrecognized value here will abort decoding.
+
+ParmVar(-1)
+* Stream Version (0)
+* Indicates the major version of the bitstream.
+
+ParmVar(-2)
+* YUVD Color Delta Predictor
+* 0: Default, Use last color.
+* -1: Use half-linear prediction.
+** P=(3A-B)>>1;
+* -2: Use linear prediction.
+** P=2A-B;
 
 FlagID(-1): Enable DeltaYUV, DeltaYUVD, and DeltaYUVDyuv update masks.
 * If enabled, a mask update may precede color-point delta updates.

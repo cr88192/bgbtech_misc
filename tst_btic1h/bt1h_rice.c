@@ -95,13 +95,25 @@ void BTIC1H_Rice_WriteNBits(BTIC1H_Context *ctx, int v, int n)
 	ctx->bs_win=k;
 }
 
+void BTIC1H_Rice_WriteNBitsH(BTIC1H_Context *ctx, u32 i, int n)
+{
+	if(n>16)
+	{
+		BTIC1H_Rice_WriteNBits(ctx, i>>(n-16), 16);
+//		i=i>>16;
+		n-=16;
+	}
+	BTIC1H_Rice_WriteNBits(ctx, i, n);
+}
+
 void BTIC1H_Rice_WriteNBitsL(BTIC1H_Context *ctx, s64 i, int n)
 {
-	while(n>=16)
+	while(n>16)
 	{
-		BTIC1H_Rice_WriteNBits(ctx, i&65535, 16);
-		i=i>>16;
-		i-=16;
+		BTIC1H_Rice_WriteNBits(ctx, i>>(n-16), 16);
+//		BTIC1H_Rice_WriteNBits(ctx, i&65535, 16);
+//		i=i>>16;
+		n-=16;
 	}
 	BTIC1H_Rice_WriteNBits(ctx, i, n);
 }
@@ -351,6 +363,174 @@ void BTIC1H_Rice_WriteAdExpSRice(BTIC1H_Context *ctx, int v, int *rk)
 {
 	BTIC1H_Rice_WriteAdExpRice(ctx, (v>=0)?(v<<1):(((-v)<<1)-1), rk);
 }
+
+
+#if 1
+
+int BTIC1H_Rice_CountWriteAdRiceDc(BTIC1H_Context *ctx, int v, int *rk)
+{
+	int i, j, k, p, n;
+	
+	k=*rk;
+	p=v>>k;
+	n=p+k;
+
+//	if(p>=8)
+	if(p>=(8+k))
+	{
+		j=v; i=1;
+
+//		while(j>=256)
+//			{ j=j>>8; i++; }
+//		n=8+9*i;
+
+//		while(j>=128)
+//			{ j=j>>7; i++; }
+//		n=8+8*i;
+
+//		while(j>=32)
+//			{ j=j>>5; i++; }
+//		n=8+6*i;
+
+		while(j>=(1<<(5+k)))
+			{ j=j>>(5+k); i++; }
+		n=8+(6+k)*i;
+
+//		while(j>=(1<<(4+(k>>1))))
+//			{ j=j>>(4+(k>>1)); i++; }
+//		n=8+(4+(k>>1))*i;
+
+//		while(j>=(1<<(4+k)))
+//			{ j=j>>(4+k); i++; }
+//		n=8+(5+k)*i;
+
+//		while(j>=8)
+//			{ j=j>>3; i++; }
+//		n=8+4*i;
+
+//		n=8+8*i;
+		k=k+2*i;
+		if(k>15)k=15;
+		*rk=k;
+		return(n);
+	}
+
+	if(!p && (k>0))k--;
+	if(p>1)
+	{
+		j=p;
+		while(j>1)
+			{ k++; j>>=1; }
+//		k++;
+	}
+	*rk=k;
+	
+	return(n);
+}
+
+int BTIC1H_Rice_CountWriteAdSRiceDc(BTIC1H_Context *ctx, int v, int *rk)
+	{ return(BTIC1H_Rice_CountWriteAdRiceDc(ctx, (v<<1)^(v>>31), rk)); }
+
+
+void BTIC1H_Rice_WriteAdRiceDc(BTIC1H_Context *ctx, int v, int *rk)
+{
+	int p, b, n, bp, bw;
+	int i, j, k;
+	
+	k=*rk;
+
+	p=v>>k;
+
+//	if(p>=8)
+	if(p>=(8+k))
+	{
+		j=v; i=1;
+//		while(j>=128)
+//			{ j=j>>7; i++; }
+//		while(j>=32)
+//			{ j=j>>5; i++; }
+
+		while(j>=(1<<(5+k)))
+			{ j=j>>(5+k); i++; }
+
+		BTIC1H_Rice_WriteNBitsH(ctx, 0xFFFFFFFEUL, 8+k+i);
+		BTIC1H_Rice_WriteNBitsH(ctx, v, i*(5+k));
+
+//		BTIC1H_Rice_WriteNBits(ctx, 0xFFFE, 8+i);
+//		BTIC1H_Rice_WriteNBits(ctx, v, i*5);
+		k+=2*i;
+		if(k>15)k=15;
+		*rk=k;
+		return;
+	}
+
+#if 1
+	i=p+k+1;
+	if(i<=16)
+	{
+		j=v&((1<<k)-1);
+		BTIC1H_Rice_WriteNBits(ctx, (0xFFFE<<k)|j, i);
+
+		if(p!=1)
+		{
+			if(!p)
+				{ if(k>0)k--; }
+			else if(p>1)
+			{
+				j=p;
+				while(j>1)
+					{ k++; j>>=1; }
+				if(k>15)k=15;
+			}
+			*rk=k;
+		}
+		return;
+	}
+#endif
+
+	j=p;
+
+#if 1
+	while(j>=16)
+		{ BTIC1H_Rice_WriteNBits(ctx, 0xFFFF, 16); j-=16; }
+	BTIC1H_Rice_WriteNBits(ctx, 0xFFFE, j+1);
+#endif
+
+#if 0
+	while(j--)
+		{ BTIC1H_Rice_WriteBit(ctx, 1); }
+	BTIC1H_Rice_WriteBit(ctx, 0);
+#endif
+
+//	j=v&((1<<k)-1);
+//	BTIC1H_Rice_WriteNBits(ctx, j, k);
+	BTIC1H_Rice_WriteNBits(ctx, v, k);
+
+#if 1
+	if(p!=1)
+	{
+		if(p>1)
+		{
+			j=p;
+			while(j>1)
+				{ k++; j>>=1; }
+			if(k>15)k=15;
+		}else
+		{
+			if(k>0)k--;
+		}
+		*rk=k;
+	}
+#endif
+}
+
+void BTIC1H_Rice_WriteAdSRiceDc(BTIC1H_Context *ctx, int v, int *rk)
+{
+	BTIC1H_Rice_WriteAdRiceDc(ctx, (v<<1)^(v>>31), rk);
+}
+
+
+#endif
 
 void BTIC1H_Rice_FlushBits(BTIC1H_Context *ctx)
 {

@@ -359,7 +359,7 @@ static LRESULT btjvfw_compress_end(BTIC1H_VidCodecCTX *ctx)
 
 static LRESULT btjvfw_compress(BTIC1H_VidCodecCTX *ctx, ICCOMPRESS *lParam1)
 {
-	int dsz, clrs, qfl, ql2, rfl, sz;
+	int dsz, clrs, qfl, ql2, ql3, rfl, sz;
 
 	if(!ctx->data)
 		{ return(ICERR_BADFORMAT); }
@@ -385,6 +385,18 @@ static LRESULT btjvfw_compress(BTIC1H_VidCodecCTX *ctx, ICCOMPRESS *lParam1)
 	{
 		btjpg_printf("btjvfw_compress: Quality %d -> %d\n", qfl, ql2);
 		qfl=ql2;
+		if(qfl<0)qfl=0;
+		if(qfl>100)qfl=100;
+	}
+
+	if(lParam1->dwFrameSize)
+	{
+		if(ctx->viRunQuality<=0)
+			ctx->viRunQuality=10000;
+	
+		ql3=ctx->viRunQuality/100;
+		if(ql3<qfl)
+			qfl=ql3;
 		if(qfl<0)qfl=0;
 		if(qfl>100)qfl=100;
 	}
@@ -426,6 +438,44 @@ static LRESULT btjvfw_compress(BTIC1H_VidCodecCTX *ctx, ICCOMPRESS *lParam1)
 	}
 	
 	lParam1->lpbiOutput->biSizeImage=sz;
+	
+//	ctx->viFrameAvg=(ctx->viFrameAvg*15+sz)>>4;
+	ctx->viFrameAvg=(ctx->viFrameAvg*7+sz+4)>>3;
+//	ctx->viFrameAvg=(ctx->viFrameAvg*31+sz)>>5;
+//	ctx->viFrameAvg=(ctx->viFrameAvg*127+sz+64)>>7;
+//	ctx->viFrameAvg=(ctx->viFrameAvg*63+sz+32)>>6;
+
+	if(lParam1->dwFrameSize>0)
+	{
+		if(ctx->viRunQuality<=0)
+			ctx->viRunQuality=10000;
+
+//		if((sz>(lParam1->dwFrameSize*0.9)) &&
+//			(sz<(lParam1->dwFrameSize*1.1)))
+//				ctx->viFrameAvg=(ctx->viFrameAvg*7+sz+4)>>3;
+
+		if(ctx->viFrameAvg>(lParam1->dwFrameSize*1.15))
+		{
+//			ctx->viRunQuality--;
+			ctx->viRunQuality-=25;
+		}else if(ctx->viFrameAvg<(lParam1->dwFrameSize*0.85))
+		{
+//			ctx->viRunQuality++;
+			ctx->viRunQuality+=25;
+		}else if(ctx->viFrameAvg>(lParam1->dwFrameSize*1.05))
+			{ ctx->viRunQuality-=8; }
+		else if(ctx->viFrameAvg<(lParam1->dwFrameSize*0.95))
+			{ ctx->viRunQuality+=8; }
+		else if(ctx->viFrameAvg>(lParam1->dwFrameSize*1.01))
+			{ ctx->viRunQuality-=2; }
+		else if(ctx->viFrameAvg<(lParam1->dwFrameSize*0.99))
+			{ ctx->viRunQuality+=2; }
+
+		if(ctx->viRunQuality<100)
+			ctx->viRunQuality=100;
+		if(ctx->viRunQuality>10000)
+			ctx->viRunQuality=10000;
+	}
 	
 	return(ICERR_OK);
 //	return(ICERR_BADFORMAT);
@@ -898,6 +948,7 @@ BTIC1H_API LRESULT WINAPI DriverProc(
 				VIDCF_FASTTEMPORALD |
 				VIDCF_QUALITY |
 				VIDCF_TEMPORAL |
+				VIDCF_CRUNCH |
 				VIDCF_COMPRESSFRAMES;
 
 			icinfo->dwVersion = 0;

@@ -42,7 +42,8 @@ static const byte btic1h_rice_ntab2[256]={
 	3, 3, 3, 3, 3, 3, 3, 3,  3, 3, 3, 3, 3, 3, 3, 3,	/* E0-EF */
 	4, 4, 4, 4, 4, 4, 4, 4,  5, 5, 5, 5, 6, 6, 7, 8};	/* F0-FF */
 
-static int btic1h_rice_valtab[16][256];
+// static int btic1h_rice_valtab[16][256];
+static u16 btic1h_rice_valtab[16][256];
 
 int BTIC1H_Rice_InitTables()
 {
@@ -61,7 +62,8 @@ int BTIC1H_Rice_InitTables()
 		l=i+k1+1;
 		if(l>8)
 		{
-			btic1h_rice_valtab[i][j]=-1;
+//			btic1h_rice_valtab[i][j]=-1;
+			btic1h_rice_valtab[i][j]=0;
 			continue;
 		}
 		
@@ -83,7 +85,8 @@ int BTIC1H_Rice_InitTables()
 		}
 #endif
 		
-		btic1h_rice_valtab[i][j]=k|(l<<16)|(k2<<20);
+//		btic1h_rice_valtab[i][j]=k|(l<<16)|(k2<<20);
+		btic1h_rice_valtab[i][j]=k|(l<<8)|(k2<<12);
 	}
 	
 	return(1);
@@ -501,11 +504,17 @@ default_inline int BTIC1H_Rice_ReadAdRice(BTIC1H_Context *ctx, int *rk)
 		k=*rk;
 		i=BTIC1H_Rice_PeekByte(ctx);
 		j=btic1h_rice_valtab[k][i];
-		if(j>=0)
+//		if(j>0)
+		if(j)
 		{
-			i=j&65535;
-			l=(j>>16)&15;
-			*rk=(j>>20)&15;
+//			i=j&65535;
+//			l=(j>>16)&15;
+//			*rk=(j>>20)&15;
+
+			i=j&255;
+			l=(j>>8)&15;
+			*rk=(j>>12)&15;
+
 			BTIC1H_Rice_SkipNBits(ctx, l);
 			return(i);
 		}
@@ -529,11 +538,17 @@ default_inline int BTIC1H_Rice_ReadAdSRice(BTIC1H_Context *ctx, int *rk)
 		k=*rk;
 		i=BTIC1H_Rice_PeekByte(ctx);
 		j=btic1h_rice_valtab[k][i];
-		if(j>=0)
+//		if(j>0)
+		if(j)
 		{
-			i=j&65535;
-			l=(j>>16)&15;
-			*rk=(j>>20)&15;
+//			i=j&65535;
+//			l=(j>>16)&15;
+//			*rk=(j>>20)&15;
+
+			i=j&255;
+			l=(j>>8)&15;
+			*rk=(j>>12)&15;
+
 			i=(i>>1)^((i<<31)>>31);
 			BTIC1H_Rice_SkipNBits(ctx, l);
 			return(i);
@@ -542,6 +557,142 @@ default_inline int BTIC1H_Rice_ReadAdSRice(BTIC1H_Context *ctx, int *rk)
 #endif
 
 	i=BTIC1H_Rice_ReadAdRiceI(ctx, rk);
+	i=(i>>1)^((i<<31)>>31);
+	return(i);
+}
+
+
+#if 1
+default_inline int BTIC1H_Rice_ReadAdRiceDcI(BTIC1H_Context *ctx, int *rk)
+{
+	int i, j, k, l;
+	
+	k=*rk;
+	i=BTIC1H_Rice_PeekByte(ctx);
+
+	if(i!=0xFF)
+	{
+		j=btic1h_rice_ntab2[i];
+		
+		l=j+k+1;
+		if(l<=16)
+		{
+//			i=BTIC1H_Rice_ReadNBits(ctx, l);
+			i=BTIC1H_Rice_ReadNBitsNoMask(ctx, l);
+			i=(j<<k)|(i&((1<<k)-1));
+
+			if(j!=1)
+			{
+				if(j>1)
+				{
+					while(j>1)
+						{ k++; j=j>>1; }
+				}else
+				{
+					if(k>0)k--;
+				}
+				*rk=k;
+			}
+
+			return(i);
+		}
+	}
+
+	i=BTIC1H_Rice_ReadRiceQ(ctx);
+	if(i>=(8+k))
+	{
+		i=i-(7+k);
+		j=BTIC1H_Rice_ReadNBits(ctx, i*(5+k));
+		k=k+2*i;
+		if(k>15)k=15;
+		*rk=k;
+		return(j);
+	}
+	
+	j=BTIC1H_Rice_ReadNBits(ctx, k);
+	j=(i<<k)|j;
+
+#if 1
+	if(i!=1)
+	{
+		if(i>1)
+		{
+			while(i>1)
+				{ k++; i=i>>1; }
+			if(k>15)k=15;
+		}else
+		{
+			if(k>0)k--;
+		}
+		*rk=k;
+	}
+	return(j);
+#endif
+
+#if 0
+	BTIC1H_Rice_Skip8Bits(ctx);
+	i=BTIC1H_Rice_ReadRiceQ(ctx)+1;
+//	j=BTIC1H_Rice_ReadNBits(ctx, i*7);
+	j=BTIC1H_Rice_ReadNBits(ctx, i*5);
+	k=k+2*i;
+	if(k>15)k=15;
+	*rk=k;
+	return(j);
+#endif
+}
+
+default_inline int BTIC1H_Rice_ReadAdRiceDc(BTIC1H_Context *ctx, int *rk)
+{
+	int i, j, k, l;
+	
+	k=*rk;
+	i=BTIC1H_Rice_PeekByte(ctx);
+	j=btic1h_rice_valtab[k][i];
+//	if(j>0)
+	if(j)
+	{
+//		i=j&65535;
+//		l=(j>>16)&15;
+//		*rk=(j>>20)&15;
+
+		i=j&255;
+		l=(j>>8)&15;
+		*rk=(j>>12)&15;
+
+		BTIC1H_Rice_SkipNBits(ctx, l);
+		return(i);
+	}
+
+	i=BTIC1H_Rice_ReadAdRiceDcI(ctx, rk);
+	return(i);
+}
+
+#endif
+
+default_inline int BTIC1H_Rice_ReadAdSRiceDc(BTIC1H_Context *ctx, int *rk)
+{
+	int i, j, k, l;
+
+	k=*rk;
+	i=BTIC1H_Rice_PeekByte(ctx);
+	j=btic1h_rice_valtab[k][i];
+//	if(j>0)
+	if(j)
+	{
+//		i=j&65535;
+//		l=(j>>16)&15;
+//		*rk=(j>>20)&15;
+
+		i=j&255;
+		l=(j>>8)&15;
+		*rk=(j>>12)&15;
+
+		i=(i>>1)^((i<<31)>>31);
+		BTIC1H_Rice_SkipNBits(ctx, l);
+		return(i);
+	}
+
+	i=BTIC1H_Rice_ReadAdRiceDcI(ctx, rk);
 	i=(i>>1)^((i<<31)>>31);
 	return(i);
 }
