@@ -28,17 +28,23 @@ THE SOFTWARE.
 #include <math.h>
 #include <time.h>
 
+#define BTIC1H_VFWDRV
+
 #define printf btjpg_printf
 
 void btjpg_printf(char *str, ...);
 
-#include "bt1h_common.c"
+#include "bt1h_common.h"
 
 #include "bt1h_shim_s2tc.c"
 #include "bt1h_shim_bc7.c"
 
 #include "bt1h_rice.c"
 #include "bt1h_decrice.c"
+#include "bt1h_bitrange.c"
+#include "bt1h_rangedec.c"
+#include "bt1h_rangeenc.c"
+
 #include "bt1h_blkenc.c"
 #include "bt1h_blkdec.c"
 #include "bt1h_encode.c"

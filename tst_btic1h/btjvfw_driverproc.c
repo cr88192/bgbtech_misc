@@ -33,6 +33,7 @@ THE SOFTWARE.
 #if 1
 
 u32 btjpg_drv_defaultCodecFcc=BTIC1H_FCC_bt1h;
+int btjpg_drv_defaultCodecQfl=0;
 
 HINSTANCE g_hInst;
 
@@ -403,6 +404,8 @@ static LRESULT btjvfw_compress(BTIC1H_VidCodecCTX *ctx, ICCOMPRESS *lParam1)
 
 //	qfl=75;
 
+	qfl|=btjpg_drv_defaultCodecQfl;
+
 	if(lParam1->dwFlags&ICCOMPRESS_KEYFRAME)
 	{
 		qfl|=BTIC1H_QFL_IFRAME;
@@ -440,7 +443,8 @@ static LRESULT btjvfw_compress(BTIC1H_VidCodecCTX *ctx, ICCOMPRESS *lParam1)
 	lParam1->lpbiOutput->biSizeImage=sz;
 	
 //	ctx->viFrameAvg=(ctx->viFrameAvg*15+sz)>>4;
-	ctx->viFrameAvg=(ctx->viFrameAvg*7+sz+4)>>3;
+//	ctx->viFrameAvg=(ctx->viFrameAvg*7+sz+4)>>3;
+	ctx->viFrameAvg=(ctx->viFrameAvg*3+sz+2)>>2;
 //	ctx->viFrameAvg=(ctx->viFrameAvg*31+sz)>>5;
 //	ctx->viFrameAvg=(ctx->viFrameAvg*127+sz+64)>>7;
 //	ctx->viFrameAvg=(ctx->viFrameAvg*63+sz+32)>>6;
@@ -457,15 +461,23 @@ static LRESULT btjvfw_compress(BTIC1H_VidCodecCTX *ctx, ICCOMPRESS *lParam1)
 		if(ctx->viFrameAvg>(lParam1->dwFrameSize*1.15))
 		{
 //			ctx->viRunQuality--;
-			ctx->viRunQuality-=25;
+//			ctx->viRunQuality-=25;
+			ctx->viRunQuality-=50;
 		}else if(ctx->viFrameAvg<(lParam1->dwFrameSize*0.85))
 		{
 //			ctx->viRunQuality++;
-			ctx->viRunQuality+=25;
+//			ctx->viRunQuality+=25;
+			ctx->viRunQuality+=50;
 		}else if(ctx->viFrameAvg>(lParam1->dwFrameSize*1.05))
-			{ ctx->viRunQuality-=8; }
+		{
+//			ctx->viRunQuality-=8; 
+			ctx->viRunQuality-=16;
+		}
 		else if(ctx->viFrameAvg<(lParam1->dwFrameSize*0.95))
-			{ ctx->viRunQuality+=8; }
+		{ 
+//			ctx->viRunQuality+=8;
+			ctx->viRunQuality+=16;
+		}
 		else if(ctx->viFrameAvg>(lParam1->dwFrameSize*1.01))
 			{ ctx->viRunQuality-=2; }
 		else if(ctx->viFrameAvg<(lParam1->dwFrameSize*0.99))

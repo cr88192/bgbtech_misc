@@ -856,7 +856,8 @@ void BT1H_EncodeBlock_Inner(byte *block, int blksz,
 		btic1h_subfold(pxu[1], pxu[2]);
 	dcv=btic1h_subfold(pxv[0], pxv[3])+
 		btic1h_subfold(pxv[1], pxv[2]);
-	dcuv=(dcu+dcv)>>3;
+//	dcuv=(dcu+dcv)>>3;
+	dcuv=(dcu+2*dcv)>>3;
 
 	mcy=pmcy[0];	ncy=pncy[0];
 	if(pmcy[3]<mcy) { mcy=pmcy[3]; }
@@ -1266,6 +1267,54 @@ void BT1H_EncodeBlock_Inner(byte *block, int blksz,
 	ddv=ncv-mcv;
 #endif
 
+#if 1
+	if(dy<=ep->d2x2)
+//	if(0)
+	{
+		acy=(mcy+ncy)>>1;
+		acu=(mcu+ncu)>>1;
+		acv=(mcv+ncv)>>1;
+
+		l3a=65536-1024;
+		l3b=65536+1024;
+
+		l1=bt1h_fxdtab[ncy-acy];
+		l2=bt1h_fxdtab[ncu-acu];
+		l3=bt1h_fxdtab[ncv-acv];
+
+		block[0]=acy;	block[1]=acu;
+		block[2]=acv;	block[3]=0;
+		block[4]=23;	block[5]=(dy>>1)+128;
+		block[6]=0;		block[7]=0;
+		block[8]=(ddu>>1)+128;
+		block[9]=(ddv>>1)+128;
+
+		p4=(pxy[ 0]+pxy[ 1]+pxy[ 4]+pxy[ 5])>>2;
+		p5=(pxy[ 2]+pxy[ 3]+pxy[ 6]+pxy[ 7])>>2;
+		p6=(pxy[ 8]+pxy[ 9]+pxy[12]+pxy[13])>>2;
+		p7=(pxy[10]+pxy[11]+pxy[14]+pxy[15])>>2;
+				
+		p0=idxtab[((p4-acy)*l1+l3a)>>13];
+		p1=idxtab[((p5-acy)*l1+l3b)>>13];
+		p2=idxtab[((p6-acy)*l1+l3a)>>13];
+		p3=idxtab[((p7-acy)*l1+l3b)>>13];
+		block[6]=(p0<<6)|(p1<<4)|(p2<<2)|p3;
+
+		p0=idxtab[((pxu[0]-acu)*l2+l3a)>>13];
+		p1=idxtab[((pxu[1]-acu)*l2+l3b)>>13];
+		p2=idxtab[((pxu[2]-acu)*l2+l3a)>>13];
+		p3=idxtab[((pxu[3]-acu)*l2+l3b)>>13];
+		block[10]=(p0<<6)|(p1<<4)|(p2<<2)|p3;
+		p0=idxtab[((pxv[0]-acv)*l3+l3a)>>13];
+		p1=idxtab[((pxv[1]-acv)*l3+l3b)>>13];
+		p2=idxtab[((pxv[2]-acv)*l3+l3a)>>13];
+		p3=idxtab[((pxv[3]-acv)*l3+l3b)>>13];
+		block[11]=(p0<<6)|(p1<<4)|(p2<<2)|p3;
+
+		return;
+	}
+#endif
+
 	if(dy<=ep->d4x4x2)
 //	if(0)
 	{
@@ -1594,11 +1643,18 @@ void BTIC1H_EncodeImageYUY2(byte *block, int blkstride,
 
 	qrf=qr/50.0;
 	ep->dflat  =qr*(0.33+0.5*qrf);
-	ep->d2x2   =qr*(0.85+0.7*qrf);
-	ep->d4x4x1 =qr*(1.50+1.0*qrf);
-	ep->d4x4x2 =qr*(3.00+2.0*qrf);
-	ep->d4x4x3 =qr*(9.00+2.0*qrf);
-	ep->dchflat=qr*(0.45+2.5*qrf);
+//	ep->d2x2   =qr*(0.85+0.7*qrf);
+//	ep->d4x4x1 =qr*(1.50+1.0*qrf);
+//	ep->d4x4x2 =qr*(3.00+2.0*qrf);
+//	ep->d4x4x3 =qr*(9.00+2.0*qrf);
+	ep->d2x2   =qr*(0.70+0.7*qrf);
+	ep->d4x4x1 =qr*(0.75+1.0*qrf);
+	ep->d4x4x2 =qr*(2.00+2.0*qrf);
+	ep->d4x4x3 =qr*(8.00+2.0*qrf);
+//	ep->dchflat=qr*(0.45+2.5*qrf);
+//	ep->dchflat=qr*(0.15+1.5*qrf);
+//	ep->dchflat=qr*(0.15+1.0*qrf);
+	ep->dchflat=qr*(0.45+0.7*qrf);
 
 #if 0
 //	ep->dflat  =qr*0.56;
@@ -1675,11 +1731,18 @@ void BTIC1H_EncodeImageRGBI(byte *block, int blkstride,
 
 	qrf=qr/50.0;
 	ep->dflat  =qr*(0.33+0.5*qrf);
-	ep->d2x2   =qr*(0.85+0.7*qrf);
-	ep->d4x4x1 =qr*(1.50+1.0*qrf);
-	ep->d4x4x2 =qr*(3.00+2.0*qrf);
-	ep->d4x4x3 =qr*(9.00+2.0*qrf);
-	ep->dchflat=qr*(0.45+2.5*qrf);
+//	ep->d2x2   =qr*(0.85+0.7*qrf);
+//	ep->d4x4x1 =qr*(1.50+1.0*qrf);
+//	ep->d4x4x2 =qr*(3.00+2.0*qrf);
+//	ep->d4x4x3 =qr*(9.00+2.0*qrf);
+	ep->d2x2   =qr*(0.70+0.7*qrf);
+	ep->d4x4x1 =qr*(0.75+1.0*qrf);
+	ep->d4x4x2 =qr*(2.00+2.0*qrf);
+	ep->d4x4x3 =qr*(8.00+2.0*qrf);
+//	ep->dchflat=qr*(0.45+2.5*qrf);
+//	ep->dchflat=qr*(0.15+1.5*qrf);
+//	ep->dchflat=qr*(0.15+1.0*qrf);
+	ep->dchflat=qr*(0.35+0.7*qrf);
 
 #if 0
 //	ep->dflat  =qr*0.56;

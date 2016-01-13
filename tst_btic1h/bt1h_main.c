@@ -26,13 +26,17 @@ THE SOFTWARE.
 #include <math.h>
 #include <time.h>
 
-#include "bt1h_common.c"
+#include "bt1h_common.h"
 
 #include "bt1h_shim_s2tc.c"
 #include "bt1h_shim_bc7.c"
 
 #include "bt1h_rice.c"
 #include "bt1h_decrice.c"
+#include "bt1h_bitrange.c"
+#include "bt1h_rangedec.c"
+#include "bt1h_rangeenc.c"
+
 #include "bt1h_blkenc.c"
 #include "bt1h_blkdec.c"
 #include "bt1h_encode.c"
@@ -152,8 +156,8 @@ int main(int argc, char *argv[])
 	ibuf=BTIC1H_Img_LoadTGA("screencap0.tga", &xs, &ys);
 	ibuf2=BTIC1H_Img_LoadTGA("screencap0.tga", &xs1, &ys1);
 
-//	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs, &ys);
-//	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1_q95.tga", &xs1, &ys1);
+	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs, &ys);
+	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1_q95.tga", &xs1, &ys1);
 
 	yibuf=malloc(xs*ys*2);
 
@@ -318,6 +322,7 @@ int main(int argc, char *argv[])
 	qf=75;
 
 	qf=qf|BTIC1H_QFL_IFRAME;
+	qf=qf|BTIC1H_QFL_USERC;
 	
 	xs1=xs>>2; ys1=ys>>2; n=xs1*ys1;
 	blks=malloc(n*32);

@@ -41,12 +41,14 @@ FILE *btjpg_log=NULL;
 char *btjpg_home;
 
 extern u32 btjpg_drv_defaultCodecFcc;
+extern int btjpg_drv_defaultCodecQfl;
 
 int BTJPG_DriverTryLoadConfig(char *name)
 {
 	char tb[256];
 	FILE *fd;
 	char **a;
+	int i;
 
 	fd=fopen(name, "rt");
 	if(!fd)return(0);
@@ -66,6 +68,17 @@ int BTJPG_DriverTryLoadConfig(char *name)
 			btjpg_drv_defaultCodecFcc=RIFF_MAKETAG(
 				a[1][0], a[1][1], a[1][2], a[1][3]);
 			continue;
+		}
+
+		if(!strcmp(a[0], "encoderFlags"))
+		{
+			for(i=1; a[i]; i++)
+			{
+				if(!strcmp(a[i], "rangecoder"))
+					btjpg_drv_defaultCodecQfl|=BTIC1H_QFL_USERC;
+				if(!strcmp(a[i], "rangecoder66"))
+					btjpg_drv_defaultCodecQfl|=BTIC1H_QFL_USERC66;
+			}
 		}
 	}
 	

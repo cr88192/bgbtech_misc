@@ -51,6 +51,9 @@ void BTIC1H_InitQuant()
 }
 
 int BTIC1H_EmitCommandCode(BTIC1H_Context *ctx, int cmd)
+	{ return(ctx->EmitCommandCode(ctx, cmd)); }
+
+int BTIC1H_EmitCommandCodeBase(BTIC1H_Context *ctx, int cmd)
 {
 	int bit0;
 	int i, j, k;
@@ -108,6 +111,48 @@ int BTIC1H_EmitCommandCode(BTIC1H_Context *ctx, int cmd)
 	ctx->cmdwin[j&15]=cmd;
 	ctx->cmdidx[cmd&255]=j;
 
+	return(0);
+}
+
+int BTIC1H_EmitCommandCodeSMTF(BTIC1H_Context *ctx, int cmd)
+{
+	int bit0;
+	int i0, i1;
+	int i, j, k;
+
+	ctx->cnt_cmds++;
+	ctx->stat_cmds[cmd]++;
+
+	j=ctx->cmdidx[cmd];
+	i=(byte)(j-ctx->cmdwpos);
+
+	bit0=ctx->bs_bits;
+	BTIC1H_Rice_WriteAdRice(ctx, i, &(ctx->rk_cmdidx));
+//	BTIC1H_Rice_WriteAdRiceDc(ctx, i, &(ctx->rk_cmdidx));
+	ctx->bits_cmdidx+=ctx->bs_bits-bit0;
+
+	if(i==0)
+	{
+	}else if(i<32)
+	{
+		i0=(ctx->cmdwpos+i-1)&255;
+		i1=(ctx->cmdwpos+i+0)&255;
+			
+		k=ctx->cmdwin[i0];
+		ctx->cmdwin[i0]=cmd;
+		ctx->cmdwin[i1]=k;
+		ctx->cmdidx[cmd&255]=i0;
+		ctx->cmdidx[k&255]=i1;
+	}else
+	{
+		i0=(ctx->cmdwpos+i)&255;
+		i1=(ctx->cmdwpos-1)&255;
+		ctx->cmdwpos--;
+
+		j=ctx->cmdwin[i0];	k=ctx->cmdwin[i1];
+		ctx->cmdwin[i1]=j;	ctx->cmdwin[i0]=k;
+		ctx->cmdidx[k]=i0;	ctx->cmdidx[j]=i1;
+	}
 	return(0);
 }
 
@@ -1763,6 +1808,21 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 			csl+=stride;
 			continue;
 		}
+
+		if(cm==23)
+		{
+			BTIC1H_EmitCommandCode(ctx, 0x33);
+			BTIC1H_EmitDeltaYUVDyuv(ctx,
+				cs[0], cs[1], cs[2],
+				(cs[5]-128)<<1, (cs[8]-128)<<1,
+				(cs[9]-128)<<1);
+			BTIC1H_Rice_Write8Bits(ctx, cs[6]);
+			BTIC1H_Rice_Write16Bits(ctx, (cs[10]<<8)|cs[11]);
+			ctx->bits_pix2x2+=24;
+			cs+=stride;
+			csl+=stride;
+			continue;
+		}
 #endif
 
 #ifdef BT1H_USEGRAD
@@ -2363,7 +2423,7 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	int xs, int ys, int qfl, int clrs)
 {
 	byte *ct, *cte;
-	int sz, sz1;
+	int sz, sz1, csim;
 	int i, n;
 
 	if(!ctx->blks)
@@ -2380,15 +2440,75 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	BTIC1H_EncodeImageClrs(ctx->blks, 32, src,
 		ctx->xs, ctx->flip?ctx->ys:(-ctx->ys), qfl, clrs);
 
-	ct=dst+4; cte=dst+dsz;
 
 	BTIC1H_SetupContextInitial(ctx);
 
+#if 0
+	ct=dst+4; cte=dst+dsz;
+	ctx->EmitCommandCode=BTIC1H_EmitCommandCodeBase;
 	for(i=0; i<64; i++)
-		ctx->cmdidx[i]=-1;
-	
+		ctx->cmdidx[i]=-1;	
 	BTIC1H_Rice_SetupWrite(ctx, dst+4, dsz-4);
+#endif
+
+#if 0
+	ct=dst+6; cte=dst+dsz;
+	*ct++=0x00;
 	
+	ctx->EmitCommandCode=BTIC1H_EmitCommandCodeSMTF;
+	for(i=0; i<256; i++)
+		{ ctx->cmdwin[i]=i; ctx->cmdidx[i]=i; }
+	BTIC1H_Rice_SetupWrite(ctx, ct, cte-ct);
+#endif
+
+#if 0
+	ct=dst+6; cte=dst+dsz;
+	*ct++=((12-8)<<4)|1;
+	
+	ctx->EmitCommandCode=BTIC1H_EmitCommandCodeSMTF;
+	for(i=0; i<256; i++)
+		{ ctx->cmdwin[i]=i; ctx->cmdidx[i]=i; }
+	BTIC1H_Rice_SetupWriteRangeBits(ctx, ct, cte-ct, 12);
+#endif
+
+#if 1
+//	if((qfl&127)<75)
+//	if(1)
+	if((qfl&BTIC1H_QFL_USERC) ||
+		((qfl&BTIC1H_QFL_USERC66) && ((qfl&127)<66)))
+	{
+		csim=1;
+		if(csim==ctx->lcsim)
+//		if(0)
+			{ ct=dst+4; cte=dst+dsz; }
+		else
+			{ ct=dst+6; cte=dst+dsz; }
+
+		*ct++=((12-8)<<4)|1;
+	
+		ctx->EmitCommandCode=BTIC1H_EmitCommandCodeSMTF;
+		for(i=0; i<256; i++)
+			{ ctx->cmdwin[i]=i; ctx->cmdidx[i]=i; }
+		BTIC1H_Rice_SetupWriteRangeBits(ctx, ct, cte-ct, 12);
+	}else
+	{
+		csim=1;
+		if(csim==ctx->lcsim)
+//		if(0)
+			{ ct=dst+4; cte=dst+dsz; }
+		else
+			{ ct=dst+6; cte=dst+dsz; }
+		
+		*ct++=0x00;
+	
+		ctx->EmitCommandCode=BTIC1H_EmitCommandCodeSMTF;
+		for(i=0; i<256; i++)
+			{ ctx->cmdwin[i]=i; ctx->cmdidx[i]=i; }
+		BTIC1H_Rice_SetupWrite(ctx, ct, cte-ct);
+	}
+#endif
+
+
 	BTIC1H_EncodeBlocksCtx(ctx,
 		ctx->blks, (qfl&BTIC1H_QFL_PFRAME)?ctx->lblks:NULL,
 		ctx->nblks, 32, &i, qfl);
@@ -2398,10 +2518,44 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 
 	BTIC1H_Rice_FlushBits(ctx);
 	sz=ctx->bs_ct-dst;
+
+	if(csim==ctx->lcsim)
+//	if(0)
+	{
+		dst[0]=0xE1;
+		dst[1]=sz>>16;
+		dst[2]=sz>>8;
+		dst[3]=sz;
+	}else
+	{
+		dst[0]=0xE3;
+		dst[1]=sz>>16;
+		dst[2]=sz>>8;
+		dst[3]=sz;
+		dst[4]='I';
+		dst[5]='0'+csim;
+
+//		if(qfl&BTIC1H_QFL_IFRAME)
+//			{ ctx->lcsim=csim; }
+//		else
+//			{ ctx->lcsim=-1; }
+	}
+
+#if 0
 	dst[0]=0xE1;
 	dst[1]=sz>>16;
 	dst[2]=sz>>8;
 	dst[3]=sz;
+#endif
+
+#if 0
+	dst[0]=0xE3;
+	dst[1]=sz>>16;
+	dst[2]=sz>>8;
+	dst[3]=sz;
+	dst[4]='I';
+	dst[5]='1';
+#endif
 	
 #ifdef BT1H_ENABLE_AX
 	if((clrs==BTIC1H_PXF_RGBA) || (clrs==BTIC1H_PXF_BGRA))
@@ -2492,7 +2646,7 @@ void BTIC1H_DumpEncodeStats(BTIC1H_Context *ctx)
 	double rfbits;
 	int i, j, k;
 	
-	rfbits=100.0/ctx->bits_total;
+	rfbits=100.0/(ctx->bits_total+1.0);
 	
 	printf("total_bits=%d, frames=%d, avg_bits_frame=%d avg_qfl=%d\n",
 		ctx->bits_total, ctx->cnt_statframes,

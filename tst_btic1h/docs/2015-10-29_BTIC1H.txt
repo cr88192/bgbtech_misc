@@ -38,6 +38,37 @@ Tag Bytes:
 * 0xE5: len=Byte, tag=TWOCC
 * 0xE6: len=Word56, tag=FOURCC
 
+Change:
+* E1 and E2 will be encode an image in the current ImageMode.
+** Image mode will default to 0, and may be specified for I-Frames.
+* E3 and E5,'I#', where # is 0-9, gives an image as an image mode.
+** Encoding an I-Frame in this mode will change the current mode.
+*** This is undefined for P-Frames.
+** I0 is the default mode.
+** I1 uses extended sub-headers and SMTF-only commands.
+*** Image mode 1 may be either a raw bitstream or a range-coded bitstream.
+
+
+For Image Mode 1, extended sub headers are used prior to beginning the bitstream.
+
+This consists of a small 8-bit init header.
+* X-NNN-TTTT
+* X indicates if extended headers follow.
+* NNN: Depends on TTTT (MBZ for Type=0)
+* TTTT: Gives the type of bitstream.
+** 0: Raw bitstream with SMTF-only commands.
+** 1: Use a bitwise range coder.
+
+If extended headers follow, the format is used:
+* X-LLL-TTTT
+** X=More tags follow.
+** LLL=Length of header (1-7 bytes)
+** TTTT=Header Tag (1-15)
+
+For extended headers, both length and tag of 0 are escape codes, and a VLI tag will follow. Extended headers are reserved for cases that relate to the format of the bitstream, and as such will depend on the type of bitstream used. As such, an unrecognized extended header means the frame should be rejected.
+
+No headers are defined as of yet.
+
 
 === Bitstream ===
 
@@ -247,6 +278,11 @@ CmdAbs:
 RunCount will be AdRice, with 0 as a reserved value.
 
 
+In ImageMode 1, A different command coding will be used (SMTF).
+* 0..255 will give RIdx
+* Only RIdx will be used (CmdAbs may not be encoded).
+
+
 Commands:
 * C(00) DeltaYUV
 ** delta flat-color block.
@@ -373,6 +409,9 @@ Commands:
 * C(32) DeltaYUVDyuv, Pixblock4x4x3_UV2x2
 **  Logical 4:2:0, 4x4x3 Y block followed by 2x2 U and V sub-blocks
 **  Y, U, and V are interpolated separately.
+* C(33) DeltaYUVDyuv, Pixblock2x2_UV2x2
+**  Logical 4:2:0, 2x2 Y block followed by 2x2 U and V sub-blocks
+**  Y, U, and V are interpolated separately.
 
 * C(34) RunCount, PixelBlock4x4_UV2x2*RunCount
 ** Separately interpolated YUV.
@@ -381,6 +420,9 @@ Commands:
 ** Separately interpolated YUV.
 ** YUVDyuv only.
 * C(36) RunCount, PixelBlock4x4x3_UV2x2*RunCount
+** Separately interpolated YUV.
+** YUVDyuv only.
+* C(37) RunCount, PixelBlock2x2_UV2x2*RunCount
 ** Separately interpolated YUV.
 ** YUVDyuv only.
 
@@ -531,7 +573,6 @@ Commands:
 ** Skip+Translate, Blocks are copied from the prior frame.
 ** Offsets indicate the source position in blocks relative to the current block.
 
-
 === (Side Info) Metablock2 ===
 
 Metablock is the block representation used internally by the codec.
@@ -622,6 +663,10 @@ Reserve 256 bits.
     Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x3)
     Pc=Pixel Bits (U, 2x2x2)
     Pd=Pixel Bits (V, 2x2x2)
+  M==23: 4x4x2bpp 4:2:0 (YUVDyuv, B/E)
+    Pc=Pixel Bits (Y, 2x2x2)
+    Qe=Pixel Bits (U, 2x2x2)
+    Qf=Pixel Bits (V, 2x2x2)
 
 
 Alpha Block
@@ -657,3 +702,69 @@ Mini-Mode will be a BTIC1H subset.
 * Will only use DeltaYUV and DeltaYUVD.
 * Does not support update masks.
 * Command Index Table is limited to 16 entries.
+
+
+== (Optional) Range Coder ==
+
+Will use a bitwise range coder.
+This will be considered a non-core feature, and future decodability of range-coded video is not assured.
+
+Basically, it uses a bit-at-a-time encoder, with a variable context size. Rather than bit patterns written directly into a bitstream, they are fed into the range coder, which may in turn derive some additional compression over a raw bitstream.
+
+The context consists of the last N preceding bits, which is used as an index into a probabilities table. After encoding each bit, the context is shifted left 1 bit and the encoded bit is added to the LSB.
+
+This context is masked by the context-size, namely ((1 SHL n)-1), when accessing the model weights.
+
+The RC data starts with a small header.
+
+* X-NNN-TTTT
+* X=Extended Headers Follow
+* NNN: Size of Context (8..15 bits)
+* TTTT: RC Mode
+** 0: No RC used.
+** 1: Basic bitwise Range Coder.
+** 2-15 Reserved.
+
+
+In the basic range-coding mode, a pair of models will be used, each sharing the same context bits.
+
+A main model will be used for uncategorized bits. This includes pixel data. 
+
+A secondary model will be used for Rice-code bits. This will be used for all bits within the Rice coded symbol. A symbol will be emitted as 2 bit sequences, one for the unary prefix, and another for the suffix.
+
+
+=== Range and Weights ===
+
+Logically, there will be several values in use:
+* min: Lower bound of the coder range (init=0x00000000)
+* max: Upper bound of the coder range (init=0xFFFFFFFF)
+* range=max-min: Difference between the lower and upper bounds
+* val: Encoded value stream (decode)
+
+An 8-bit model weight value will be used. Weights will be initialized to 128.
+
+A division bound will be calculated from the weight as:
+* bound=(range SHR 8)*weight.
+* Values above this point (rval GT dval) will correspond to a logical 1 bit
+** min=bound+1;
+** weight=weight-(w SHR 5);
+* Values less than or equal to this value will be interpreted as 0
+** max=bound;
+** weight=weight+((256-w) SHR 5);
+** Weights will be clamped to the range of 32..223
+*** This is to attempt to prevent premature range collapse.
+
+
+Normalization happens when the high 8 bits of min and max become equal.
+Normalization may emit 8 or 16 bits at a time.
+
+For encoding:
+* Write the high 8 bits to the output;
+** WriteByte(min SHR 24);
+* min=(min SHL 8); max=(max SHL 8)|255;
+* Repeat again if high 8 bits of min and max are still equal.
+
+For decoding:
+* min=(min SHL 8); max=(max SHL 8)|255;
+* val=(val SHL 8)|ReadByte();
+* Repeat again if high 8 bits of min and max are still equal.

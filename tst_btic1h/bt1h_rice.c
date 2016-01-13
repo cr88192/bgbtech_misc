@@ -20,6 +20,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+void BTIC1H_Rice_WriteNBitsBasic(BTIC1H_Context *ctx, int v, int n);
+void BTIC1H_Rice_Write8BitsBasic(BTIC1H_Context *ctx, int v);
+void BTIC1H_Rice_Write16BitsBasic(BTIC1H_Context *ctx, int v);
+void BTIC1H_Rice_WriteAdRiceBasic(BTIC1H_Context *ctx, int v, int *rk);
+void BTIC1H_Rice_WriteAdSRiceBasic(BTIC1H_Context *ctx, int v, int *rk);
+void BTIC1H_Rice_WriteAdRiceDcBasic(BTIC1H_Context *ctx, int v, int *rk);
+void BTIC1H_Rice_WriteAdSRiceDcBasic(BTIC1H_Context *ctx, int v, int *rk);
+void BTIC1H_Rice_FlushBitsBasic(BTIC1H_Context *ctx);
+
 void BTIC1H_Rice_SetupWrite(BTIC1H_Context *ctx, byte *obuf, int osz)
 {
 	ctx->bs_win=0;
@@ -28,14 +37,44 @@ void BTIC1H_Rice_SetupWrite(BTIC1H_Context *ctx, byte *obuf, int osz)
 
 	ctx->bs_ct=obuf;
 	ctx->bs_cte=obuf+osz;
+
+	ctx->WriteNBits=BTIC1H_Rice_WriteNBitsBasic;
+	ctx->Write8Bits=BTIC1H_Rice_Write8BitsBasic;
+	ctx->Write16Bits=BTIC1H_Rice_Write16BitsBasic;
+	ctx->WriteAdRice=BTIC1H_Rice_WriteAdRiceBasic;
+	ctx->WriteAdSRice=BTIC1H_Rice_WriteAdSRiceBasic;
+	ctx->WriteAdRiceDc=BTIC1H_Rice_WriteAdRiceDcBasic;
+	ctx->WriteAdSRiceDc=BTIC1H_Rice_WriteAdSRiceDcBasic;
+	ctx->FlushBits=BTIC1H_Rice_FlushBitsBasic;
 }
+
+void BTIC1H_Rice_WriteNBits(BTIC1H_Context *ctx, int v, int n)
+	{ ctx->WriteNBits(ctx, v, n); }
+void BTIC1H_Rice_Write8Bits(BTIC1H_Context *ctx, int v)
+	{ ctx->Write8Bits(ctx, v); }
+void BTIC1H_Rice_Write16Bits(BTIC1H_Context *ctx, int v)
+	{ ctx->Write16Bits(ctx, v); }
+
+void BTIC1H_Rice_WriteAdRice(BTIC1H_Context *ctx, int v, int *rk)
+	{ ctx->WriteAdRice(ctx, v, rk); }
+void BTIC1H_Rice_WriteAdSRice(BTIC1H_Context *ctx, int v, int *rk)
+	{ ctx->WriteAdSRice(ctx, v, rk); }
+
+void BTIC1H_Rice_WriteAdRiceDc(BTIC1H_Context *ctx, int v, int *rk)
+	{ ctx->WriteAdRiceDc(ctx, v, rk); }
+void BTIC1H_Rice_WriteAdSRiceDc(BTIC1H_Context *ctx, int v, int *rk)
+	{ ctx->WriteAdSRiceDc(ctx, v, rk); }
+
+void BTIC1H_Rice_FlushBits(BTIC1H_Context *ctx)
+	{ ctx->FlushBits(ctx); }
 
 void BTIC1H_Rice_EmitByte(BTIC1H_Context *ctx, int i)
 {
 	*ctx->bs_ct++=i;
 }
 
-void BTIC1H_Rice_WriteBit(BTIC1H_Context *ctx, int i)
+#if 0
+// void BTIC1H_Rice_WriteBit(BTIC1H_Context *ctx, int i)
 {
 	ctx->bs_bits++;
 
@@ -49,8 +88,9 @@ void BTIC1H_Rice_WriteBit(BTIC1H_Context *ctx, int i)
 		ctx->bs_pos-=8;
 	}
 }
+#endif
 
-void BTIC1H_Rice_WriteNBits(BTIC1H_Context *ctx, int v, int n)
+void BTIC1H_Rice_WriteNBitsBasic(BTIC1H_Context *ctx, int v, int n)
 {
 	int i, j, k;
 
@@ -118,6 +158,9 @@ void BTIC1H_Rice_WriteNBitsL(BTIC1H_Context *ctx, s64 i, int n)
 	BTIC1H_Rice_WriteNBits(ctx, i, n);
 }
 
+void BTIC1H_Rice_WriteBit(BTIC1H_Context *ctx, int i)
+	{ BTIC1H_Rice_WriteNBits(ctx, i, 1); }
+
 void BTIC1H_Rice_Write2Bits(BTIC1H_Context *ctx, int i)
 	{ BTIC1H_Rice_WriteNBits(ctx, i, 2); }
 void BTIC1H_Rice_Write3Bits(BTIC1H_Context *ctx, int i)
@@ -128,7 +171,7 @@ void BTIC1H_Rice_Write4Bits(BTIC1H_Context *ctx, int i)
 //void BTIC1H_Rice_Write8Bits(BTIC1H_Context *ctx, int i)
 //	{ BTIC1H_Rice_WriteNBits(ctx, i, 8); }
 
-void BTIC1H_Rice_Write8Bits(BTIC1H_Context *ctx, int v)
+void BTIC1H_Rice_Write8BitsBasic(BTIC1H_Context *ctx, int v)
 {
 	int i, j, k;
 
@@ -138,7 +181,7 @@ void BTIC1H_Rice_Write8Bits(BTIC1H_Context *ctx, int v)
 	ctx->bs_win=k<<8;
 }
 
-void BTIC1H_Rice_Write16Bits(BTIC1H_Context *ctx, int v)
+void BTIC1H_Rice_Write16BitsBasic(BTIC1H_Context *ctx, int v)
 {
 	int i, j, k;
 
@@ -203,7 +246,7 @@ void BTIC1H_Rice_WriteExpSRice(BTIC1H_Context *ctx, int v, int k)
 }
 #endif
 
-void BTIC1H_Rice_WriteAdRice(BTIC1H_Context *ctx, int v, int *rk)
+void BTIC1H_Rice_WriteAdRiceBasic(BTIC1H_Context *ctx, int v, int *rk)
 {
 	int p, b, n, bp, bw;
 	int i, j, k;
@@ -336,7 +379,7 @@ int BTIC1H_Rice_CountWriteAdRice(BTIC1H_Context *ctx, int v, int *rk)
 	return(n);
 }
 
-void BTIC1H_Rice_WriteAdSRice(BTIC1H_Context *ctx, int v, int *rk)
+void BTIC1H_Rice_WriteAdSRiceBasic(BTIC1H_Context *ctx, int v, int *rk)
 {
 	BTIC1H_Rice_WriteAdRice(ctx, (v<<1)^(v>>31), rk);
 //	BTIC1H_Rice_WriteAdRice(ctx, (v>=0)?(v<<1):(((-v)<<1)-1), rk);
@@ -432,7 +475,7 @@ int BTIC1H_Rice_CountWriteAdSRiceDc(BTIC1H_Context *ctx, int v, int *rk)
 	{ return(BTIC1H_Rice_CountWriteAdRiceDc(ctx, (v<<1)^(v>>31), rk)); }
 
 
-void BTIC1H_Rice_WriteAdRiceDc(BTIC1H_Context *ctx, int v, int *rk)
+void BTIC1H_Rice_WriteAdRiceDcBasic(BTIC1H_Context *ctx, int v, int *rk)
 {
 	int p, b, n, bp, bw;
 	int i, j, k;
@@ -524,15 +567,14 @@ void BTIC1H_Rice_WriteAdRiceDc(BTIC1H_Context *ctx, int v, int *rk)
 #endif
 }
 
-void BTIC1H_Rice_WriteAdSRiceDc(BTIC1H_Context *ctx, int v, int *rk)
+void BTIC1H_Rice_WriteAdSRiceDcBasic(BTIC1H_Context *ctx, int v, int *rk)
 {
-	BTIC1H_Rice_WriteAdRiceDc(ctx, (v<<1)^(v>>31), rk);
+	BTIC1H_Rice_WriteAdRiceDcBasic(ctx, (v<<1)^(v>>31), rk);
 }
-
 
 #endif
 
-void BTIC1H_Rice_FlushBits(BTIC1H_Context *ctx)
+void BTIC1H_Rice_FlushBitsBasic(BTIC1H_Context *ctx)
 {
 	int i;
 	while(ctx->bs_pos>0)
