@@ -34,7 +34,7 @@ THE SOFTWARE.
  * 0 1 4 8 5 2 3 6 9 12 13 10 7 11 14 15
  */
 
-const int pdjpg_zigzag8_1[64]={
+static const int pdjpg_zigzag8_1[64]={
  0,  1,  5,  6, 14, 15, 27, 28,
  2,  4,  7, 13, 16, 26, 29, 42,
  3,  8, 12, 17, 25, 30, 41, 43,
@@ -45,7 +45,7 @@ const int pdjpg_zigzag8_1[64]={
 35, 36, 48, 49, 57, 58, 62, 63
 };
 
-const int pdjpg_zigzag8_2[64]={
+static const int pdjpg_zigzag8_2[64]={
  0,  1,  8, 16,  9,  2,  3, 10,
 17, 24, 32, 25, 18, 11,  4,  5,
 12, 19, 26, 33, 40, 48, 41, 34,
@@ -56,14 +56,14 @@ const int pdjpg_zigzag8_2[64]={
 53, 60, 61, 54, 47, 55, 62, 63
 };
 
-const int pdjpg_zigzag4_1[16]={
+static const int pdjpg_zigzag4_1[16]={
  0,  1,  5,  6,
  2,  4,  7, 12,
  3,  8, 11, 13,
  9, 10, 14, 15
 };
 
-const int pdjpg_zigzag4_2[16]={
+static const int pdjpg_zigzag4_2[16]={
  0,  1,  4,  8,
  5,  2,  3,  6,
  9, 12, 13, 10,
@@ -208,9 +208,13 @@ void BTIC2D_TransBlock2YUY2(byte *iblk, int ystr, s16 *oblk, int *ifqt)
 //	BTIC2D_TransDCT4(ublka, ublka);
 //	BTIC2D_TransDCT4(vblka, vblka);
 
-	BTIC2D_TransWHT8(yblka, yblka);
-	BTIC2D_TransWHT4(ublka, ublka);
-	BTIC2D_TransWHT4(vblka, vblka);
+//	BTIC2D_TransWHT8(yblka, yblka);
+//	BTIC2D_TransWHT4(ublka, ublka);
+//	BTIC2D_TransWHT4(vblka, vblka);
+
+	BTIC2D_TransBHT8(yblka, yblka);
+	BTIC2D_TransBHT4(ublka, ublka);
+	BTIC2D_TransBHT4(vblka, vblka);
 	
 //	for(i=0; i<64; i++)
 //	{
@@ -218,6 +222,7 @@ void BTIC2D_TransBlock2YUY2(byte *iblk, int ystr, s16 *oblk, int *ifqt)
 //		oblk[i]=(yblka[j]*ifqt[i]+2048)>>12;
 //	}
 
+#if 0
 	yct=yblka;
 	for(i=0; i<8; i++)
 	{
@@ -234,13 +239,43 @@ void BTIC2D_TransBlock2YUY2(byte *iblk, int ystr, s16 *oblk, int *ifqt)
 		oct[6]=(yct[vct[6]]*uct[6]+2048)>>12;
 		oct[7]=(yct[vct[7]]*uct[7]+2048)>>12;
 	}
+#endif
 
+#define YBVQ(x) \
+		oblk[x+0]=(yblka[pdjpg_zigzag8_2[x+0]]*ifqt[x+0]+2048)>>12;	\
+		oblk[x+1]=(yblka[pdjpg_zigzag8_2[x+1]]*ifqt[x+1]+2048)>>12;	\
+		oblk[x+2]=(yblka[pdjpg_zigzag8_2[x+2]]*ifqt[x+2]+2048)>>12;	\
+		oblk[x+3]=(yblka[pdjpg_zigzag8_2[x+3]]*ifqt[x+3]+2048)>>12;	\
+		oblk[x+4]=(yblka[pdjpg_zigzag8_2[x+4]]*ifqt[x+4]+2048)>>12;	\
+		oblk[x+5]=(yblka[pdjpg_zigzag8_2[x+5]]*ifqt[x+5]+2048)>>12;	\
+		oblk[x+6]=(yblka[pdjpg_zigzag8_2[x+6]]*ifqt[x+6]+2048)>>12;	\
+		oblk[x+7]=(yblka[pdjpg_zigzag8_2[x+7]]*ifqt[x+7]+2048)>>12;
+
+	YBVQ(0)		YBVQ(8)
+	YBVQ(16)	YBVQ(24)
+	YBVQ(32)	YBVQ(40)
+	YBVQ(48)	YBVQ(56)
+
+#if 0
 	for(i=0; i<16; i++)
 	{
 		j=pdjpg_zigzag4_2[i];
 		oblk[64+i]=(ublka[j]*ifqt[64+i]+2048)>>12;
 		oblk[80+i]=(vblka[j]*ifqt[80+i]+2048)>>12;
 	}
+#endif
+
+#define UBVQ(i) \
+		oblk[64+i+0]=(ublka[pdjpg_zigzag4_2[i+0]]*ifqt[64+i+0]+2048)>>12; \
+		oblk[80+i+0]=(vblka[pdjpg_zigzag4_2[i+0]]*ifqt[80+i+0]+2048)>>12; \
+		oblk[64+i+1]=(ublka[pdjpg_zigzag4_2[i+1]]*ifqt[64+i+1]+2048)>>12; \
+		oblk[80+i+1]=(vblka[pdjpg_zigzag4_2[i+1]]*ifqt[80+i+1]+2048)>>12; \
+		oblk[64+i+2]=(ublka[pdjpg_zigzag4_2[i+2]]*ifqt[64+i+2]+2048)>>12; \
+		oblk[80+i+2]=(vblka[pdjpg_zigzag4_2[i+2]]*ifqt[80+i+2]+2048)>>12; \
+		oblk[64+i+3]=(ublka[pdjpg_zigzag4_2[i+3]]*ifqt[64+i+3]+2048)>>12; \
+		oblk[80+i+3]=(vblka[pdjpg_zigzag4_2[i+3]]*ifqt[80+i+3]+2048)>>12;
+	UBVQ(0)		UBVQ(4)
+	UBVQ(8)		UBVQ(12)
 }
 
 const u32 btic2c_dbase[64]={
@@ -489,6 +524,199 @@ void BTIC2D_EncodeBlockVlc8(BTIC1H_Context *ctx, s16 *blk)
 	BTIC2D_EncodeBlockVlc4Uv(ctx, blk+80);
 }
 
+void BTIC2D_EncodeByteVal(BTIC1H_Context *ctx, int z, int val)
+{
+	int uval;
+	int i, j, k;
+	
+	uval=(val<<1)^(val>>31);
+	if(uval<16)
+	{
+		i=z;
+		if(i>=8)
+		{
+			if((i<24) && (uval<3) && uval)
+			{
+				*ctx->bs_ct++=0x80+((i-8)<<1)+(uval-1);
+				return;
+			}
+
+#if 0
+			while(i>=32)
+			{
+				*ctx->bs_ct++=0xBF;
+				i-=32;
+			}
+			if(i>=8)
+			{
+				*ctx->bs_ct++=0xA0+(i-1);
+				i=0;
+			}
+#endif
+
+#if 1
+			while(i>=8)
+			{
+				j=i;
+				if(j>32)j=32;
+				*ctx->bs_ct++=0xA0+(j-1);
+				i-=j;
+			}
+#endif
+		}
+		*ctx->bs_ct++=(i<<4)+uval;
+		return;
+	}
+
+	if(uval<2048)
+	{
+		i=z;
+		while(i>=4)
+		{
+			j=i;
+			if(j>32)j=32;
+			*ctx->bs_ct++=0xA0+(j-1);
+			i-=j;
+		}
+		*ctx->bs_ct++=0xC0+(i<<3)+(uval>>8);
+		*ctx->bs_ct++=uval;
+		return;
+	}
+	if(uval<1048576)
+	{
+		i=z;
+		while(i>=1)
+		{
+			j=i;
+			if(j>32)j=32;
+			*ctx->bs_ct++=0xA0+(j-1);
+			i-=j;
+		}
+		*ctx->bs_ct++=0xE0+(uval>>16);
+		*ctx->bs_ct++=(uval>>8);
+		*ctx->bs_ct++=uval;
+		return;
+	}
+
+	if(uval<(1<<27))
+	{
+		i=z;
+		while(i>=1)
+		{
+			j=i;
+			if(j>32)j=32;
+			*ctx->bs_ct++=0xA0+(j-1);
+			i-=j;
+		}
+		*ctx->bs_ct++=0xF0+(uval>>24);
+		*ctx->bs_ct++=(uval>>16);
+		*ctx->bs_ct++=(uval>>8);
+		*ctx->bs_ct++=uval;
+		return;
+	}
+}
+
+void BTIC2D_EncodeBlockByte4Uv(BTIC1H_Context *ctx, s16 *blk)
+{
+	int i, j, k, l;
+
+	if(!blk[0])
+	{
+		for(j=1; j<16; j++)
+			if(blk[j])
+				break;
+		if(j>=16)
+		{
+			*ctx->bs_ct++=0xA0;
+//			*ctx->bs_ct++=0;
+			return;
+		}
+	}
+
+	BTIC2D_EncodeByteVal(ctx, 0, blk[0]);
+	for(i=1; i<16; i++)
+	{
+		if(!blk[i])
+		{
+			for(j=i+1; j<16; j++)
+				if(blk[j])
+					break;
+			if(j==16)
+			{
+				*ctx->bs_ct++=0;
+				break;
+			}
+			j=j-i;
+			BTIC2D_EncodeByteVal(ctx, j, blk[i]);
+			i+=j;
+			continue;
+		}
+		BTIC2D_EncodeByteVal(ctx, 0, blk[i]);
+	}
+}
+
+void BTIC2D_EncodeBlockByte8Y(BTIC1H_Context *ctx, s16 *blk)
+{
+	int i, j, k, l;
+
+	if(!blk[0])
+	{
+		for(j=1; j<64; j++)
+			if(blk[j])
+				break;
+		if(j>=64)
+		{
+			*ctx->bs_ct++=0;
+			*ctx->bs_ct++=0;
+			return;
+		}
+	}
+
+	BTIC2D_EncodeByteVal(ctx, 0, blk[0]);
+	for(i=1; i<16; i++)
+	{
+		if(!blk[i])
+		{
+			for(j=i+1; j<64; j++)
+				if(blk[j])
+					break;
+			if(j==64)
+			{
+				*ctx->bs_ct++=0;
+				break;
+			}
+			j=j-i;
+			BTIC2D_EncodeByteVal(ctx, j, blk[i]);
+			i+=j;
+			continue;
+		}
+		BTIC2D_EncodeByteVal(ctx, 0, blk[i]);
+	}
+}
+
+void BTIC2D_EncodeBlockByte8(BTIC1H_Context *ctx, s16 *blk)
+{
+	int dy, du, dv;
+	int i, j, k, l;
+
+	dy=blk[ 0]-ctx->cy;
+	du=blk[64]-ctx->cu;
+	dv=blk[80]-ctx->cv;
+
+	ctx->cy+=dy;
+	ctx->cu+=du;
+	ctx->cv+=dv;
+
+	blk[ 0]=dy;
+	blk[64]=du;
+	blk[80]=dv;
+
+	BTIC2D_EncodeBlockByte8Y(ctx, blk);
+	BTIC2D_EncodeBlockByte4Uv(ctx, blk+64);
+	BTIC2D_EncodeBlockByte4Uv(ctx, blk+80);
+}
+
+
 void BTIC2D_EncodeImageCtxYUY2(BTIC1H_Context *ctx,
 	byte *ibuf, int xs, int ys)
 {
@@ -520,7 +748,8 @@ void BTIC2D_EncodeImageCtxYUY2(BTIC1H_Context *ctx,
 		for(j=0; j<xs1; j++)
 	{
 		BTIC2D_TransBlock2YUY2(ibuf+(i*8*ystr)+(j*8*2), ystr, tblk, ifqt);
-		BTIC2D_EncodeBlockVlc8(ctx, tblk);
+//		BTIC2D_EncodeBlockVlc8(ctx, tblk);
+		BTIC2D_EncodeBlockByte8(ctx, tblk);
 	}
 #endif
 }
