@@ -67,7 +67,20 @@ If extended headers follow, the format is used:
 
 For extended headers, both length and tag of 0 are escape codes, and a VLI tag will follow. Extended headers are reserved for cases that relate to the format of the bitstream, and as such will depend on the type of bitstream used. As such, an unrecognized extended header means the frame should be rejected.
 
-No headers are defined as of yet.
+Ext Header 1:
+* Sliced Image
+* Contents are a VLI encoding the number of scanlines per slice.
+* If absent, slices are not used, and the whole image is a single bitstream.
+
+
+VLI (Unsigned, 32-bit)
+ 00-7F         00000000-0000007F
+ 80-BF XX      00000080-00003FFF
+ C0-DF XX(x2)  00004000-001FFFFF
+ E0-EF XX(x3)  00200000-0FFFFFFF
+ F0    XX(x4)  10000000-FFFFFFFF
+
+Overlong encodings are allowed in most cases.
 
 
 === Bitstream ===
@@ -702,6 +715,13 @@ Mini-Mode will be a BTIC1H subset.
 * Will only use DeltaYUV and DeltaYUVD.
 * Does not support update masks.
 * Command Index Table is limited to 16 entries.
+
+
+=== (Optional) Sliced Coding ===
+
+In sliced images, the images will be divided up into slices each of a given number of scanlines (required to be a multiple of 4). Each slice is encoded with its own bitstream. The slices may be encoded or decoded independently and in any order.
+
+The slices are packed end-to-end in the frame, each prefixed with a VLI giving its coded length in bytes.
 
 
 == (Optional) Range Coder ==
