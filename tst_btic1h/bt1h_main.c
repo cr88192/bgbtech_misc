@@ -31,6 +31,8 @@ THE SOFTWARE.
 #include "bt1h_shim_s2tc.c"
 #include "bt1h_shim_bc7.c"
 
+#include "bt1h_thread.c"
+
 #include "bt1h_rice.c"
 #include "bt1h_decrice.c"
 #include "bt1h_bitrange.c"
