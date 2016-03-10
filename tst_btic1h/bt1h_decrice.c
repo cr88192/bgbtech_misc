@@ -175,11 +175,11 @@ int BTIC1H_Rice_ReadBit(BTIC1H_Context *ctx)
 
 int BTIC1H_Rice_ReadNBitsBasic(BTIC1H_Context *ctx, int n)
 {
-	int i, j, k;
+	int i, j, k, l;
 
 #if defined(X86) || defined(X86_64)
 // #if 0
-	int i, j, k, l;
+//	int i, j, k, l;
 
 	j=ctx->bs_pos;	k=ctx->bs_win;
 	l=(k>>(32-n-j))&((1<<n)-1);
@@ -190,7 +190,7 @@ int BTIC1H_Rice_ReadNBitsBasic(BTIC1H_Context *ctx, int n)
 	j=*(u16 *)ctx->bs_cs; j=(j<<8)|(j>>8);
 	ctx->bs_win=(ctx->bs_win<<k)|(j>>(16-k));
 	ctx->bs_pos=i&7;
-	ctx->cs+=i>>3;
+	ctx->bs_cs+=i>>3;
 	return(l);
 #endif
 
@@ -351,7 +351,7 @@ void BTIC1H_Rice_SkipNBitsBasic(BTIC1H_Context *ctx, int n)
 	j=*(u16 *)ctx->bs_cs; j=(j<<8)|(j>>8);
 	ctx->bs_win=(ctx->bs_win<<k)|(j>>(16-k));
 	ctx->bs_pos=i&7;
-	ctx->cs+=i>>3;
+	ctx->bs_cs+=i>>3;
 	return;
 #endif
 
