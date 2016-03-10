@@ -22,7 +22,7 @@ Embedding in [[BTEMP]] will use 'VS1H'.
 Currently, BTIC1H will not define use of an Alpha channel, but this may be added as a future extension.
 
 
-=== Basic TLV Format ===
+== Basic TLV Format ==
 
 For the top-level structure, a TLV format will be used.
 This may be used for headers or extensions or other things.
@@ -83,7 +83,7 @@ VLI (Unsigned, 32-bit)
 Overlong encodings are allowed in most cases.
 
 
-=== Bitstream ===
+== Bitstream ==
 
 Bitstream will be encoded in MSB first order.
 
@@ -719,7 +719,9 @@ Mini-Mode will be a BTIC1H subset.
 
 === (Optional) Sliced Coding ===
 
-In sliced images, the images will be divided up into slices each of a given number of scanlines (required to be a multiple of 4). Each slice is encoded with its own bitstream. The slices may be encoded or decoded independently and in any order.
+In sliced images, the images will be divided up into slices each of a given number of scanlines (required to be a multiple of 4).
+Each slice is encoded with its own bitstream.
+The slices may be encoded or decoded independently and in any order.
 
 The slices are packed end-to-end in the frame, each prefixed with a VLI giving its coded length in bytes.
 
@@ -750,7 +752,8 @@ In the basic range-coding mode, a pair of models will be used, each sharing the 
 
 A main model will be used for uncategorized bits. This includes pixel data. 
 
-A secondary model will be used for Rice-code bits. This will be used for all bits within the Rice coded symbol. A symbol will be emitted as 2 bit sequences, one for the unary prefix, and another for the suffix.
+A secondary model will be used for Rice-code bits. This will be used for all bits within the Rice coded symbol.
+A symbol will be emitted as 2 bit sequences, one for the unary prefix, and another for the suffix.
 
 
 === Range and Weights ===
