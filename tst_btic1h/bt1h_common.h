@@ -163,10 +163,11 @@ typedef signed long long s64;
 #define	BTIC1H_PXF_RGBX_F16		62	//RGBx(32)
 #define	BTIC1H_PXF_BGRX_F16		63	//BGRx(32)
 
-#define	BTIC1H_QFL_IFRAME		(1<< 8)
-#define	BTIC1H_QFL_PFRAME		(1<< 9)
-#define	BTIC1H_QFL_USERC		(1<<10)
-#define	BTIC1H_QFL_USERC66		(1<<11)
+#define	BTIC1H_QFL_IFRAME		(1<< 8)		//I-Frame
+#define	BTIC1H_QFL_PFRAME		(1<< 9)		//P-Frame
+#define	BTIC1H_QFL_USERC		(1<<10)		//Use Range Coder
+#define	BTIC1H_QFL_USERC66		(1<<11)		//Use Range Coder if Q<66%
+#define	BTIC1H_QFL_USESLICE		(1<<12)		//Use Slice Coding
 
 #ifndef BTIC1H_API
 #define BTIC1H_API __declspec(dllexport)
@@ -182,6 +183,7 @@ byte *bs_ct;						//bitstream output
 byte *bs_cte;						//bitstream output end
 
 byte *bs_cs;						//bitstream input
+byte *bs_css;						//bitstream input start
 byte *bs_cse;						//bitstream input end
 
 u32 bs_win;							//bitstream window
@@ -309,7 +311,8 @@ byte maskidx[256];					//mask update index
 
 int stat_cmds[256];
 
-int lcsim;
+byte lcsim;
+byte slscl;
 int rc_ctx_raw;
 int rc_msk_raw;
 byte *rc_mdl_raw;

@@ -595,10 +595,48 @@ int BTIC1H_Rice_SetupReadRange(
 	BTIC1H_Range_SetupDecode(ctx, buf, szbuf);
 }
 
+int BTIC1H_DecodeReadVLI(BTIC1H_Context *ctx, byte **rcs)
+{
+	byte *cs;
+	int i;
+	
+	cs=*rcs;
+	i=*cs++;
+	
+	if(i<0x80)
+	{
+	}else if(i<0xC0)
+	{
+		i=i&0x3F;
+		i=(i<<8)|(*cs++);
+	}else if(i<0xE0)
+	{
+		i=i&0x1F;
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+	}else if(i<0xF0)
+	{
+		i=i&0x0F;
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+	}else if(i<0xF8)
+	{
+		i=i&0x07;
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+	}
+	
+	*rcs=cs;
+	return(i);
+}
+
 int BTIC1H_Rice_SetupRead2(
 	BTIC1H_Context *ctx, byte *buf, int szbuf)
 {
-	byte *cs, *cse, *cs1;
+	byte *cs, *cse, *cs1, *cs2;
 	int cim, cxbits;
 	int i, j, k, l;
 	
@@ -607,15 +645,31 @@ int BTIC1H_Rice_SetupRead2(
 	i=*cs++;
 	cim=i&15;
 	cxbits=8+((i>>4)&7);
+	
+	ctx->slscl=0;
+
 	while(i&128)
 	{
 		i=cs[0];
 		l=(i>>4)&7;
-		if(!l)l=cs[1];
+//		if(!l)l=cs[1];
+//		cs1=cs+l;
+
+		j=i&15;
+		cs1=cs+1;
+		if(l==0)
+			{ l=BTIC1H_DecodeReadVLI(ctx, &cs1); }
+		if(j==0)
+			{ j=BTIC1H_DecodeReadVLI(ctx, &cs1); }
+		cs2=cs1;
 		cs1=cs+l;
-		
-		switch(i&15)
+
+//		switch(i&15)
+		switch(j)
 		{
+		case 1:
+			ctx->slscl=BTIC1H_DecodeReadVLI(ctx, &cs2)*4;
+			break;
 		default:
 			break;
 		}

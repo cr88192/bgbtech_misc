@@ -128,6 +128,7 @@ int BTIC1H_Rice_SetupRead(BTIC1H_Context *ctx, byte *buf, int szbuf)
 	ctx->bs_pos=0;
 
 	ctx->bs_cs=buf;
+	ctx->bs_css=buf;
 	ctx->bs_cse=buf+szbuf;
 
 	ctx->bs_win=BTIC1H_Rice_NextByte(ctx);
@@ -177,8 +178,8 @@ int BTIC1H_Rice_ReadNBitsBasic(BTIC1H_Context *ctx, int n)
 {
 	int i, j, k, l;
 
-#if defined(X86) || defined(X86_64)
-// #if 0
+// #if defined(X86) || defined(X86_64)
+#if 0
 //	int i, j, k, l;
 
 	j=ctx->bs_pos;	k=ctx->bs_win;
@@ -342,8 +343,8 @@ u64 BTIC1H_Rice_Read48Bits(BTIC1H_Context *ctx)
 
 void BTIC1H_Rice_SkipNBitsBasic(BTIC1H_Context *ctx, int n)
 {
-#if defined(X86) || defined(X86_64)
-// #if 0
+// #if defined(X86) || defined(X86_64)
+#if 0
 	int i, j, k;
 	i=ctx->bs_pos+n;
 	k=i&(~7);
@@ -355,8 +356,8 @@ void BTIC1H_Rice_SkipNBitsBasic(BTIC1H_Context *ctx, int n)
 	return;
 #endif
 
-#if !defined(X86) && !defined(X86_64)
-//#if 1
+// #if !defined(X86) && !defined(X86_64)
+#if 1
 	int i, j;
 	i=ctx->bs_pos+n;
 	if(i>=8)

@@ -2422,9 +2422,10 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	byte *src, byte *dst, int dsz,
 	int xs, int ys, int qfl, int clrs)
 {
-	byte *ct, *cte;
+	byte *ct, *cte, *ct1;
 	int sz, sz1, csim;
-	int i, n;
+	int slys, slbs;
+	int i, j, k, l, n;
 
 	if(!ctx->blks)
 	{
@@ -2485,7 +2486,8 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 			{ ct=dst+6; cte=dst+dsz; }
 
 		*ct++=((12-8)<<4)|1;
-	
+		ctx->slscl=0;
+
 		ctx->EmitCommandCode=BTIC1H_EmitCommandCodeSMTF;
 		for(i=0; i<256; i++)
 			{ ctx->cmdwin[i]=i; ctx->cmdidx[i]=i; }
@@ -2498,8 +2500,22 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 			{ ct=dst+4; cte=dst+dsz; }
 		else
 			{ ct=dst+6; cte=dst+dsz; }
-		
-		*ct++=0x00;
+
+		if(qfl&BTIC1H_QFL_USESLICE)
+		{
+			i=ctx->ys/32;
+			i=(i+1)&(~3);
+			if(!i)i=4;
+			ctx->slscl=i;
+
+			*ct++=0x80;
+			*ct++=0x21;
+			*ct++=i/4;
+		}else
+		{
+			*ct++=0x00;
+			ctx->slscl=0;
+		}
 	
 		ctx->EmitCommandCode=BTIC1H_EmitCommandCodeSMTF;
 		for(i=0; i<256; i++)
@@ -2508,16 +2524,48 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	}
 #endif
 
+	if(ctx->slscl)
+//	if(0)
+	{
+		slys=(ctx->ys+(ctx->slscl-1))/ctx->slscl;
+		slbs=((ctx->xs+3)>>2)*((ctx->slscl+3)>>2);
 
-	BTIC1H_EncodeBlocksCtx(ctx,
-		ctx->blks, (qfl&BTIC1H_QFL_PFRAME)?ctx->lblks:NULL,
-		ctx->nblks, 32, &i, qfl);
-	ctx->bits_total+=ctx->bs_bits;
+		for(i=0; i<slys; i++)
+		{
+			ct1=ct+3;
+			BTIC1H_SetupContextInitial(ctx);
+			for(j=0; j<256; j++)
+				{ ctx->cmdwin[j]=j; ctx->cmdidx[j]=j; }
+
+			BTIC1H_Rice_SetupWrite(ctx, ct1, cte-ct1);
+			
+			j=i*slbs*32;
+			BTIC1H_EncodeBlocksCtx(ctx,
+				ctx->blks+j, (qfl&BTIC1H_QFL_PFRAME)?(ctx->lblks+j):NULL,
+				slbs, 32, &k, qfl);
+			ctx->bits_total+=ctx->bs_bits;
+			BTIC1H_Rice_FlushBits(ctx);
+
+			j=ctx->bs_ct-ct;
+			ct[0]=0xC0+((j>>16)&31);
+			ct[1]=j>> 8;
+			ct[2]=j    ;
+			ct+=j;
+		}
+
+		sz=ct-dst;
+	}else
+	{
+		BTIC1H_EncodeBlocksCtx(ctx,
+			ctx->blks, (qfl&BTIC1H_QFL_PFRAME)?ctx->lblks:NULL,
+			ctx->nblks, 32, &i, qfl);
+		ctx->bits_total+=ctx->bs_bits;
+		BTIC1H_Rice_FlushBits(ctx);
+		sz=ctx->bs_ct-dst;
+	}
+
 	ctx->cnt_statframes++;
 	ctx->cnt_totqfl+=qfl&127;
-
-	BTIC1H_Rice_FlushBits(ctx);
-	sz=ctx->bs_ct-dst;
 
 	if(csim==ctx->lcsim)
 //	if(0)

@@ -324,7 +324,8 @@ int main(int argc, char *argv[])
 	qf=75;
 
 	qf=qf|BTIC1H_QFL_IFRAME;
-	qf=qf|BTIC1H_QFL_USERC;
+//	qf=qf|BTIC1H_QFL_USERC;
+	qf=qf|BTIC1H_QFL_USESLICE;
 	
 	xs1=xs>>2; ys1=ys>>2; n=xs1*ys1;
 	blks=malloc(n*32);

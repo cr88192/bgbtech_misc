@@ -2182,8 +2182,9 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 	int *rxy, int *rys, int clrs)
 {
 	byte *cs, *cse, *csi, *csax;
-	int csim;
-	int i;
+	byte *cs1, *cs2;
+	int csim, slys, slbs;
+	int i, j, k, l;
 
 	if(ssz==0)
 		return(0);
@@ -2277,7 +2278,7 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 	
 	ctx->lcsim=csim;
 
-	switch(csim)
+	switch(csim&15)
 	{
 	case 0:
 		ctx->ReadCommandCode=BTIC1H_ReadCommandCodeBase;
@@ -2293,9 +2294,33 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 		break;
 	}
 
-	BTIC1H_DecodeBlocksCtx(ctx,
-		ctx->blks, ctx->lblks,
-		ctx->nblks, 32, &i);
+	if(ctx->slscl)
+	{
+		slys=(ctx->ys+(ctx->slscl-1))/ctx->slscl;
+		slbs=((ctx->xs+3)>>2)*((ctx->slscl+3)>>2);
+		cs=ctx->bs_css;
+		
+		for(i=0; i<slys; i++)
+		{
+			cs1=cs;
+			j=BTIC1H_DecodeReadVLI(ctx, &cs1);
+			cs2=cs+j;
+
+			BTIC1H_SetupDecodeContextInitial(ctx);
+			BTIC1H_Rice_SetupRead(ctx, cs1, j);
+
+			j=i*slbs*32;
+			BTIC1H_DecodeBlocksCtx(ctx,
+				ctx->blks+j, ctx->lblks+j,
+				slbs, 32, &k);
+			cs=cs2;
+		}
+	}else
+	{
+		BTIC1H_DecodeBlocksCtx(ctx,
+			ctx->blks, ctx->lblks,
+			ctx->nblks, 32, &i);
+	}
 	
 	if(csax && (clrs!=BTIC1H_PXF_RGBA) && (clrs!=BTIC1H_PXF_BGRA))
 		{ csax=NULL; }
