@@ -21,7 +21,8 @@ THE SOFTWARE.
 */
 
 #ifdef BT1H_ENABLE_AX
-void BTIC1H_DecodeBlockMB2B_Alpha(byte *block,
+void BTIC1H_DecodeBlockMB2B_Alpha(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
 	byte clr[16];
@@ -173,7 +174,333 @@ void BTIC1H_DecodeBlockMB2B_Alpha(byte *block,
 }
 #endif
 
-void BTIC1H_DecodeBlockMB2B_PYUV_RGBI(byte *block,
+#if 0
+// void BTIC1H_DecodeBlock_TransColor1Nc(BTIC1H_Context *ctx,
+	int cy, int cu, int cv,
+	int *rcr, int *rcg, int *rcb)
+{
+	int cy1, cu1, cv1;
+	int cr1, cg1, cb1;
+
+	cy1=cy; cu1=cu-128; cv1=cv-128;
+	cr1=(256*cy1        +359*cv1+128)>>8;
+	cg1=(256*cy1- 88*cu1-183*cv1+128)>>8;
+	cb1=(256*cy1+454*cu1        +128)>>8;
+	*rcr=cr1;	*rcg=cg1;	*rcb=cb1;
+}
+#endif
+
+void BTIC1H_DecodeBlock_TransColor1YCbCr(BTIC1H_Context *ctx,
+	int cy, int cu, int cv,
+	int *rcr, int *rcg, int *rcb)
+{
+	int cy1, cu1, cv1;
+	int cr1, cg1, cb1;
+
+	cy1=cy; cu1=cu-128; cv1=cv-128;
+	cr1=(256*cy1        +359*cv1+128)>>8;
+	cg1=(256*cy1- 88*cu1-183*cv1+128)>>8;
+	cb1=(256*cy1+454*cu1        +128)>>8;
+
+	if((cr1|cg1|cb1)>>8)
+	{
+		cr1=clamp255(cr1);
+		cg1=clamp255(cg1);
+		cb1=clamp255(cb1);
+	}
+
+	*rcr=cr1;	*rcg=cg1;	*rcb=cb1;
+}
+
+void BTIC1H_DecodeBlock_TransColor1ABYCbCr(BTIC1H_Context *ctx,
+	int cya, int cua, int cva, int *rcra, int *rcga, int *rcba,
+	int cyb, int cub, int cvb, int *rcrb, int *rcgb, int *rcbb)
+{
+	int cy1, cu1, cv1;
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+
+	cy1=cya; cu1=cua-128; cv1=cva-128;
+	cr1=(256*cy1        +359*cv1+128)>>8;
+	cg1=(256*cy1- 88*cu1-183*cv1+128)>>8;
+	cb1=(256*cy1+454*cu1        +128)>>8;
+
+	cy1=cyb; cu1=cub-128; cv1=cvb-128;
+	cr2=(256*cy1        +359*cv1+128)>>8;
+	cg2=(256*cy1- 88*cu1-183*cv1+128)>>8;
+	cb2=(256*cy1+454*cu1        +128)>>8;
+
+	if((cr1|cg1|cb1|cr2|cg2|cb2)>>8)
+	{
+		cr1=clamp255(cr1);	cg1=clamp255(cg1);
+		cb1=clamp255(cb1);	cr2=clamp255(cr2);
+		cg2=clamp255(cg2);	cb2=clamp255(cb2);
+	}
+
+	*rcra=cr1;	*rcga=cg1;	*rcba=cb1;
+	*rcrb=cr2;	*rcgb=cg2;	*rcbb=cb2;
+}
+
+void BTIC1H_DecodeBlock_TransColor2YCbCr(BTIC1H_Context *ctx,
+	int cy0, int cy1, int cu, int cv,
+	int *rcr0, int *rcg0, int *rcb0,
+	int *rcr1, int *rcg1, int *rcb1)
+{
+	int cu1, cv1, cu2, cv2, cuv2;
+	int cy0t, cy1t, cy2t, cy3t;
+	int cr0, cg0, cb0;
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+	int cr3, cg3, cb3;
+
+	cu1=cu-128; cv1=cv-128;
+
+	cu2=454*cu1;	cv2=359*cv1;	cuv2=-88*cu1-183*cv1;
+	cy0t=(cy0<<8)+128;	cy1t=(cy1<<8)+128;
+	cr0=(cy0t+cv2 )>>8;		cg0=(cy0t+cuv2)>>8;
+	cb0=(cy0t+cu2 )>>8;		cr1=(cy1t+cv2 )>>8;
+	cg1=(cy1t+cuv2)>>8;		cb1=(cy1t+cu2 )>>8;
+
+	if((cr0|cr1)>>8)
+	{	cr0=clamp255(cr0);	cr1=clamp255(cr1);	}
+	if((cg0|cg1)>>8)
+	{	cg0=clamp255(cg0);	cg1=clamp255(cg1);	}
+	if((cb0|cb1)>>8)
+	{	cb0=clamp255(cb0);	cb1=clamp255(cb1);	}
+
+	*rcr0=cr0;	*rcg0=cg0;	*rcb0=cb0;
+	*rcr1=cr1;	*rcg1=cg1;	*rcb1=cb1;
+}
+
+void BTIC1H_DecodeBlock_TransColor420YCbCr(BTIC1H_Context *ctx,
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	int *rcr0, int *rcg0, int *rcb0,
+	int *rcr1, int *rcg1, int *rcb1,
+	int *rcr2, int *rcg2, int *rcb2,
+	int *rcr3, int *rcg3, int *rcb3)
+{
+	int cu1, cv1, cu2, cv2, cuv2;
+	int cy0t, cy1t, cy2t, cy3t;
+	int cr0, cg0, cb0;
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+	int cr3, cg3, cb3;
+
+	cu1=cu-128; cv1=cv-128;
+
+	cu2=454*cu1;	cv2=359*cv1;	cuv2=-88*cu1-183*cv1;
+	cy0t=(cy0<<8)+128;	cy1t=(cy1<<8)+128;
+	cy2t=(cy2<<8)+128;	cy3t=(cy3<<8)+128;
+	cr0=(cy0t+cv2 )>>8;		cg0=(cy0t+cuv2)>>8;
+	cb0=(cy0t+cu2 )>>8;		cr1=(cy1t+cv2 )>>8;
+	cg1=(cy1t+cuv2)>>8;		cb1=(cy1t+cu2 )>>8;
+	cr2=(cy2t+cv2 )>>8;		cg2=(cy2t+cuv2)>>8;
+	cb2=(cy2t+cu2 )>>8;		cr3=(cy3t+cv2 )>>8;
+	cg3=(cy3t+cuv2)>>8;		cb3=(cy3t+cu2 )>>8;
+	
+	if((cr0|cr1|cr2|cr3)>>8)
+	{	cr0=clamp255(cr0);	cr1=clamp255(cr1);
+		cr2=clamp255(cr2);	cr3=clamp255(cr3);	}
+	if((cg0|cg1|cg2|cg3)>>8)
+	{	cg0=clamp255(cg0);	cg1=clamp255(cg1);
+		cg2=clamp255(cg2);	cg3=clamp255(cg3);	}
+	if((cb0|cb1|cb2|cb3)>>8)
+	{	cb0=clamp255(cb0);	cb1=clamp255(cb1);
+		cb2=clamp255(cb2);	cb3=clamp255(cb3);	}
+
+	*rcr0=cr0;	*rcg0=cg0;	*rcb0=cb0;
+	*rcr1=cr1;	*rcg1=cg1;	*rcb1=cb1;
+	*rcr2=cr2;	*rcg2=cg2;	*rcb2=cb2;
+	*rcr3=cr3;	*rcg3=cg3;	*rcb3=cb3;
+}
+
+#if 1
+void BTIC1H_DecodeBlock_TransColor1GDbDr(BTIC1H_Context *ctx,
+	int cy, int cu, int cv,
+	int *rcr, int *rcg, int *rcb)
+{
+	int cy1, cu1, cv1;
+	int cr1, cg1, cb1;
+
+	cy1=cy; cu1=cu-128; cv1=cv-128;
+	cr1=cy+(cv1<<1);
+	cg1=cy;
+	cb1=cy+(cu1<<1);
+
+	if((cr1|cg1|cb1)>>8)
+	{
+		cr1=clamp255(cr1);
+		cg1=clamp255(cg1);
+		cb1=clamp255(cb1);
+	}
+
+	*rcr=cr1;	*rcg=cg1;	*rcb=cb1;
+}
+
+void BTIC1H_DecodeBlock_TransColor1ABGDbDr(BTIC1H_Context *ctx,
+	int cya, int cua, int cva, int *rcra, int *rcga, int *rcba,
+	int cyb, int cub, int cvb, int *rcrb, int *rcgb, int *rcbb)
+{
+	int cy1, cu1, cv1;
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+
+	cy1=cya; cu1=cua-128; cv1=cva-128;
+	cr1=cy1+(cv1<<1);
+	cg1=cy1;
+	cb1=cy1+(cu1<<1);
+
+	cy1=cyb; cu1=cub-128; cv1=cvb-128;
+	cr2=cy1+(cv1<<1);
+	cg2=cy1;
+	cb2=cy1+(cu1<<1);
+
+	if((cr1|cg1|cb1|cr2|cg2|cb2)>>8)
+	{
+		cr1=clamp255(cr1);	cg1=clamp255(cg1);
+		cb1=clamp255(cb1);	cr2=clamp255(cr2);
+		cg2=clamp255(cg2);	cb2=clamp255(cb2);
+	}
+
+	*rcra=cr1;	*rcga=cg1;	*rcba=cb1;
+	*rcrb=cr2;	*rcgb=cg2;	*rcbb=cb2;
+}
+
+void BTIC1H_DecodeBlock_TransColor2GDbDr(BTIC1H_Context *ctx,
+	int cy0, int cy1, int cu, int cv,
+	int *rcr0, int *rcg0, int *rcb0,
+	int *rcr1, int *rcg1, int *rcb1)
+{
+	int cu1, cv1, cu2, cv2, cuv2;
+	int cy0t, cy1t, cy2t, cy3t;
+	int cr0, cg0, cb0;
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+	int cr3, cg3, cb3;
+
+	cu1=cu-128; cv1=cv-128;
+
+	cr0=cy0+(cv1<<1);
+	cg0=cy0;
+	cb0=cy0+(cu1<<1);
+
+	cr1=cy1+(cv1<<1);
+	cg1=cy1;
+	cb1=cy1+(cu1<<1);
+
+//	cu2=454*cu1;	cv2=359*cv1;	cuv2=-88*cu1-183*cv1;
+//	cy0t=(cy0<<8)+128;	cy1t=(cy1<<8)+128;
+//	cr0=(cy0t+cv2 )>>8;		cg0=(cy0t+cuv2)>>8;
+//	cb0=(cy0t+cu2 )>>8;		cr1=(cy1t+cv2 )>>8;
+//	cg1=(cy1t+cuv2)>>8;		cb1=(cy1t+cu2 )>>8;
+
+//	if((cr0|cr1)>>8)
+//	{	cr0=clamp255(cr0);	cr1=clamp255(cr1);	}
+//	if((cg0|cg1)>>8)
+//	{	cg0=clamp255(cg0);	cg1=clamp255(cg1);	}
+//	if((cb0|cb1)>>8)
+//	{	cb0=clamp255(cb0);	cb1=clamp255(cb1);	}
+
+	if((cr0|cg0|cb0|cr1|cg1|cb1)>>8)
+	{
+		cr0=clamp255(cr0);	cg1=clamp255(cg0);
+		cb0=clamp255(cb0);	cr2=clamp255(cr1);
+		cg1=clamp255(cg1);	cb2=clamp255(cb1);
+	}
+
+	*rcr0=cr0;	*rcg0=cg0;	*rcb0=cb0;
+	*rcr1=cr1;	*rcg1=cg1;	*rcb1=cb1;
+}
+
+void BTIC1H_DecodeBlock_TransColor420GDbDr(BTIC1H_Context *ctx,
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	int *rcr0, int *rcg0, int *rcb0,
+	int *rcr1, int *rcg1, int *rcb1,
+	int *rcr2, int *rcg2, int *rcb2,
+	int *rcr3, int *rcg3, int *rcb3)
+{
+	int cu1, cv1, cu2, cv2, cuv2;
+	int cy0t, cy1t, cy2t, cy3t;
+	int cr0, cg0, cb0;
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+	int cr3, cg3, cb3;
+
+	cu1=cu-128; cv1=cv-128;
+
+//	cu2=454*cu1;	cv2=359*cv1;	cuv2=-88*cu1-183*cv1;
+//	cy0t=(cy0<<8)+128;	cy1t=(cy1<<8)+128;
+//	cy2t=(cy2<<8)+128;	cy3t=(cy3<<8)+128;
+//	cr0=(cy0t+cv2 )>>8;		cg0=(cy0t+cuv2)>>8;
+//	cb0=(cy0t+cu2 )>>8;		cr1=(cy1t+cv2 )>>8;
+//	cg1=(cy1t+cuv2)>>8;		cb1=(cy1t+cu2 )>>8;
+//	cr2=(cy2t+cv2 )>>8;		cg2=(cy2t+cuv2)>>8;
+//	cb2=(cy2t+cu2 )>>8;		cr3=(cy3t+cv2 )>>8;
+//	cg3=(cy3t+cuv2)>>8;		cb3=(cy3t+cu2 )>>8;
+
+	cr0=cy0+(cv1<<1);	cg0=cy0;	cb0=cy0+(cu1<<1);
+	cr1=cy1+(cv1<<1);	cg1=cy1;	cb1=cy1+(cu1<<1);
+	cr2=cy2+(cv1<<1);	cg2=cy2;	cb2=cy2+(cu1<<1);
+	cr3=cy3+(cv1<<1);	cg3=cy3;	cb3=cy3+(cu1<<1);
+
+	if((cr0|cr1|cr2|cr3)>>8)
+	{	cr0=clamp255(cr0);	cr1=clamp255(cr1);
+		cr2=clamp255(cr2);	cr3=clamp255(cr3);	}
+	if((cg0|cg1|cg2|cg3)>>8)
+	{	cg0=clamp255(cg0);	cg1=clamp255(cg1);
+		cg2=clamp255(cg2);	cg3=clamp255(cg3);	}
+	if((cb0|cb1|cb2|cb3)>>8)
+	{	cb0=clamp255(cb0);	cb1=clamp255(cb1);
+		cb2=clamp255(cb2);	cb3=clamp255(cb3);	}
+
+	*rcr0=cr0;	*rcg0=cg0;	*rcb0=cb0;
+	*rcr1=cr1;	*rcg1=cg1;	*rcb1=cb1;
+	*rcr2=cr2;	*rcg2=cg2;	*rcb2=cb2;
+	*rcr3=cr3;	*rcg3=cg3;	*rcb3=cb3;
+}
+#endif
+
+
+void BTIC1H_DecodeBlock_TransColor1(BTIC1H_Context *ctx,
+	int cy, int cu, int cv,
+	int *rcr, int *rcg, int *rcb)
+{
+	ctx->DecTransColor1(ctx, cy, cu, cv, rcr, rcg, rcb);
+}
+
+void BTIC1H_DecodeBlock_TransColor1AB(BTIC1H_Context *ctx,
+	int cya, int cua, int cva, int *rcra, int *rcga, int *rcba,
+	int cyb, int cub, int cvb, int *rcrb, int *rcgb, int *rcbb)
+{
+	ctx->DecTransColor1AB(ctx,
+		cya, cua, cva, rcra, rcga, rcba,
+		cyb, cub, cvb, rcrb, rcgb, rcbb);
+}
+
+void BTIC1H_DecodeBlock_TransColor2(BTIC1H_Context *ctx,
+	int cy0, int cy1, int cu, int cv,
+	int *rcr0, int *rcg0, int *rcb0,
+	int *rcr1, int *rcg1, int *rcb1)
+{
+	ctx->DecTransColor2(ctx, cy0, cy1, cu, cv,
+		rcr0, rcg0, rcb0, rcr1, rcg1, rcb1);
+}
+
+void BTIC1H_DecodeBlock_TransColor420(BTIC1H_Context *ctx,
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	int *rcr0, int *rcg0, int *rcb0,
+	int *rcr1, int *rcg1, int *rcb1,
+	int *rcr2, int *rcg2, int *rcb2,
+	int *rcr3, int *rcg3, int *rcb3)
+{
+	ctx->DecTransColor420(ctx,
+		cy0, cy1, cy2, cy3, cu, cv,
+		rcr0, rcg0, rcb0, rcr1, rcg1, rcb1,
+		rcr2, rcg2, rcb2, rcr3, rcg3, rcb3);
+}
+
+void BTIC1H_DecodeBlockMB2B_PYUV_RGBI(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
 	int cy, cu, cv, cd;
@@ -193,12 +520,13 @@ void BTIC1H_DecodeBlockMB2B_PYUV_RGBI(byte *block,
 	{
 		cu=block[ 8+(i*2+j)];
 		cv=block[12+(i*2+j)];
-		cu1=cu-128; cv1=cv-128;
+//		cu1=cu-128; cv1=cv-128;
 
 		k=i*8+j*2;
 		cy0=block[16+k];	cy1=block[17+k];
 		cy2=block[20+k];	cy3=block[21+k];
 
+#if 0
 		cu2=454*cu1;	cv2=359*cv1;	cuv2=-88*cu1-183*cv1;
 		cy0t=(cy0<<8)+128;	cy1t=(cy1<<8)+128;
 		cy2t=(cy2<<8)+128;	cy3t=(cy3<<8)+128;
@@ -208,6 +536,12 @@ void BTIC1H_DecodeBlockMB2B_PYUV_RGBI(byte *block,
 		cr2=(cy2t+cv2 )>>8;		cg2=(cy2t+cuv2)>>8;
 		cb2=(cy2t+cu2 )>>8;		cr3=(cy3t+cv2 )>>8;
 		cg3=(cy3t+cuv2)>>8;		cb3=(cy3t+cu2 )>>8;
+#endif
+
+		BTIC1H_DecodeBlock_TransColor420(ctx,
+			cy0, cy1, cy2, cy3, cu, cv,
+			&cr0, &cg0, &cb0, &cr1, &cg1, &cb1,
+			&cr2, &cg2, &cb2, &cr3, &cg3, &cb3);
 
 		if(tflip&1)
 		{
@@ -233,7 +567,8 @@ void BTIC1H_DecodeBlockMB2B_PYUV_RGBI(byte *block,
 	}
 }
 
-void BTIC1H_DecodeBlockMB2B_P420_RGBI(byte *block,
+void BTIC1H_DecodeBlockMB2B_P420_RGBI(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
 	byte clr[4][4*4];
@@ -265,54 +600,71 @@ void BTIC1H_DecodeBlockMB2B_P420_RGBI(byte *block,
 	cya2=cy2-(cd2>>1);	cyb2=cya2+cd2;
 	cya3=cy3-(cd3>>1);	cyb3=cya3+cd3;
 
-	cyat=(cya0<<8)+128;		cybt=(cyb0<<8)+128;
-	cu0t=cu0-128;			cv0t=cv0-128;
-	cu1t=454*cu0t;			cv1t=359*cv0t;
-	cuvt=0-88*cu0t-183*cv0t;
-	cra0=(cyat+cv1t)>>8;	cga0=(cyat+cuvt)>>8;
-	cba0=(cyat+cu1t)>>8;	crb0=(cybt+cv1t)>>8;
-	cgb0=(cybt+cuvt)>>8;	cbb0=(cybt+cu1t)>>8;
+//	cyat=(cya0<<8)+128;		cybt=(cyb0<<8)+128;
+//	cu0t=cu0-128;			cv0t=cv0-128;
+//	cu1t=454*cu0t;			cv1t=359*cv0t;
+//	cuvt=0-88*cu0t-183*cv0t;
+//	cra0=(cyat+cv1t)>>8;	cga0=(cyat+cuvt)>>8;
+//	cba0=(cyat+cu1t)>>8;	crb0=(cybt+cv1t)>>8;
+//	cgb0=(cybt+cuvt)>>8;	cbb0=(cybt+cu1t)>>8;
 
-	cyat=(cya1<<8)+128;		cybt=(cyb1<<8)+128;
-	cu0t=cu1-128;			cv0t=cv1-128;
-	cu1t=454*cu0t;			cv1t=359*cv0t;
-	cuvt=0-88*cu0t-183*cv0t;
-	cra1=(cyat+cv1t)>>8;	cga1=(cyat+cuvt)>>8;
-	cba1=(cyat+cu1t)>>8;	crb1=(cybt+cv1t)>>8;
-	cgb1=(cybt+cuvt)>>8;	cbb1=(cybt+cu1t)>>8;
+//	cyat=(cya1<<8)+128;		cybt=(cyb1<<8)+128;
+//	cu0t=cu1-128;			cv0t=cv1-128;
+//	cu1t=454*cu0t;			cv1t=359*cv0t;
+//	cuvt=0-88*cu0t-183*cv0t;
+//	cra1=(cyat+cv1t)>>8;	cga1=(cyat+cuvt)>>8;
+//	cba1=(cyat+cu1t)>>8;	crb1=(cybt+cv1t)>>8;
+//	cgb1=(cybt+cuvt)>>8;	cbb1=(cybt+cu1t)>>8;
 
-	cyat=(cya2<<8)+128;		cybt=(cyb2<<8)+128;
-	cu0t=cu2-128;			cv0t=cv2-128;
-	cu1t=454*cu0t;			cv1t=359*cv0t;
-	cuvt=0-88*cu0t-183*cv0t;
-	cra2=(cyat+cv1t)>>8;	cga2=(cyat+cuvt)>>8;
-	cba2=(cyat+cu1t)>>8;	crb2=(cybt+cv1t)>>8;
-	cgb2=(cybt+cuvt)>>8;	cbb2=(cybt+cu1t)>>8;
+//	cyat=(cya2<<8)+128;		cybt=(cyb2<<8)+128;
+//	cu0t=cu2-128;			cv0t=cv2-128;
+//	cu1t=454*cu0t;			cv1t=359*cv0t;
+//	cuvt=0-88*cu0t-183*cv0t;
+//	cra2=(cyat+cv1t)>>8;	cga2=(cyat+cuvt)>>8;
+//	cba2=(cyat+cu1t)>>8;	crb2=(cybt+cv1t)>>8;
+//	cgb2=(cybt+cuvt)>>8;	cbb2=(cybt+cu1t)>>8;
 
-	cyat=(cya3<<8)+128;		cybt=(cyb3<<8)+128;
-	cu0t=cu3-128;			cv0t=cv3-128;
-	cu1t=454*cu0t;			cv1t=359*cv0t;
-	cuvt=0-88*cu0t-183*cv0t;
-	cra3=(cyat+cv1t)>>8;	cga3=(cyat+cuvt)>>8;
-	cba3=(cyat+cu1t)>>8;	crb3=(cybt+cv1t)>>8;
-	cgb3=(cybt+cuvt)>>8;	cbb3=(cybt+cu1t)>>8;
+//	cyat=(cya3<<8)+128;		cybt=(cyb3<<8)+128;
+//	cu0t=cu3-128;			cv0t=cv3-128;
+//	cu1t=454*cu0t;			cv1t=359*cv0t;
+//	cuvt=0-88*cu0t-183*cv0t;
+//	cra3=(cyat+cv1t)>>8;	cga3=(cyat+cuvt)>>8;
+//	cba3=(cyat+cu1t)>>8;	crb3=(cybt+cv1t)>>8;
+//	cgb3=(cybt+cuvt)>>8;	cbb3=(cybt+cu1t)>>8;
 	
-	if((cra0|cga0|cba0|crb0|cgb0|cbb0)>>8)
-	{	cra0=clamp255(cra0);	cga0=clamp255(cga0);
-		cba0=clamp255(cba0);	crb0=clamp255(crb0);
-		cgb0=clamp255(cgb0);	cbb0=clamp255(cbb0);	}
-	if((cra1|cga1|cba1|crb1|cgb1|cbb1)>>8)
-	{	cra1=clamp255(cra1);	cga1=clamp255(cga1);
-		cba1=clamp255(cba1);	crb1=clamp255(crb1);
-		cgb1=clamp255(cgb1);	cbb1=clamp255(cbb1);	}
-	if((cra2|cga2|cba2|crb2|cgb2|cbb2)>>8)
-	{	cra2=clamp255(cra2);	cga2=clamp255(cga2);
-		cba2=clamp255(cba2);	crb2=clamp255(crb2);
-		cgb2=clamp255(cgb2);	cbb2=clamp255(cbb2);	}
-	if((cra3|cga3|cba3|crb3|cgb3|cbb3)>>8)
-	{	cra3=clamp255(cra3);	cga3=clamp255(cga3);
-		cba3=clamp255(cba3);	crb3=clamp255(crb3);
-		cgb3=clamp255(cgb3);	cbb3=clamp255(cbb3);	}
+//	if((cra0|cga0|cba0|crb0|cgb0|cbb0)>>8)
+//	{	cra0=clamp255(cra0);	cga0=clamp255(cga0);
+//		cba0=clamp255(cba0);	crb0=clamp255(crb0);
+//		cgb0=clamp255(cgb0);	cbb0=clamp255(cbb0);	}
+//	if((cra1|cga1|cba1|crb1|cgb1|cbb1)>>8)
+//	{	cra1=clamp255(cra1);	cga1=clamp255(cga1);
+//		cba1=clamp255(cba1);	crb1=clamp255(crb1);
+//		cgb1=clamp255(cgb1);	cbb1=clamp255(cbb1);	}
+//	if((cra2|cga2|cba2|crb2|cgb2|cbb2)>>8)
+//	{	cra2=clamp255(cra2);	cga2=clamp255(cga2);
+//		cba2=clamp255(cba2);	crb2=clamp255(crb2);
+//		cgb2=clamp255(cgb2);	cbb2=clamp255(cbb2);	}
+//	if((cra3|cga3|cba3|crb3|cgb3|cbb3)>>8)
+//	{	cra3=clamp255(cra3);	cga3=clamp255(cga3);
+//		cba3=clamp255(cba3);	crb3=clamp255(crb3);
+//		cgb3=clamp255(cgb3);	cbb3=clamp255(cbb3);	}
+
+	BTIC1H_DecodeBlock_TransColor2(ctx,
+		cya0, cyb0, cu0, cv0,
+		&cra0, &cga0, &cba0,
+		&crb0, &cgb0, &cbb0);
+	BTIC1H_DecodeBlock_TransColor2(ctx,
+		cya1, cyb1, cu1, cv1,
+		&cra1, &cga1, &cba1,
+		&crb1, &cgb1, &cbb1);
+	BTIC1H_DecodeBlock_TransColor2(ctx,
+		cya2, cyb2, cu2, cv2,
+		&cra2, &cga2, &cba2,
+		&crb2, &cgb2, &cbb2);
+	BTIC1H_DecodeBlock_TransColor2(ctx,
+		cya3, cyb3, cu3, cv3,
+		&cra3, &cga3, &cba3,
+		&crb3, &cgb3, &cbb3);
 
 	if(tflip&1)
 	{
@@ -390,7 +742,8 @@ void BTIC1H_DecodeBlockMB2B_P420_RGBI(byte *block,
 	}
 }
 
-void BTIC1H_DecodeBlockMB2B_I4XX_RGBI(byte *block,
+void BTIC1H_DecodeBlockMB2B_I4XX_RGBI(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
 //	byte clr[8*4];
@@ -501,28 +854,33 @@ void BTIC1H_DecodeBlockMB2B_I4XX_RGBI(byte *block,
 			cy2=clry[i2];	cy3=clry[i3];
 			cu =clru[i4];	cv =clrv[i5];
 			
-			cu1=cu-128; cv1=cv-128;
+//			cu1=cu-128; cv1=cv-128;
 
-			cr=0        +359*cv1+128;
-			cg=0- 88*cu1-183*cv1+128;
-			cb=0+454*cu1        +128;
+//			cr=0        +359*cv1+128;
+//			cg=0- 88*cu1-183*cv1+128;
+//			cb=0+454*cu1        +128;
 
-			ca=cy0<<8; cr0=(ca+cr)>>8; cg0=(ca+cg)>>8; cb0=(ca+cb)>>8;
-			ca=cy1<<8; cr1=(ca+cr)>>8; cg1=(ca+cg)>>8; cb1=(ca+cb)>>8;
-			ca=cy2<<8; cr2=(ca+cr)>>8; cg2=(ca+cg)>>8; cb2=(ca+cb)>>8;
-			ca=cy3<<8; cr3=(ca+cr)>>8; cg3=(ca+cg)>>8; cb3=(ca+cb)>>8;
+//			ca=cy0<<8; cr0=(ca+cr)>>8; cg0=(ca+cg)>>8; cb0=(ca+cb)>>8;
+//			ca=cy1<<8; cr1=(ca+cr)>>8; cg1=(ca+cg)>>8; cb1=(ca+cb)>>8;
+//			ca=cy2<<8; cr2=(ca+cr)>>8; cg2=(ca+cg)>>8; cb2=(ca+cb)>>8;
+//			ca=cy3<<8; cr3=(ca+cr)>>8; cg3=(ca+cg)>>8; cb3=(ca+cb)>>8;
+
+			BTIC1H_DecodeBlock_TransColor420(ctx,
+				cy0, cy1, cy2, cy3, cu, cv,
+				&cr0, &cg0, &cb0, &cr1, &cg1, &cb1,
+				&cr2, &cg2, &cb2, &cr3, &cg3, &cb3);
 
 //			k=i*ystride+j*xstride;
 
-			if((cr0|cr1|cr2|cr3)>>8)
-			{	cr0=clamp255(cr0);	cr1=clamp255(cr1);
-				cr2=clamp255(cr2);	cr3=clamp255(cr3);	}
-			if((cg0|cg1|cg2|cg3)>>8)
-			{	cg0=clamp255(cg0);	cg1=clamp255(cg1);
-				cg2=clamp255(cg2);	cg3=clamp255(cg3);	}
-			if((cb0|cb1|cb2|cb3)>>8)
-			{	cb0=clamp255(cb0);	cb1=clamp255(cb1);
-				cb2=clamp255(cb2);	cb3=clamp255(cb3);	}
+//			if((cr0|cr1|cr2|cr3)>>8)
+//			{	cr0=clamp255(cr0);	cr1=clamp255(cr1);
+//				cr2=clamp255(cr2);	cr3=clamp255(cr3);	}
+//			if((cg0|cg1|cg2|cg3)>>8)
+//			{	cg0=clamp255(cg0);	cg1=clamp255(cg1);
+//				cg2=clamp255(cg2);	cg3=clamp255(cg3);	}
+//			if((cb0|cb1|cb2|cb3)>>8)
+//			{	cb0=clamp255(cb0);	cb1=clamp255(cb1);
+//				cb2=clamp255(cb2);	cb3=clamp255(cb3);	}
 
 			i0=(i*2+0)*ystride+(j*2+0)*xstride;
 			i1=(i*2+0)*ystride+(j*2+1)*xstride;
@@ -604,22 +962,17 @@ void BTIC1H_DecodeBlockMB2B_I4XX_RGBI(byte *block,
 			cu=clru[i1];
 			cv=clrv[i2];
 			
-			cy1=cy; cu1=cu-128; cv1=cv-128;
-			cr1=(256*cy1        +359*cv1+128)>>8;
-			cg1=(256*cy1- 88*cu1-183*cv1+128)>>8;
-			cb1=(256*cy1+454*cu1        +128)>>8;
+//			cy1=cy; cu1=cu-128; cv1=cv-128;
+//			cr1=(256*cy1        +359*cv1+128)>>8;
+//			cg1=(256*cy1- 88*cu1-183*cv1+128)>>8;
+//			cb1=(256*cy1+454*cu1        +128)>>8;
+			BTIC1H_DecodeBlock_TransColor1(
+				ctx, cy, cu, cv, &cr1, &cg1, &cb1);
 
 			if(tflip&1)
-			{
-				rgba[k+0]=clamp255(cb1);
-				rgba[k+1]=clamp255(cg1);
-				rgba[k+2]=clamp255(cr1);
-			}else
-			{
-				rgba[k+0]=clamp255(cr1);
-				rgba[k+1]=clamp255(cg1);
-				rgba[k+2]=clamp255(cb1);
-			}
+				{ rgba[k+0]=cb1; rgba[k+1]=cg1; rgba[k+2]=cr1; }
+			else
+				{ rgba[k+0]=cr1; rgba[k+1]=cg1; rgba[k+2]=cb1; }
 		}
 		return;
 	}
@@ -658,28 +1011,33 @@ void BTIC1H_DecodeBlockMB2B_I4XX_RGBI(byte *block,
 			cy2=clry[i2];	cy3=clry[i3];
 			cu =clru[i4];	cv =clrv[i5];
 			
-			cu1=cu-128; cv1=cv-128;
+//			cu1=cu-128; cv1=cv-128;
 
-			cr=0        +359*cv1+128;
-			cg=0- 88*cu1-183*cv1+128;
-			cb=0+454*cu1        +128;
+//			cr=0        +359*cv1+128;
+//			cg=0- 88*cu1-183*cv1+128;
+//			cb=0+454*cu1        +128;
 
-			ca=cy0<<8; cr0=(ca+cr)>>8; cg0=(ca+cg)>>8; cb0=(ca+cb)>>8;
-			ca=cy1<<8; cr1=(ca+cr)>>8; cg1=(ca+cg)>>8; cb1=(ca+cb)>>8;
-			ca=cy2<<8; cr2=(ca+cr)>>8; cg2=(ca+cg)>>8; cb2=(ca+cb)>>8;
-			ca=cy3<<8; cr3=(ca+cr)>>8; cg3=(ca+cg)>>8; cb3=(ca+cb)>>8;
+//			ca=cy0<<8; cr0=(ca+cr)>>8; cg0=(ca+cg)>>8; cb0=(ca+cb)>>8;
+//			ca=cy1<<8; cr1=(ca+cr)>>8; cg1=(ca+cg)>>8; cb1=(ca+cb)>>8;
+//			ca=cy2<<8; cr2=(ca+cr)>>8; cg2=(ca+cg)>>8; cb2=(ca+cb)>>8;
+//			ca=cy3<<8; cr3=(ca+cr)>>8; cg3=(ca+cg)>>8; cb3=(ca+cb)>>8;
+
+			BTIC1H_DecodeBlock_TransColor420(ctx,
+				cy0, cy1, cy2, cy3, cu, cv,
+				&cr0, &cg0, &cb0, &cr1, &cg1, &cb1,
+				&cr2, &cg2, &cb2, &cr3, &cg3, &cb3);
 
 //			k=i*ystride+j*xstride;
 
-			if((cr0|cr1|cr2|cr3)>>8)
-			{	cr0=clamp255(cr0);	cr1=clamp255(cr1);
-				cr2=clamp255(cr2);	cr3=clamp255(cr3);	}
-			if((cg0|cg1|cg2|cg3)>>8)
-			{	cg0=clamp255(cg0);	cg1=clamp255(cg1);
-				cg2=clamp255(cg2);	cg3=clamp255(cg3);	}
-			if((cb0|cb1|cb2|cb3)>>8)
-			{	cb0=clamp255(cb0);	cb1=clamp255(cb1);
-				cb2=clamp255(cb2);	cb3=clamp255(cb3);	}
+//			if((cr0|cr1|cr2|cr3)>>8)
+//			{	cr0=clamp255(cr0);	cr1=clamp255(cr1);
+//				cr2=clamp255(cr2);	cr3=clamp255(cr3);	}
+//			if((cg0|cg1|cg2|cg3)>>8)
+//			{	cg0=clamp255(cg0);	cg1=clamp255(cg1);
+//				cg2=clamp255(cg2);	cg3=clamp255(cg3);	}
+//			if((cb0|cb1|cb2|cb3)>>8)
+//			{	cb0=clamp255(cb0);	cb1=clamp255(cb1);
+//				cb2=clamp255(cb2);	cb3=clamp255(cb3);	}
 
 			i0=(i*2+0)*ystride+(j*2+0)*xstride;
 			i1=(i*2+0)*ystride+(j*2+1)*xstride;
@@ -759,17 +1117,19 @@ void BTIC1H_DecodeBlockMB2B_I4XX_RGBI(byte *block,
 			cu=clru[i1];
 			cv=clrv[i2];
 			
-			cu1=cu-128; cv1=cv-128;
+//			cu1=cu-128; cv1=cv-128;
+//			cr=0        +359*cv1+128;
+//			cg=0- 88*cu1-183*cv1+128;
+//			cb=0+454*cu1        +128;
 
-			cr=0        +359*cv1+128;
-			cg=0- 88*cu1-183*cv1+128;
-			cb=0+454*cu1        +128;
+			BTIC1H_DecodeBlock_TransColor1(
+				ctx, cy, cu, cv, &cr0, &cg0, &cb0);
 
-			ca=cy<<8; cr0=(ca+cr)>>8; cg0=(ca+cg)>>8; cb0=(ca+cb)>>8;
+//			ca=cy<<8; cr0=(ca+cr)>>8; cg0=(ca+cg)>>8; cb0=(ca+cb)>>8;
 
-			if((cr0|cg0|cb0)>>8)
-			{	cr0=clamp255(cr0);	cg0=clamp255(cg0);
-				cb0=clamp255(cb0);	}
+//			if((cr0|cg0|cb0)>>8)
+//			{	cr0=clamp255(cr0);	cg0=clamp255(cg0);
+//				cb0=clamp255(cb0);	}
 
 			i0=(i*2+0)*ystride+(j*2+0)*xstride;
 			i1=(i*2+0)*ystride+(j*2+1)*xstride;
@@ -795,7 +1155,8 @@ void BTIC1H_DecodeBlockMB2B_I4XX_RGBI(byte *block,
 	}
 }
 
-void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
+void BTIC1H_DecodeBlockMB2B_RGBI(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
 //	byte clr[8*4];
@@ -881,7 +1242,7 @@ void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
 			cu=block[1];
 			cv=block[2];
 
-			cu1=cu-128; cv1=cv-128;
+//			cu1=cu-128; cv1=cv-128;
 //			cr=65536*cy           +91881*cv1;
 //			cg=65536*cy- 22554*cu1-46802*cv1;
 //			cb=65536*cy+116130*cu1;
@@ -890,16 +1251,12 @@ void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
 //			cg=(cg+32768)>>16;
 //			cb=(cb+32768)>>16;
 
-			cr=(256*cy        +359*cv1+128)>>8;
-			cg=(256*cy- 88*cu1-183*cv1+128)>>8;
-			cb=(256*cy+454*cu1        +128)>>8;
+//			cr=(256*cy        +359*cv1+128)>>8;
+//			cg=(256*cy- 88*cu1-183*cv1+128)>>8;
+//			cb=(256*cy+454*cu1        +128)>>8;
 
-			if((cr|cg|cb)>>8)
-			{
-				cr=clamp255(cr);
-				cg=clamp255(cg);
-				cb=clamp255(cb);
-			}
+			BTIC1H_DecodeBlock_TransColor1(
+				ctx, cy, cu, cv, &cr, &cg, &cb);
 
 			if(tflip&1)
 			{
@@ -987,12 +1344,12 @@ void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
 			{ cd=block[5]; bt=6; }
 		else if(block[4]==17)
 		{
-			BTIC1H_DecodeBlockMB2B_P420_RGBI(block, rgba,
+			BTIC1H_DecodeBlockMB2B_P420_RGBI(ctx, block, rgba,
 				xstride, ystride, tflip);
 			return;
 		}else if(block[4]==7)
 		{
-			BTIC1H_DecodeBlockMB2B_PYUV_RGBI(block, rgba,
+			BTIC1H_DecodeBlockMB2B_PYUV_RGBI(ctx, block, rgba,
 				xstride, ystride, tflip);
 			return;
 		}else if((block[4]==14) || (block[4]==15) ||
@@ -1008,7 +1365,7 @@ void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
 		}else if((block[4]==20) || (block[4]==21) ||
 			(block[4]==22) || (block[4]==23))
 		{
-			BTIC1H_DecodeBlockMB2B_I4XX_RGBI(block, rgba,
+			BTIC1H_DecodeBlockMB2B_I4XX_RGBI(ctx, block, rgba,
 				xstride, ystride, tflip);
 			return;
 		}
@@ -1032,16 +1389,23 @@ void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
 //	if((bt!=20) && (bt!=21))
 	if(1)
 	{
-		cy1=cya; cu1=cua-128; cv1=cva-128;
-		cr1=(256*cy1        +359*cv1+128)>>8;
-		cg1=(256*cy1- 88*cu1-183*cv1+128)>>8;
-		cb1=(256*cy1+454*cu1        +128)>>8;
+//		cy1=cya; cu1=cua-128; cv1=cva-128;
+//		cr1=(256*cy1        +359*cv1+128)>>8;
+//		cg1=(256*cy1- 88*cu1-183*cv1+128)>>8;
+//		cb1=(256*cy1+454*cu1        +128)>>8;
 
-		cy1=cyb; cu1=cub-128; cv1=cvb-128;
-		cr2=(256*cy1        +359*cv1+128)>>8;
-		cg2=(256*cy1- 88*cu1-183*cv1+128)>>8;
-		cb2=(256*cy1+454*cu1        +128)>>8;
+//		cy1=cyb; cu1=cub-128; cv1=cvb-128;
+//		cr2=(256*cy1        +359*cv1+128)>>8;
+//		cg2=(256*cy1- 88*cu1-183*cv1+128)>>8;
+//		cb2=(256*cy1+454*cu1        +128)>>8;
 
+		BTIC1H_DecodeBlock_TransColor1AB(ctx,
+			cya, cua, cva, &cr1, &cg1, &cb1,
+			cyb, cub, cvb, &cr2, &cg2, &cb2);
+//		BTIC1H_DecodeBlock_TransColor1(
+//			ctx, cyb, cub, cvb, &cr2, &cg2, &cb2);
+
+#if 0
 		if((cr1|cg1|cb1|cr2|cg2|cb2)>>8)
 		{
 			cr1=clamp255(cr1);
@@ -1052,6 +1416,7 @@ void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
 			cg2=clamp255(cg2);
 			cb2=clamp255(cb2);
 		}
+#endif
 	}
 
 	if(bt==6)
@@ -1312,21 +1677,24 @@ void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
 	}
 }
 
-void BTIC1H_DecodeBlockMB2B_RGB(byte *block,
+void BTIC1H_DecodeBlockMB2B_RGB(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride)
 {
-	BTIC1H_DecodeBlockMB2B_RGBI(block, rgba,
+	BTIC1H_DecodeBlockMB2B_RGBI(ctx, block, rgba,
 		xstride, ystride, 0);
 }
 
-void BTIC1H_DecodeBlockMB2B_BGR(byte *block,
+void BTIC1H_DecodeBlockMB2B_BGR(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride)
 {
-	BTIC1H_DecodeBlockMB2B_RGBI(block, rgba,
+	BTIC1H_DecodeBlockMB2B_RGBI(ctx, block, rgba,
 		xstride, ystride, 1);
 }
 
-void BTIC1H_DecodeBlockMB2B_EdgeRGBI(byte *block,
+void BTIC1H_DecodeBlockMB2B_EdgeRGBI(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride,
 	int xfrac, int yfrac, int tflip)
 {
@@ -1336,7 +1704,8 @@ void BTIC1H_DecodeBlockMB2B_EdgeRGBI(byte *block,
 
 //	return;
 
-	BTIC1H_DecodeBlockMB2B_RGBI(block, tblk, xstride, 4*xstride, tflip);
+	BTIC1H_DecodeBlockMB2B_RGBI(
+		ctx, block, tblk, xstride, 4*xstride, tflip);
 
 	xn=xfrac*xstride;
 	for(i=0; i<yfrac; i++)
@@ -1348,7 +1717,8 @@ void BTIC1H_DecodeBlockMB2B_EdgeRGBI(byte *block,
 	}
 }
 
-void BTIC1H_DecodeBlockMB2B_PYUV_YUY(byte *block,
+void BTIC1H_DecodeBlockMB2B_PYUV_YUY(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
 	int cy, cu, cv, cd;
@@ -1393,7 +1763,8 @@ void BTIC1H_DecodeBlockMB2B_PYUV_YUY(byte *block,
 	}
 }
 
-void BTIC1H_DecodeBlockMB2B_P420_YUV(byte *block,
+void BTIC1H_DecodeBlockMB2B_P420_YUV(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
 	byte clr[4][4];
@@ -1475,7 +1846,8 @@ void BTIC1H_DecodeBlockMB2B_P420_YUV(byte *block,
 	}
 }
 
-void BTIC1H_DecodeBlockMB2B_I4XX_YUY(byte *block,
+void BTIC1H_DecodeBlockMB2B_I4XX_YUY(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
 	byte clry[8];
@@ -1725,7 +2097,8 @@ void BTIC1H_DecodeBlockMB2B_I4XX_YUY(byte *block,
 	}
 }
 
-void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
+void BTIC1H_DecodeBlockMB2B_YUY(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip)
 {
 	byte clr[8*4];
@@ -1819,12 +2192,12 @@ void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
 			{ cd=block[5]; bt=6; }
 		else if(block[4]==17)
 		{
-			BTIC1H_DecodeBlockMB2B_P420_YUV(block, rgba,
+			BTIC1H_DecodeBlockMB2B_P420_YUV(ctx, block, rgba,
 				xstride, ystride, tflip);
 			return;
 		}else if(block[4]==7)
 		{
-			BTIC1H_DecodeBlockMB2B_PYUV_YUY(block, rgba,
+			BTIC1H_DecodeBlockMB2B_PYUV_YUY(ctx, block, rgba,
 				xstride, ystride, tflip);
 			return;
 		}else if((block[4]==14) || (block[4]==15) ||
@@ -1840,7 +2213,7 @@ void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
 		}else if((block[4]==20) || (block[4]==21) ||
 			(block[4]==22) || (block[4]==23))
 		{
-			BTIC1H_DecodeBlockMB2B_I4XX_YUY(block, rgba,
+			BTIC1H_DecodeBlockMB2B_I4XX_YUY(ctx, block, rgba,
 				xstride, ystride, tflip);
 			return;
 		}
@@ -2061,7 +2434,8 @@ void BTIC1H_DecodeBlockMB2B_YUY(byte *block,
 }
 
 
-void BTIC1H_DecodeImageMB2B(byte *block, int blkstride,
+void BTIC1H_DecodeImageMB2B(
+	BTIC1H_Context *ctx, byte *block, int blkstride,
 	byte *rgba, int xs, int ys, int stride)
 {
 	int xs1, ys1;
@@ -2071,7 +2445,7 @@ void BTIC1H_DecodeImageMB2B(byte *block, int blkstride,
 	for(i=0; i<ys1; i++)
 		for(j=0; j<xs1; j++)
 	{
-		BTIC1H_DecodeBlockMB2B_RGB(
+		BTIC1H_DecodeBlockMB2B_RGB(ctx,
 			block+(i*xs1+j)*blkstride,
 			rgba+(i*4*xs+j*4)*stride,
 			stride, xs*stride);
@@ -2079,6 +2453,7 @@ void BTIC1H_DecodeImageMB2B(byte *block, int blkstride,
 }
 
 void BTIC1H_DecodeImageMB2B_ClrsBfl(
+	BTIC1H_Context *ctx,
 	byte *block, byte *blockfl, int blkstride,
 	byte *rgba, int xs, int ys, int clrs)
 {
@@ -2086,6 +2461,24 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 	int xstr, ystr, tflip;
 	int xs1, ys1, xs2, ys2, xf, yf;
 	int i, j;
+	
+	switch(ctx->clryuv)
+	{
+	case 2:
+		ctx->DecTransColor1=BTIC1H_DecodeBlock_TransColor1GDbDr;
+		ctx->DecTransColor1AB=BTIC1H_DecodeBlock_TransColor1ABGDbDr;
+		ctx->DecTransColor2=BTIC1H_DecodeBlock_TransColor2GDbDr;
+		ctx->DecTransColor420=BTIC1H_DecodeBlock_TransColor420GDbDr;
+		break;
+
+	case 0:
+	default:
+		ctx->DecTransColor1=BTIC1H_DecodeBlock_TransColor1YCbCr;
+		ctx->DecTransColor1AB=BTIC1H_DecodeBlock_TransColor1ABYCbCr;
+		ctx->DecTransColor2=BTIC1H_DecodeBlock_TransColor2YCbCr;
+		ctx->DecTransColor420=BTIC1H_DecodeBlock_TransColor420YCbCr;
+		break;
+	}
 	
 	if((clrs>=BTIC1H_PXF_BC1) && (clrs<=BTIC1H_PXF_BC5))
 	{
@@ -2125,7 +2518,7 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 		{
 			if(blockfl && (blockfl[i*xs2+j]&1))
 				continue;
-			BTIC1H_DecodeBlockMB2B_YUY(
+			BTIC1H_DecodeBlockMB2B_YUY(ctx,
 				block+(i*xs2+j)*blkstride,
 				rgba2+(i*4*ystr)+(j*4*xstr),
 				xstr, ystr, tflip);
@@ -2165,7 +2558,7 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 		{
 			if(blockfl && (blockfl[i*xs2+j]&1))
 				continue;
-			BTIC1H_DecodeBlockMB2B_RGBI(
+			BTIC1H_DecodeBlockMB2B_RGBI(ctx,
 				block+(i*xs2+j)*blkstride,
 				rgba2+(i*4*ystr)+(j*4*xstr),
 				xstr, ystr, tflip);
@@ -2173,7 +2566,7 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 #ifdef BT1H_ENABLE_AX
 			if(tflip&2)
 			{
-				BTIC1H_DecodeBlockMB2B_Alpha(
+				BTIC1H_DecodeBlockMB2B_Alpha(ctx,
 					block+(i*xs2+j)*blkstride+24,
 					rgba2+(i*4*ystr)+(j*4*xstr)+3,
 					xstr, ystr, tflip);
@@ -2185,7 +2578,7 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 			if(blockfl && (blockfl[i*xs2+j]&1))
 				continue;
 #if 1
-			BTIC1H_DecodeBlockMB2B_EdgeRGBI(
+			BTIC1H_DecodeBlockMB2B_EdgeRGBI(ctx,
 				block+(i*xs2+j)*blkstride,
 				rgba2+(i*4*ystr)+(j*4*xstr),
 				xstr, ystr, xf, 4, tflip);
@@ -2198,7 +2591,7 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 		{
 			if(blockfl && (blockfl[i*xs2+j]&1))
 				continue;
-			BTIC1H_DecodeBlockMB2B_EdgeRGBI(
+			BTIC1H_DecodeBlockMB2B_EdgeRGBI(ctx,
 				block+(i*xs2+j)*blkstride,
 				rgba2+(i*4*ystr)+(j*4*xstr),
 				xstr, ystr, 4, yf, tflip);
@@ -2208,7 +2601,7 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 			if(blockfl && (blockfl[i*xs2+j]&1))
 				return;
 #if 1
-			BTIC1H_DecodeBlockMB2B_EdgeRGBI(
+			BTIC1H_DecodeBlockMB2B_EdgeRGBI(ctx,
 				block+(i*xs2+j)*blkstride,
 				rgba2+(i*4*ystr)+(j*4*xstr),
 				xstr, ystr, xf, yf, tflip);
@@ -2217,9 +2610,10 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 	}
 }
 
-void BTIC1H_DecodeImageMB2B_Clrs(byte *block, int blkstride,
+void BTIC1H_DecodeImageMB2B_Clrs(
+	BTIC1H_Context *ctx, byte *block, int blkstride,
 	byte *rgba, int xs, int ys, int clrs)
 {
 	BTIC1H_DecodeImageMB2B_ClrsBfl(
-		block, NULL, blkstride, rgba, xs, ys, clrs);
+		ctx, block, NULL, blkstride, rgba, xs, ys, clrs);
 }

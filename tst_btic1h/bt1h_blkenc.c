@@ -113,7 +113,9 @@ d==0: Flat or Special
   M==7: Flat
 */
 
-typedef struct {
+typedef struct bt1h_encparm_s bt1h_encparm;
+
+struct bt1h_encparm_s {
 int dflat;
 int d2x2;
 int d4x4x1;
@@ -124,7 +126,10 @@ int d2x2h;
 int d4x4x2h;
 int dchflat;
 
-}bt1h_encparm;
+void (*EncodeBlock)(byte *block, int blksz,
+	byte *yuv, int xstride, int ystride, int tflip,
+	bt1h_encparm *ep);
+};
 
 int bt1h_fxdtab[256];
 
@@ -593,7 +598,7 @@ static void BT1H_EncodeBlockFilt_YUYV(
 #endif
 }
 
-#define BT1H_MIN(x, y) (x<y)?x:y
+#define BT1H_MIN(x, y) ((x<y)?x:y)
 
 static void BT1H_EncodeBlockFilt_RGBI(
 	byte *pxy,	byte *pxu,	byte *pxv,
@@ -624,16 +629,33 @@ static void BT1H_EncodeBlockFilt_RGBI(
 			p0=i<<1; p1=p0+1; p2=(j<<3);
 			pxy2=pxy+((p0<<2)+(j<<1));
 			rgb0=rgb+p0*ystride+p2;		rgb1=rgb+p1*ystride+p2;
+
 			cr0=rgb0[0]; cg0=rgb0[1]; cb0=rgb0[2];
 			cr1=rgb0[4]; cg1=rgb0[5]; cb1=rgb0[6];
 			cr2=rgb1[0]; cg2=rgb1[1]; cb2=rgb1[2];
 			cr3=rgb1[4]; cg3=rgb1[5]; cb3=rgb1[6];
 
 #ifdef BT1H_CHEAPYUV
-			cr=(cr0+cr3)>>1; cg=(cg0+cg3)>>1; cb=(cb0+cb3)>>1;
-			cy0=((cg0<<2)+3*cr0+cb0+4)>>3;	cy1=((cg1<<2)+3*cr1+cb1+4)>>3;
-			cy2=((cg2<<2)+3*cr2+cb2+4)>>3;	cy3=((cg3<<2)+3*cr3+cb3+4)>>3;
-			cu=((2*cb-cr-cg)>>2)+128;		cv=((2*cr-cb-cg)>>2)+128;
+//			cr=(cr0+cr3)>>1; cg=(cg0+cg3)>>1; cb=(cb0+cb3)>>1;
+//			cy0=((cg0<<2)+3*cr0+cb0+4)>>3;	cy1=((cg1<<2)+3*cr1+cb1+4)>>3;
+//			cy2=((cg2<<2)+3*cr2+cb2+4)>>3;	cy3=((cg3<<2)+3*cr3+cb3+4)>>3;
+//			cu=((2*cb-cr-cg)>>2)+128;		cv=((2*cr-cb-cg)>>2)+128;
+
+//			cy0=((cg0<<2)+3*cr0+cb0)>>3;	cy1=((cg1<<2)+3*cr1+cb1)>>3;
+//			cy2=((cg2<<2)+3*cr2+cb2)>>3;	cy3=((cg3<<2)+3*cr3+cb3)>>3;
+			cy0=((cg0<<1)+cr0+cb0)>>2;	cy1=((cg1<<1)+cr1+cb1)>>2;
+			cy2=((cg2<<1)+cr2+cb2)>>2;	cy3=((cg3<<1)+cr3+cb3)>>2;
+
+//			cy0=cg0;	cy1=cg1;
+//			cy2=cg2;	cy3=cg3;
+
+			cr=cr0; cg=cg0; cb=cb0;
+			cy=cy0;
+
+//			cy=((cg<<2)+3*cr+cb)>>3;
+//			cy=((cg<<1)+cr+cb)>>2;
+			cu=((cb-cy)>>1)+128;
+			cv=((cr-cy)>>1)+128;
 #else
 //			cr=(cr0+cr1+cr2+cr3)>>2;
 //			cg=(cg0+cg1+cg2+cg3)>>2;
@@ -651,20 +673,20 @@ static void BT1H_EncodeBlockFilt_RGBI(
 			cv=(( 128*cr -107*cg - 21*cb + 127)>>8)+128;
 #endif
 
-#if 0
-			if((cy0|cy1|cy2|cy3|cu|cv)>>8)
-//			if((cu|cv)>>8)
-			{
-				cy0=clamp255(cy0);	cy1=clamp255(cy1);
-				cy2=clamp255(cy2);	cy3=clamp255(cy3);
-				cu=clamp255(cu);	cv=clamp255(cv);
-			}
-#endif
-
 			pxy2[0]=cy0;	pxy2[1]=cy1;	pxy2[4]=cy2;	pxy2[5]=cy3;
-			l0=(cy0<cy3)?cy0:cy3;	l1=(cy1<cy2)?cy1:cy2;
-			l2=(cy0>cy3)?cy0:cy3;	l3=(cy1>cy2)?cy1:cy2;
-			mcy=(l0<l1)?l0:l1;		ncy=(l2>l3)?l2:l3;
+//			l0=(cy0<cy3)?cy0:cy3;
+//			l1=(cy1<cy2)?cy1:cy2;
+//			l2=(cy0>cy3)?cy0:cy3;
+//			l3=(cy1>cy2)?cy1:cy2;
+//			mcy=(l0<l1)?l0:l1;
+//			ncy=(l2>l3)?l2:l3;
+			mcy=cy0; ncy=cy0;
+			if(cy3<mcy)mcy=cy3;
+			if(cy3>ncy)ncy=cy3;
+			if(cy1<mcy)mcy=cy1;
+			if(cy1>ncy)ncy=cy1;
+			if(cy2<mcy)mcy=cy2;
+			if(cy2>ncy)ncy=cy2;
 			k=i*2+j; pmcy[k]=mcy; pncy[k]=ncy; pxu[k]=cu; pxv[k]=cv;
 		}
 		return;
@@ -705,9 +727,16 @@ static void BT1H_EncodeBlockFilt_RGBI(
 #endif
 
 			pxy2[0]=cy0;	pxy2[1]=cy1;	pxy2[4]=cy2;	pxy2[5]=cy3;
-			l0=(cy0<cy3)?cy0:cy3;	l1=(cy1<cy2)?cy1:cy2;
-			l2=(cy0>cy3)?cy0:cy3;	l3=(cy1>cy2)?cy1:cy2;
-			mcy=(l0<l1)?l0:l1;		ncy=(l2>l3)?l2:l3;
+//			l0=(cy0<cy3)?cy0:cy3;	l1=(cy1<cy2)?cy1:cy2;
+//			l2=(cy0>cy3)?cy0:cy3;	l3=(cy1>cy2)?cy1:cy2;
+//			mcy=(l0<l1)?l0:l1;		ncy=(l2>l3)?l2:l3;
+			mcy=cy0; ncy=cy0;
+			if(cy3<mcy)mcy=cy3;
+			if(cy3>ncy)ncy=cy3;
+			if(cy1<mcy)mcy=cy1;
+			if(cy1>ncy)ncy=cy1;
+			if(cy2<mcy)mcy=cy2;
+			if(cy2>ncy)ncy=cy2;
 			k=i*2+j; pmcy[k]=mcy; pncy[k]=ncy; pxu[k]=cu; pxv[k]=cv;
 		}
 		return;
@@ -817,6 +846,198 @@ static void BT1H_EncodeBlockFilt_RGBI(
 		pxu[k]=cu;		pxv[k]=cv;
 	}
 }
+
+
+#if 1
+static void BT1H_EncodeBlockFilt_RGBI_GDbDr(
+	byte *pxy,	byte *pxu,	byte *pxv,
+	byte *pmcy,	byte *pncy,
+	byte *rgb, int xstride, int ystride, int tflip)
+{
+	byte *rgb0, *rgb1, *rgb2, *rgb3;
+	byte *pxy2;
+	int p0, p1, p2, p3, p4, p5, p6, p7;
+	int l0, l1, l2, l3;
+	int mcy, ncy;
+	int cy0, cy1, cy2, cy3;
+	int cu0, cu1, cu2, cu3;
+	int cv0, cv1, cv2, cv3;	
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+	int cy, cu, cv;
+	int cr, cg, cb;
+	int i, j, k, l;
+
+#if 1
+	if((xstride==4) && !(tflip&1))
+	{
+		for(i=0; i<2; i++)
+			for(j=0; j<2; j++)
+		{
+			p0=i<<1; p1=p0+1; p2=(j<<3);
+			pxy2=pxy+((p0<<2)+(j<<1));
+			rgb0=rgb+p0*ystride+p2;		rgb1=rgb+p1*ystride+p2;
+
+#if defined(X86)||defined(X86_64)
+			l0=((u32 *)rgb0)[0];	l1=((u32 *)rgb0)[1];
+			l2=((u32 *)rgb1)[0];	l3=((u32 *)rgb1)[1];			
+			cr0=(byte)l0;	cg0=(byte)(l0>>8);	cb0=(byte)(l0>>16);
+			cr1=(byte)l1;	cg1=(byte)(l1>>8);	cb1=(byte)(l1>>16);
+			cr2=(byte)l2;	cg2=(byte)(l2>>8);	cb2=(byte)(l2>>16);
+			cr3=(byte)l3;	cg3=(byte)(l3>>8);	cb3=(byte)(l3>>16);
+#else
+			cr0=rgb0[0]; cg0=rgb0[1]; cb0=rgb0[2];
+			cr1=rgb0[4]; cg1=rgb0[5]; cb1=rgb0[6];
+			cr2=rgb1[0]; cg2=rgb1[1]; cb2=rgb1[2];
+			cr3=rgb1[4]; cg3=rgb1[5]; cb3=rgb1[6];
+#endif
+
+			cy0=cg0;	cy1=cg1;
+			cy2=cg2;	cy3=cg3;
+
+			cr=cr0; cg=cg0; cb=cb0;
+			cy=cy0;
+			cu=((cb-cy)>>1)+128;
+			cv=((cr-cy)>>1)+128;
+
+			pxy2[0]=cy0;	pxy2[1]=cy1;	pxy2[4]=cy2;	pxy2[5]=cy3;
+			mcy=cy0; ncy=cy0;
+			if(cy3<mcy)mcy=cy3;
+			if(cy3>ncy)ncy=cy3;
+			if(cy1<mcy)mcy=cy1;
+			if(cy1>ncy)ncy=cy1;
+			if(cy2<mcy)mcy=cy2;
+			if(cy2>ncy)ncy=cy2;
+			k=i*2+j; pmcy[k]=mcy; pncy[k]=ncy; pxu[k]=cu; pxv[k]=cv;
+		}
+		return;
+	}
+#endif
+
+#if 1
+	if((xstride==4) && (tflip&1))
+	{
+		for(i=0; i<2; i++)
+			for(j=0; j<2; j++)
+		{
+			p0=i<<1; p1=p0+1; p2=(j<<3);
+			pxy2=pxy+((p0<<2)+(j<<1));
+			rgb0=rgb+p0*ystride+p2;		rgb1=rgb+p1*ystride+p2;
+
+#if defined(X86)||defined(X86_64)
+			l0=((u32 *)rgb0)[0];	l1=((u32 *)rgb0)[1];
+			l2=((u32 *)rgb1)[0];	l3=((u32 *)rgb1)[1];			
+			cb0=(byte)l0;	cg0=(byte)(l0>>8);	cr0=(byte)(l0>>16);
+			cb1=(byte)l1;	cg1=(byte)(l1>>8);	cr1=(byte)(l1>>16);
+			cb2=(byte)l2;	cg2=(byte)(l2>>8);	cr2=(byte)(l2>>16);
+			cb3=(byte)l3;	cg3=(byte)(l3>>8);	cr3=(byte)(l3>>16);
+#else
+			cr0=rgb0[2]; cg0=rgb0[1]; cb0=rgb0[0];
+			cr1=rgb0[6]; cg1=rgb0[5]; cb1=rgb0[4];
+			cr2=rgb1[2]; cg2=rgb1[1]; cb2=rgb1[0];
+			cr3=rgb1[6]; cg3=rgb1[5]; cb3=rgb1[4];
+#endif
+
+			cy0=cg0;	cy1=cg1;
+			cy2=cg2;	cy3=cg3;
+
+			cr=cr0; cg=cg0; cb=cb0;
+			cy=cy0;
+			cu=((cb-cy)>>1)+128;
+			cv=((cr-cy)>>1)+128;
+
+			pxy2[0]=cy0;	pxy2[1]=cy1;	pxy2[4]=cy2;	pxy2[5]=cy3;
+//			l0=(cy0<cy3)?cy0:cy3;	l1=(cy1<cy2)?cy1:cy2;
+//			l2=(cy0>cy3)?cy0:cy3;	l3=(cy1>cy2)?cy1:cy2;
+//			mcy=(l0<l1)?l0:l1;		ncy=(l2>l3)?l2:l3;
+			mcy=cy0; ncy=cy0;
+			if(cy3<mcy)mcy=cy3;
+			if(cy3>ncy)ncy=cy3;
+			if(cy1<mcy)mcy=cy1;
+			if(cy1>ncy)ncy=cy1;
+			if(cy2<mcy)mcy=cy2;
+			if(cy2>ncy)ncy=cy2;
+			k=i*2+j; pmcy[k]=mcy; pncy[k]=ncy; pxu[k]=cu; pxv[k]=cv;
+		}
+		return;
+	}
+#endif
+
+	for(i=0; i<2; i++)
+		for(j=0; j<2; j++)
+	{
+		if(xstride==4)
+		{
+			p0=(i<<1)+0; p1=(i<<1)+1; p2=j*8;
+			rgb0=rgb+p0*ystride+p2;
+			rgb1=rgb+p1*ystride+p2;
+
+			if(tflip&1)
+			{
+				cr0=rgb0[2]; cg0=rgb0[1]; cb0=rgb0[0];
+				cr1=rgb0[6]; cg1=rgb0[5]; cb1=rgb0[4];
+				cr2=rgb1[2]; cg2=rgb1[1]; cb2=rgb1[0];
+				cr3=rgb1[6]; cg3=rgb1[5]; cb3=rgb1[4];
+			}else
+			{
+				cr0=rgb0[0]; cg0=rgb0[1]; cb0=rgb0[2];
+				cr1=rgb0[4]; cg1=rgb0[5]; cb1=rgb0[6];
+				cr2=rgb1[0]; cg2=rgb1[1]; cb2=rgb1[2];
+				cr3=rgb1[4]; cg3=rgb1[5]; cb3=rgb1[6];
+			}
+		}else
+		{
+			p0=((i<<1)+0);	p1=((i<<1)+1);
+			p2=(j*2+0)*xstride;
+			p3=(j*2+1)*xstride;
+
+			l0=p0*ystride+p2;	l1=p0*ystride+p3;
+			l2=p1*ystride+p2;	l3=p1*ystride+p3;
+			rgb0=rgb+l0;		rgb1=rgb+l1;
+			rgb2=rgb+l2;		rgb3=rgb+l3;
+
+			if(tflip&1)
+			{
+				cr0=rgb0[2]; cg0=rgb0[1]; cb0=rgb0[0];
+				cr1=rgb1[2]; cg1=rgb1[1]; cb1=rgb1[0];
+				cr2=rgb2[2]; cg2=rgb2[1]; cb2=rgb2[0];
+				cr3=rgb3[2]; cg3=rgb3[1]; cb3=rgb3[0];
+			}else
+			{
+				cr0=rgb0[0]; cg0=rgb0[1]; cb0=rgb0[2];
+				cr1=rgb1[0]; cg1=rgb1[1]; cb1=rgb1[2];
+				cr2=rgb2[0]; cg2=rgb2[1]; cb2=rgb2[2];
+				cr3=rgb3[0]; cg3=rgb3[1]; cb3=rgb3[2];
+			}
+		}
+
+		cy0=cg0;	cy1=cg1;
+		cy2=cg2;	cy3=cg3;
+
+		cr=cr0; cg=cg0; cb=cb0;
+		cu=((cb-cg)>>1)+128;
+		cv=((cr-cg)>>1)+128;
+
+		l2=(p0<<2)+(j<<1);
+		l3=(p1<<2)+(j<<1);
+		pxy[l2+0]=cy0;	pxy[l2+1]=cy1;
+		pxy[l3+0]=cy2;	pxy[l3+1]=cy3;
+		
+		mcy=cy0;	ncy=cy0;
+		if(cy3<mcy) { mcy=cy3; }
+		if(cy3>ncy) { ncy=cy3; }
+		if(cy1>ncy) { ncy=cy1; }
+		if(cy1<mcy) { mcy=cy1; }
+		if(cy2<mcy) { mcy=cy2; }
+		if(cy2>ncy) { ncy=cy2; }
+
+		k=i*2+j;
+		pmcy[k]=mcy;	pncy[k]=ncy;
+		pxu[k]=cu;		pxv[k]=cv;
+	}
+}
+#endif
 
 void BT1H_EncodeBlock_Inner(byte *block, int blksz,
 	byte *pxy,	byte *pxu,	byte *pxv,
@@ -1558,6 +1779,27 @@ void BT1H_EncodeBlockRGBI(byte *block, int blksz,
 	}
 }
 
+void BT1H_EncodeBlockRGBI_GDbDr(byte *block, int blksz,
+	byte *yuv, int xstride, int ystride, int tflip,
+	bt1h_encparm *ep)
+{
+	byte pxy[16], pxu[4], pxv[4];
+	byte pmcy[4], pncy[4];
+
+	BT1H_EncodeBlockFilt_RGBI_GDbDr(
+		pxy, pxu, pxv, pmcy, pncy, yuv,
+		xstride, ystride, tflip);
+	BT1H_EncodeBlock_Inner(block, blksz,
+		pxy, pxu, pxv, pmcy, pncy, yuv, xstride, ystride,
+		ep);
+	
+	if(tflip&2)
+	{
+		BT1H_EncodeBlockAlpha(block+24,
+			yuv+3, 4, ystride, ep);
+	}
+}
+
 void BT1H_EncodeBlockEdgeRGBI(byte *block, int blksz,
 	byte *rgba, int xstride, int ystride,
 	int xfrac, int yfrac, int tflip,
@@ -1619,7 +1861,9 @@ void BT1H_EncodeBlockEdgeRGBI(byte *block, int blksz,
 		}
 	}
 	
-	BT1H_EncodeBlockRGBI(block, blksz, tblk, 4, 4*4, tflip, ep);
+	ep->EncodeBlock(
+//	BT1H_EncodeBlockRGBI(
+		block, blksz, tblk, 4, 4*4, tflip, ep);
 }
 
 void BTIC1H_EncodeImageYUY2(byte *block, int blkstride,
@@ -1640,6 +1884,8 @@ void BTIC1H_EncodeImageYUY2(byte *block, int blkstride,
 	if(qr<0)qr=0;
 	
 	ep=&tep;
+
+//	ep->EncodeBlock=BT1H_EncodeBlockRGBI;
 
 	qrf=qr/50.0;
 	ep->dflat  =qr*(0.33+0.5*qrf);
@@ -1729,6 +1975,10 @@ void BTIC1H_EncodeImageRGBI(byte *block, int blkstride,
 	
 	ep=&tep;
 
+	ep->EncodeBlock=BT1H_EncodeBlockRGBI;
+	if(qf&BTIC1H_QFL_USEGDBDR)
+		ep->EncodeBlock=BT1H_EncodeBlockRGBI_GDbDr;
+
 	qrf=qr/50.0;
 	ep->dflat  =qr*(0.33+0.5*qrf);
 //	ep->d2x2   =qr*(0.85+0.7*qrf);
@@ -1790,7 +2040,8 @@ void BTIC1H_EncodeImageRGBI(byte *block, int blkstride,
 		yuv3=yuv2+(i*4*ystr);
 		for(j=0; j<xs1; j++)
 		{
-			BT1H_EncodeBlockRGBI(
+			ep->EncodeBlock(
+//			BT1H_EncodeBlockRGBI(
 				block+(i*xs2+j)*blkstride, blkstride,
 				yuv3+(j*4*xstr),
 				xstr, ystr, tflip, ep);

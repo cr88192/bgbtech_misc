@@ -346,7 +346,8 @@ void BTIC1H_S2TC_EncodeBlockI(byte *block,
 	}
 }
 
-void BTIC1H_DecodeBlockMB2B_RGBI(byte *block,
+void BTIC1H_DecodeBlockMB2B_RGBI(
+	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip);
 
 void BTIC1H_ConvBlockSpecialS2TC(byte *iblock,
@@ -362,10 +363,10 @@ void BTIC1H_ConvBlockSpecialS2TC(byte *iblock,
 
 	if(tfl&1)
 	{
-		BTIC1H_DecodeBlockMB2B_RGBI(iblock, tblk+12*4, 4, -4*4, 0);
+		BTIC1H_DecodeBlockMB2B_RGBI(NULL, iblock, tblk+12*4, 4, -4*4, 0);
 	}else
 	{
-		BTIC1H_DecodeBlockMB2B_RGBI(iblock, tblk, 4, 4*4, 0);
+		BTIC1H_DecodeBlockMB2B_RGBI(NULL, iblock, tblk, 4, 4*4, 0);
 	}
 	
 	mcy=256; ncy=-1;

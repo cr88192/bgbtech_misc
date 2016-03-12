@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include "bt1h_shim_bc7.c"
 
 #include "bt1h_thread.c"
+#include "bt1h_thwork.c"
 
 #include "bt1h_rice.c"
 #include "bt1h_decrice.c"
@@ -158,8 +159,11 @@ int main(int argc, char *argv[])
 	ibuf=BTIC1H_Img_LoadTGA("screencap0.tga", &xs, &ys);
 	ibuf2=BTIC1H_Img_LoadTGA("screencap0.tga", &xs1, &ys1);
 
-	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs, &ys);
-	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1_q95.tga", &xs1, &ys1);
+//	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM1.tga", &xs, &ys);
+//	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1_q95.tga", &xs1, &ys1);
+
+	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM3.tga", &xs, &ys);
+	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM3.tga", &xs1, &ys1);
 
 	yibuf=malloc(xs*ys*2);
 
@@ -326,6 +330,7 @@ int main(int argc, char *argv[])
 	qf=qf|BTIC1H_QFL_IFRAME;
 //	qf=qf|BTIC1H_QFL_USERC;
 	qf=qf|BTIC1H_QFL_USESLICE;
+	qf=qf|BTIC1H_QFL_USEGDBDR;
 	
 	xs1=xs>>2; ys1=ys>>2; n=xs1*ys1;
 	blks=malloc(n*32);
@@ -336,7 +341,7 @@ int main(int argc, char *argv[])
 	ctx->flip=0;
 
 	t0=clock(); t1=t0; nf=0; ncf=0;
-	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
+	while((t1>=t0) && (t1<(t0+(15*CLOCKS_PER_SEC))))
 	{
 		yibuf2=yibuf;
 
@@ -347,7 +352,7 @@ int main(int argc, char *argv[])
 //			32, 1<<20, &n1, qf);
 
 #if 1
-		i=BTIC1H_EncodeCtx(ctx, ibuf, tbuf, 1<<20,
+		i=BTIC1H_EncodeCtx(ctx, ibuf, tbuf, 1<<24,
 			xs, ys, qf, BTIC1H_PXF_RGBX);
 #endif
 
@@ -402,7 +407,7 @@ int main(int argc, char *argv[])
 
 #if 1
 	t0=clock(); t1=t0; nf=0; ncf=0;
-	while((t1>=t0) && (t1<(t0+(15*CLOCKS_PER_SEC))))
+	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
 	{
 		
 //		BTIC1H_EncodeImageYUY2(blks, yibuf2, xs, ys, 85);

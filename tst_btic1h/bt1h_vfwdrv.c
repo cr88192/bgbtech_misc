@@ -40,6 +40,7 @@ void btjpg_printf(char *str, ...);
 #include "bt1h_shim_bc7.c"
 
 #include "bt1h_thread.c"
+#include "bt1h_thwork.c"
 
 #include "bt1h_rice.c"
 #include "bt1h_decrice.c"

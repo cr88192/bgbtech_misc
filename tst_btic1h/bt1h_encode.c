@@ -1224,7 +1224,7 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 		};
 
 	byte *cs2, *csl2;
-	byte *cs, *cse, *csl, *csle, *cs1, *cs1e;
+	byte *cs, *cse, *csl, *csle, *csle2, *lblks2, *cs1, *cs1e;
 	int bit0;
 	int cy, cu, cv, cd, cm;
 //	int dye, duve, qr;
@@ -1258,7 +1258,18 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 
 	cs=blks; cse=cs+nblks*stride;
 	csl=lblks; csle=lblks+nblks*stride;
-	
+
+	if(lblks && ctx->lblks && (lblks>=ctx->lblks) &&
+		(lblks<(ctx->lblks+(ctx->nblks*stride))))
+	{
+		lblks2=ctx->lblks;
+		csle2=ctx->lblks+(ctx->nblks*stride);
+	}else
+	{
+		lblks2=lblks;
+		csle2=csle;
+	}
+
 //	cy=(100-qf)/4;
 //	cu=(100-qf)/3;
 //	cy=(100-qf)/8;
@@ -1336,7 +1347,7 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 					cs2=cs+i*stride;
 					csl2=csl+i*stride+vo;
 					if(cs2>=cse)break;
-					if((csl2<lblks) || (csl2>=csle))
+					if((csl2<lblks2) || (csl2>=csle2))
 						break;
 					if(BTIC1H_CheckSkip(ctx, cs2, csl2, stride,
 							qf, dyem, dyen, duvem, duven, &k)<=0)
@@ -2006,7 +2017,7 @@ int BTIC1H_EncodeAlphaBlocksCtx(BTIC1H_Context *ctx,
 	int *rnblks, int qf)
 {
 	byte *cs2, *csl2;
-	byte *cs, *cse, *csl, *csle, *cs1, *cs1e;
+	byte *cs, *cse, *csl, *csle, *csle2, *lblks2, *cs1, *cs1e;
 	int bit0;
 	int cy, cu, cv, cd, cm;
 	int dyem, dyen, qr;
@@ -2026,7 +2037,18 @@ int BTIC1H_EncodeAlphaBlocksCtx(BTIC1H_Context *ctx,
 
 	cs=blks; cse=cs+nblks*stride;
 	csl=lblks; csle=lblks+nblks*stride;
-	
+
+	if(lblks && ctx->lblks && (lblks>=ctx->lblks) &&
+		(lblks<(ctx->lblks+(ctx->nblks*stride))))
+	{
+		lblks2=ctx->lblks;
+		csle2=ctx->lblks+(ctx->nblks*stride);
+	}else
+	{
+		lblks2=lblks;
+		csle2=csle;
+	}
+
 	cy=qr/6.5;
 	cd=qr/5;
 
@@ -2299,13 +2321,31 @@ int BTIC1H_EncodeAlphaBlocksCtx(BTIC1H_Context *ctx,
 }
 #endif
 
+BTIC1H_Context *btic1h_context_free;
+
+
 BTIC1H_Context *BTIC1H_AllocContext(void)
 {
 	BTIC1H_Context *tmp;
+
+	tmp=btic1h_context_free;
+	if(tmp)
+	{
+		btic1h_context_free=tmp->wqnext;
+		memset(tmp, 0, sizeof(BTIC1H_Context));
+		return(tmp);
+	}
 	
 	tmp=malloc(sizeof(BTIC1H_Context));
 	memset(tmp, 0, sizeof(BTIC1H_Context));
 	return(tmp);
+}
+
+int BTIC1H_FreeContextF(BTIC1H_Context *ctx)
+{
+	ctx->wqnext=btic1h_context_free;
+	btic1h_context_free=ctx;
+	return(0);
 }
 
 int BTIC1H_DestroyContext(BTIC1H_Context *ctx)
@@ -2418,13 +2458,98 @@ void BTIC1H_SetupDecodeContextInitial(BTIC1H_Context *ctx)
 		{ ctx->cmdidx[i]=i; }
 }
 
+int BTIC1H_EncodeWorkSliceCtx(BTIC1H_Context *ctx)
+{
+	byte *ct, *cte;
+	int sys, yb, nblks, str;
+	int i, j, k;
+	
+	ct=ctx->bs_cts;
+	cte=ctx->bs_cte;
+	nblks=ctx->slbs;
+
+	switch(ctx->clrs)
+	{
+	case BTIC1H_PXF_RGBA:
+	case BTIC1H_PXF_BGRA:
+	case BTIC1H_PXF_RGBX:
+	case BTIC1H_PXF_BGRX:
+		str=4; break;
+	case BTIC1H_PXF_RGB:
+	case BTIC1H_PXF_BGR:
+		str=3; break;
+	case BTIC1H_PXF_UYVY:
+	case BTIC1H_PXF_YUYV:
+		str=2; break;
+	}
+
+	if(ctx->flip)
+	{
+		yb=ctx->slix*ctx->slscl;
+		k=yb*ctx->xs*str;
+		sys=ctx->slscl;
+		if((yb+sys)>ctx->ys)
+		{
+			sys=ctx->ys-yb;
+			
+			i=((sys+3)/4);
+			nblks=i*ctx->xbsz;
+		}
+	}else
+	{
+		yb=(ctx->slix+1)*ctx->slscl;
+		yb=ctx->ys-yb;
+		k=yb*ctx->xs*str;
+		sys=-ctx->slscl;
+//		if((yb+sys)<0)
+//			sys=yb;
+//			sys=-yb;
+
+		if(yb<0)
+		{
+			sys-=yb;
+			yb=0; k=0;
+//			k=yb*ctx->xs*4;
+
+			i=(((-sys)+3)/4);
+			nblks=i*ctx->xbsz;
+		}
+	}
+
+	j=ctx->slix*ctx->slbs*32;
+
+	BTIC1H_EncodeImageClrs(
+		ctx->blks+j, 32, ctx->ibuf+k,
+		ctx->xs, sys, ctx->qfl, ctx->clrs);
+
+	BTIC1H_SetupContextInitial(ctx);
+	for(j=0; j<256; j++)
+		{ ctx->cmdwin[j]=j; ctx->cmdidx[j]=j; }
+
+	ctx->EmitCommandCode=BTIC1H_EmitCommandCodeSMTF;
+
+	BTIC1H_Rice_SetupWrite(ctx, ct, cte-ct);
+	
+	j=ctx->slix*ctx->slbs*32;
+	BTIC1H_EncodeBlocksCtx(ctx,
+		ctx->blks+j, (ctx->qfl&BTIC1H_QFL_PFRAME)?(ctx->lblks+j):NULL,
+		nblks, 32, &k, ctx->qfl);
+	BTIC1H_Rice_FlushBits(ctx);
+	
+	ctx->bs_cts=ct;
+	j=ctx->bs_ct-ct;
+	return(0);
+}
+
 int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	byte *src, byte *dst, int dsz,
 	int xs, int ys, int qfl, int clrs)
 {
+	BTIC1H_Context *encjob[128];
+	BTIC1H_Context *etctx;
 	byte *ct, *cte, *ct1;
 	int sz, sz1, csim;
-	int slys, slbs;
+	int slys, slbs, sldbs, sltid;
 	int i, j, k, l, n;
 
 	if(!ctx->blks)
@@ -2438,11 +2563,15 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 		ctx->lblks=malloc(n*32);
 	}
 
-	BTIC1H_EncodeImageClrs(ctx->blks, 32, src,
-		ctx->xs, ctx->flip?ctx->ys:(-ctx->ys), qfl, clrs);
+	ctx->clrs=clrs;
+	ctx->qfl=qfl;
+	ctx->clryuv=0;
+	ctx->clrdty=0;
 
+//	BTIC1H_EncodeImageClrs(ctx->blks, 32, src,
+//		ctx->xs, ctx->flip?ctx->ys:(-ctx->ys), qfl, clrs);
 
-	BTIC1H_SetupContextInitial(ctx);
+//	BTIC1H_SetupContextInitial(ctx);
 
 #if 0
 	ct=dst+4; cte=dst+dsz;
@@ -2472,6 +2601,11 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	BTIC1H_Rice_SetupWriteRangeBits(ctx, ct, cte-ct, 12);
 #endif
 
+	if(qfl&BTIC1H_QFL_USEGDBDR)
+	{
+		ctx->clryuv=2;
+	}
+
 #if 1
 //	if((qfl&127)<75)
 //	if(1)
@@ -2487,6 +2621,14 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 
 		*ct++=((12-8)<<4)|1;
 		ctx->slscl=0;
+
+		if((ctx->clryuv!=0) || (ctx->clrdty!=0))
+		{
+			ct[-1]|=0x80;
+			*ct++=0xA2;
+			*ct++=(ctx->clryuv&7)|
+				((ctx->clrdty&7)<<3);
+		}
 
 		ctx->EmitCommandCode=BTIC1H_EmitCommandCodeSMTF;
 		for(i=0; i<256; i++)
@@ -2504,16 +2646,41 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 		if(qfl&BTIC1H_QFL_USESLICE)
 		{
 			i=ctx->ys/32;
+//			i=ctx->ys/16;
 			i=(i+1)&(~3);
 			if(!i)i=4;
 			ctx->slscl=i;
 
 			*ct++=0x80;
+//#ifdef BT1H_USEGDBDR
+//			if(qfl&BTIC1H_QFL_USEGDBDR)
+//			{
+//				*ct++=0xA2;
+//				*ct++=0x02;
+//			}
+//#endif
+
+			if((ctx->clryuv!=0) || (ctx->clrdty!=0))
+			{
+				*ct++=0xA2;
+				*ct++=(ctx->clryuv&7)|
+					((ctx->clrdty&7)<<3);
+			}
+
 			*ct++=0x21;
 			*ct++=i/4;
 		}else
 		{
-			*ct++=0x00;
+			if((ctx->clryuv!=0) || (ctx->clrdty!=0))
+			{
+				*ct++=0x80;
+				*ct++=0x22;
+				*ct++=(ctx->clryuv&7)|
+					((ctx->clrdty&7)<<3);
+			}else
+			{
+				*ct++=0x00;
+			}
 			ctx->slscl=0;
 		}
 	
@@ -2529,33 +2696,120 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	{
 		slys=(ctx->ys+(ctx->slscl-1))/ctx->slscl;
 		slbs=((ctx->xs+3)>>2)*((ctx->slscl+3)>>2);
+		sldbs=(dsz-1024)/slys;
 
-		for(i=0; i<slys; i++)
+		if(btic1h_workqueue_defaultworkers>0)
 		{
-			ct1=ct+3;
-			BTIC1H_SetupContextInitial(ctx);
-			for(j=0; j<256; j++)
-				{ ctx->cmdwin[j]=j; ctx->cmdidx[j]=j; }
+			for(i=0; i<slys; i++)
+			{
+				etctx=BTIC1H_AllocContext();
+				encjob[i]=etctx;
 
-			BTIC1H_Rice_SetupWrite(ctx, ct1, cte-ct1);
+				etctx->xs=ctx->xs;
+				etctx->ys=ctx->ys;
+				etctx->clrs=clrs;
+				etctx->qfl=qfl;
+				etctx->flip=ctx->flip;
+
+				etctx->xbsz=ctx->xbsz;
+				etctx->ybsz=ctx->ybsz;
+				etctx->nblks=ctx->nblks;
+
+				etctx->ibuf=src;
+				etctx->blks=ctx->blks;
+				etctx->lblks=ctx->lblks;
+				
+				etctx->bs_cts=(dst+1024)+i*sldbs;
+				etctx->bs_cte=(dst+1024)+(i+1)*sldbs;
+				etctx->slscl=ctx->slscl;
+				etctx->slys=slys;
+				etctx->slbs=slbs;
+				etctx->slix=i;
+				
+				etctx->DoWork=BTIC1H_EncodeWorkSliceCtx;
+			}
+
+			btic1h_thLockQueue();
+			sltid=BTIC1H_Work_AllocTidNb();
+			for(i=0; i<slys; i++)
+				{ BTIC1H_Work_QueueJobNb(encjob[i], sltid); }
+			btic1h_thUnlockQueue();
+			BTIC1H_Work_CheckSpawnWorkers(
+				btic1h_workqueue_defaultworkers);
 			
-			j=i*slbs*32;
-			BTIC1H_EncodeBlocksCtx(ctx,
-				ctx->blks+j, (qfl&BTIC1H_QFL_PFRAME)?(ctx->lblks+j):NULL,
-				slbs, 32, &k, qfl);
-			ctx->bits_total+=ctx->bs_bits;
-			BTIC1H_Rice_FlushBits(ctx);
+			while(BTIC1H_Work_GetTidCountNb(sltid)>0)
+				{ thSleep(1); }
+			BTIC1H_Work_FreeTidNb(sltid);
 
-			j=ctx->bs_ct-ct;
-			ct[0]=0xC0+((j>>16)&31);
-			ct[1]=j>> 8;
-			ct[2]=j    ;
-			ct+=j;
+			for(i=0; i<slys; i++)
+			{
+				etctx=encjob[i];
+
+				k=etctx->bs_ct-etctx->bs_cts;
+				if(k>16379)
+				{
+					j=k+3;
+					ct[0]=0xC0+((j>>16)&31);
+					ct[1]=j>> 8;
+					ct[2]=j    ;
+					memcpy(ct+3, etctx->bs_cts, k);
+					ct+=j;
+				}else if(k>122)
+				{
+					j=k+2;
+					ct[0]=0x80+((j>>8)&63);
+					ct[1]=j;
+					memcpy(ct+2, etctx->bs_cts, k);
+					ct+=j;
+				}else
+				{
+					j=k+1;
+					ct[0]=j;
+					memcpy(ct+1, etctx->bs_cts, k);
+					ct+=j;
+				}
+
+				BTIC1H_FreeContextF(etctx);
+			}
+		}else
+		{
+			BTIC1H_EncodeImageClrs(ctx->blks, 32, src,
+				ctx->xs, ctx->flip?ctx->ys:(-ctx->ys), qfl, clrs);
+
+			for(i=0; i<slys; i++)
+			{
+				ct1=ct+3;
+				BTIC1H_SetupContextInitial(ctx);
+				for(j=0; j<256; j++)
+					{ ctx->cmdwin[j]=j; ctx->cmdidx[j]=j; }
+
+				BTIC1H_Rice_SetupWrite(ctx, ct1, cte-ct1);
+				
+				j=i*slbs*32;
+				BTIC1H_EncodeBlocksCtx(ctx,
+					ctx->blks+j, (qfl&BTIC1H_QFL_PFRAME)?(ctx->lblks+j):NULL,
+					slbs, 32, &k, qfl);
+				ctx->bits_total+=ctx->bs_bits;
+				BTIC1H_Rice_FlushBits(ctx);
+
+				j=ctx->bs_ct-ct;
+				ct[0]=0xC0+((j>>16)&31);
+				ct[1]=j>> 8;
+				ct[2]=j    ;
+				ct+=j;
+			}
 		}
 
 		sz=ct-dst;
 	}else
 	{
+		BTIC1H_EncodeImageClrs(ctx->blks, 32, src,
+			ctx->xs, ctx->flip?ctx->ys:(-ctx->ys), qfl, clrs);
+
+		BTIC1H_SetupContextInitial(ctx);
+		for(j=0; j<256; j++)
+			{ ctx->cmdwin[j]=j; ctx->cmdidx[j]=j; }
+
 		BTIC1H_EncodeBlocksCtx(ctx,
 			ctx->blks, (qfl&BTIC1H_QFL_PFRAME)?ctx->lblks:NULL,
 			ctx->nblks, 32, &i, qfl);
@@ -2630,7 +2884,11 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	}
 #endif
 
-	memcpy(ctx->lblks, ctx->blks, ctx->nblks*32);
+//	memcpy(ctx->lblks, ctx->blks, ctx->nblks*32);
+
+	ct1=ctx->lblks;
+	ctx->lblks=ctx->blks;
+	ctx->blks=ct1;
 
 	if(sz>dsz)
 	{

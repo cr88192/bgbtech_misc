@@ -29,8 +29,55 @@ void BTIC1H_Rice_WriteAdRiceDcBasic(BTIC1H_Context *ctx, int v, int *rk);
 void BTIC1H_Rice_WriteAdSRiceDcBasic(BTIC1H_Context *ctx, int v, int *rk);
 void BTIC1H_Rice_FlushBitsBasic(BTIC1H_Context *ctx);
 
+static int btic1h_encrice8[16*512];		//0-15=bits, 16-19=len
+static byte btic1h_initrice=0;
+
+void BTIC1H_InitRice(void)
+{
+	int q;
+	int i, j, k, k1, l;
+
+	if(btic1h_initrice)
+		return;
+		
+	for(k=0; k<16; k++)
+	{
+		for(i=0; i<512; i++)
+		{
+			q=i>>k;
+			l=q+k+1;
+			
+			k1=k;
+			if(!q)
+			{
+				if(k1>0)k1--;
+			}else if(q>1)
+			{
+				j=q;
+				while(j>1)
+					{ k1++; j=j>>1; }
+				if(k1>15)k1=15;
+			}
+			
+//			if((l>=16) || (q>=8))
+			if(l>=16)
+			{
+				btic1h_encrice8[(k<<9)|i]=0;
+				continue;
+			}
+			
+//			j=((1<<q)-1)|((i&((1<<k)-1))<<(q+1));
+			j=((0xFFFE<<k)|(i&((1<<k)-1)))&((1<<l)-1);
+
+			btic1h_encrice8[(k<<9)|i]=j|(l<<16)|(k1<<20);
+		}
+	}
+}
+
 void BTIC1H_Rice_SetupWrite(BTIC1H_Context *ctx, byte *obuf, int osz)
 {
+	BTIC1H_InitRice();
+
 	ctx->bs_win=0;
 	ctx->bs_pos=0;
 	ctx->bs_bits=0;
@@ -68,7 +115,7 @@ void BTIC1H_Rice_WriteAdSRiceDc(BTIC1H_Context *ctx, int v, int *rk)
 void BTIC1H_Rice_FlushBits(BTIC1H_Context *ctx)
 	{ ctx->FlushBits(ctx); }
 
-void BTIC1H_Rice_EmitByte(BTIC1H_Context *ctx, int i)
+force_inline void BTIC1H_Rice_EmitByte(BTIC1H_Context *ctx, int i)
 {
 	*ctx->bs_ct++=i;
 }
@@ -90,9 +137,10 @@ void BTIC1H_Rice_EmitByte(BTIC1H_Context *ctx, int i)
 }
 #endif
 
-void BTIC1H_Rice_WriteNBitsBasic(BTIC1H_Context *ctx, int v, int n)
+void BTIC1H_Rice_WriteNBitsBasic(
+	BTIC1H_Context *ctx, int v, int n)
 {
-	int i, j, k;
+	int i, j, k, l;
 
 #if 0
 	if(n<=0)
@@ -107,13 +155,23 @@ void BTIC1H_Rice_WriteNBitsBasic(BTIC1H_Context *ctx, int v, int n)
 	}
 #endif
 
+#ifdef BT1H_BITSTATS
 	ctx->bs_bits+=n;
+#endif
 
 	v&=(1<<n)-1;
 
 	j=ctx->bs_pos+n;
 	k=ctx->bs_win|(v<<(32-j));
-#if 1
+	
+#if defined(X86)||defined(X86_64)
+//	l=((k>>24)&0x00FF)|((k>>8)&0xFF00);
+	l=(u16)(k>>16); l=(l<<8)|(l>>8);
+	*(u16 *)ctx->bs_ct=l;
+	ctx->bs_ct+=j>>3;
+	k=k<<(j&(~7));
+	j=j&7;
+#else
 	if(j>=8)
 	{
 		*ctx->bs_ct++=(k>>24); k<<=8; j-=8;
@@ -121,6 +179,7 @@ void BTIC1H_Rice_WriteNBitsBasic(BTIC1H_Context *ctx, int v, int n)
 			{ *ctx->bs_ct++=(k>>24); k<<=8; j-=8; }
 	}
 #endif
+
 #if 0
 	while(j>=8)
 	{
@@ -133,6 +192,48 @@ void BTIC1H_Rice_WriteNBitsBasic(BTIC1H_Context *ctx, int v, int n)
 #endif
 	ctx->bs_pos=j;
 	ctx->bs_win=k;
+}
+
+default_inline void BTIC1H_Rice_WriteNBitsBasicNm(
+	BTIC1H_Context *ctx, int v, int n)
+{
+	int i, j, k, l;
+
+#if defined(X86)||defined(X86_64)
+
+#ifdef BT1H_BITSTATS
+	ctx->bs_bits+=n;
+#endif
+
+	j=ctx->bs_pos+n;
+	k=ctx->bs_win|(v<<(32-j));
+	
+//	l=((k>>24)&0x00FF)|((k>>8)&0xFF00);
+	l=(u16)(k>>16); l=(l<<8)|(l>>8);
+	*(u16 *)ctx->bs_ct=l;
+	ctx->bs_ct+=j>>3;
+	k=k<<(j&(~7));
+	j=j&7;
+	ctx->bs_pos=j;
+	ctx->bs_win=k;
+#else
+
+#ifdef BT1H_BITSTATS
+	ctx->bs_bits+=n;
+#endif
+
+	j=ctx->bs_pos+n;
+	k=ctx->bs_win|(v<<(32-j));
+	
+	if(j>=8)
+	{
+		*ctx->bs_ct++=(k>>24); k<<=8; j-=8;
+		if(j>=8)
+			{ *ctx->bs_ct++=(k>>24); k<<=8; j-=8; }
+	}
+	ctx->bs_pos=j;
+	ctx->bs_win=k;
+#endif
 }
 
 void BTIC1H_Rice_WriteNBitsH(BTIC1H_Context *ctx, u32 i, int n)
@@ -175,7 +276,10 @@ void BTIC1H_Rice_Write8BitsBasic(BTIC1H_Context *ctx, int v)
 {
 	int i, j, k;
 
+#ifdef BT1H_BITSTATS
 	ctx->bs_bits+=8;
+#endif
+
 	k=ctx->bs_win|((v&255)<<(24-ctx->bs_pos));
 	*ctx->bs_ct++=k>>24;
 	ctx->bs_win=k<<8;
@@ -183,13 +287,27 @@ void BTIC1H_Rice_Write8BitsBasic(BTIC1H_Context *ctx, int v)
 
 void BTIC1H_Rice_Write16BitsBasic(BTIC1H_Context *ctx, int v)
 {
-	int i, j, k;
+	int i, j, k, l;
 
+#if defined(X86)||defined(X86_64)
+#ifdef BT1H_BITSTATS
 	ctx->bs_bits+=16;
+#endif
+	k=ctx->bs_win|((v&65535)<<(16-ctx->bs_pos));
+	l=(u16)(k>>16);
+	l=(l<<8)|(l>>8);
+	*(u16 *)ctx->bs_ct=l;
+	ctx->bs_ct+=2;
+	ctx->bs_win=k<<16;
+#else
+#ifdef BT1H_BITSTATS
+	ctx->bs_bits+=16;
+#endif
 	k=ctx->bs_win|((v&65535)<<(16-ctx->bs_pos));
 	*ctx->bs_ct++=k>>24;
 	*ctx->bs_ct++=k>>16;
 	ctx->bs_win=k<<16;
+#endif
 }
 
 void BTIC1H_Rice_WriteRice(BTIC1H_Context *ctx, int v, int k)
@@ -246,23 +364,13 @@ void BTIC1H_Rice_WriteExpSRice(BTIC1H_Context *ctx, int v, int k)
 }
 #endif
 
-void BTIC1H_Rice_WriteAdRiceBasic(BTIC1H_Context *ctx, int v, int *rk)
+void BTIC1H_Rice_WriteAdRiceBasicI(BTIC1H_Context *ctx, int v, int *rk)
 {
 	int p, b, n, bp, bw;
 	int i, j, k;
 	
 	k=*rk;
 
-#if 0
-	if(!v)
-	{
-		BTIC1H_Rice_WriteNBits(ctx, 0, k+1);
-		if(k>0)k--;
-		*rk=k;
-		return;
-	}
-#endif
-	
 	p=v>>k;
 
 #if 1
@@ -270,7 +378,7 @@ void BTIC1H_Rice_WriteAdRiceBasic(BTIC1H_Context *ctx, int v, int *rk)
 	if(i<=16)
 	{
 		j=v&((1<<k)-1);
-		BTIC1H_Rice_WriteNBits(ctx, (0xFFFE<<k)|j, i);
+		BTIC1H_Rice_WriteNBitsBasic(ctx, (0xFFFE<<k)|j, i);
 
 #if 0
 		n=i;
@@ -317,8 +425,8 @@ void BTIC1H_Rice_WriteAdRiceBasic(BTIC1H_Context *ctx, int v, int *rk)
 
 #if 1
 	while(j>=16)
-		{ BTIC1H_Rice_WriteNBits(ctx, 0xFFFF, 16); j-=16; }
-	BTIC1H_Rice_WriteNBits(ctx, 0xFFFE, j+1);
+		{ BTIC1H_Rice_WriteNBitsBasic(ctx, 0xFFFF, 16); j-=16; }
+	BTIC1H_Rice_WriteNBitsBasic(ctx, 0xFFFE, j+1);
 #endif
 
 #if 0
@@ -329,7 +437,7 @@ void BTIC1H_Rice_WriteAdRiceBasic(BTIC1H_Context *ctx, int v, int *rk)
 
 //	j=v&((1<<k)-1);
 //	BTIC1H_Rice_WriteNBits(ctx, j, k);
-	BTIC1H_Rice_WriteNBits(ctx, v, k);
+	BTIC1H_Rice_WriteNBitsBasic(ctx, v, k);
 
 #if 1
 	if(p!=1)
@@ -359,6 +467,26 @@ void BTIC1H_Rice_WriteAdRiceBasic(BTIC1H_Context *ctx, int v, int *rk)
 #endif
 }
 
+void BTIC1H_Rice_WriteAdRiceBasic(BTIC1H_Context *ctx, int v, int *rk)
+{
+	int j;
+
+#if 1
+	if(!(v>>9))
+	{
+		j=btic1h_encrice8[(*rk<<9)|v];
+		if(j)
+		{
+			BTIC1H_Rice_WriteNBitsBasicNm(ctx, (u16)j, (j>>16)&15);
+			*rk=(j>>20)&15;
+			return;
+		}
+	}
+#endif
+
+	BTIC1H_Rice_WriteAdRiceBasicI(ctx, v, rk);
+}
+
 int BTIC1H_Rice_CountWriteAdRice(BTIC1H_Context *ctx, int v, int *rk)
 {
 	int j, k, p, n;
@@ -381,7 +509,7 @@ int BTIC1H_Rice_CountWriteAdRice(BTIC1H_Context *ctx, int v, int *rk)
 
 void BTIC1H_Rice_WriteAdSRiceBasic(BTIC1H_Context *ctx, int v, int *rk)
 {
-	BTIC1H_Rice_WriteAdRice(ctx, (v<<1)^(v>>31), rk);
+	BTIC1H_Rice_WriteAdRiceBasic(ctx, (v<<1)^(v>>31), rk);
 //	BTIC1H_Rice_WriteAdRice(ctx, (v>=0)?(v<<1):(((-v)<<1)-1), rk);
 }
 

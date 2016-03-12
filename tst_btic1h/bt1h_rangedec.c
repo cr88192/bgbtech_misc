@@ -647,6 +647,8 @@ int BTIC1H_Rice_SetupRead2(
 	cxbits=8+((i>>4)&7);
 	
 	ctx->slscl=0;
+	ctx->clryuv=0;
+	ctx->clrdty=0;
 
 	while(i&128)
 	{
@@ -669,6 +671,11 @@ int BTIC1H_Rice_SetupRead2(
 		{
 		case 1:
 			ctx->slscl=BTIC1H_DecodeReadVLI(ctx, &cs2)*4;
+			break;
+		case 2:
+			j=BTIC1H_DecodeReadVLI(ctx, &cs2);
+			ctx->clryuv=j&7;
+			ctx->clrdty=(j>>3)&7;
 			break;
 		default:
 			break;

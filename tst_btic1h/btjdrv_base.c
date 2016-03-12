@@ -30,6 +30,9 @@ THE SOFTWARE.
 #ifdef _MSC_VER
 #define BGBBTJ_DRVLOGFILE "F:\\bt1hdrv_log.txt"
 #define BGBBTJ_DRVCFGFILE "F:\\bt1hdrv_conf.txt"
+
+#define BGBBTJ_DRVLOGSFX "\\bt1hdrv_log.txt"
+#define BGBBTJ_DRVCFGSFX "\\bt1hdrv_conf.txt"
 #endif
 #ifdef __linux__
 #define BGBBTJ_DRVLOGFILE "~/.bt1hdrv_log.txt"
@@ -39,6 +42,7 @@ THE SOFTWARE.
 
 FILE *btjpg_log=NULL;
 char *btjpg_home;
+int btjpg_uselog=0;
 
 extern u32 btjpg_drv_defaultCodecFcc;
 extern int btjpg_drv_defaultCodecQfl;
@@ -63,6 +67,19 @@ int BTJPG_DriverTryLoadConfig(char *name)
 		if(a[0][0]==';')continue;
 		if(a[0][0]=='/')continue;
 		
+		if(!strcmp(a[0], "useLog"))
+		{
+			if(!strcmp(a[1], "true"))
+				btjpg_uselog=1;
+			continue;
+		}
+
+		if(!strcmp(a[0], "workerThreads"))
+		{
+			btic1h_workqueue_defaultworkers=atoi(a[1]);
+			continue;
+		}
+		
 		if(!strcmp(a[0], "defaultCodec"))
 		{
 			btjpg_drv_defaultCodecFcc=RIFF_MAKETAG(
@@ -78,6 +95,10 @@ int BTJPG_DriverTryLoadConfig(char *name)
 					btjpg_drv_defaultCodecQfl|=BTIC1H_QFL_USERC;
 				if(!strcmp(a[i], "rangecoder66"))
 					btjpg_drv_defaultCodecQfl|=BTIC1H_QFL_USERC66;
+				if(!strcmp(a[i], "slice"))
+					btjpg_drv_defaultCodecQfl|=BTIC1H_QFL_USESLICE;
+				if(!strcmp(a[i], "gdbdr"))
+					btjpg_drv_defaultCodecQfl|=BTIC1H_QFL_USEGDBDR;
 			}
 		}
 	}
@@ -90,15 +111,35 @@ int BTJPG_DriverTryLoadConfig(char *name)
 void BTJPG_DriverInit(void)
 {
 	static int init=0;
+	char tb1[1024];
+	char tb2[1024];
 
 	if(init)return;
 	init=1;
+
+#ifdef _MSC_VER
+	GetEnvironmentVariable("HOME", tb1, 512);
+
+	strcpy(tb2, tb1);
+	strcat(tb2, BGBBTJ_DRVCFGSFX);
+	BTJPG_DriverTryLoadConfig(tb2);
 	
-	btjpg_log=fopen(BGBBTJ_DRVLOGFILE, "at");
+	if(btjpg_uselog)
+	{
+		strcpy(tb2, tb1);
+		strcat(tb2, BGBBTJ_DRVLOGSFX);
+		btjpg_log=fopen(tb2, "at");
+		if(btjpg_log)
+			{ btjpg_puts("--------\n"); }
+	}
+#else
+	if(!btjpg_log)
+		btjpg_log=fopen(BGBBTJ_DRVLOGFILE, "at");
 	if(btjpg_log)
 		{ btjpg_puts("--------\n"); }
 
 	BTJPG_DriverTryLoadConfig(BGBBTJ_DRVCFGFILE);
+#endif
 }
 
 void BTJPG_DriverDeinit(void)

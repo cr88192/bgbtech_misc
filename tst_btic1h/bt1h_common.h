@@ -26,8 +26,11 @@ THE SOFTWARE.
 #define BT1H_TSKIP_MAX 4	//translation-skip max value
 
 // #define BT1H_CHEAPYUV		//use cheaper YUV
+// #define BT1H_USEGDBDR		//use GDbDr
 
 #define BT1H_ENABLE_AX		//enable alpha extension
+
+#define BT1H_BITSTATS
 
 // #define BT1H_DEBUG_TRAPRANGE
 
@@ -168,6 +171,7 @@ typedef signed long long s64;
 #define	BTIC1H_QFL_USERC		(1<<10)		//Use Range Coder
 #define	BTIC1H_QFL_USERC66		(1<<11)		//Use Range Coder if Q<66%
 #define	BTIC1H_QFL_USESLICE		(1<<12)		//Use Slice Coding
+#define	BTIC1H_QFL_USEGDBDR		(1<<13)		//Use Slice Coding
 
 #ifndef BTIC1H_API
 #define BTIC1H_API __declspec(dllexport)
@@ -178,8 +182,11 @@ typedef struct BTIC1H_Context_s BTIC1H_Context;
 struct BTIC1H_Context_s {
 u32 mark1;
 
+BTIC1H_Context *wqnext;				//next in work queue
+
 //bitstream
 byte *bs_ct;						//bitstream output
+byte *bs_cts;						//bitstream output start
 byte *bs_cte;						//bitstream output end
 
 byte *bs_cs;						//bitstream input
@@ -209,6 +216,7 @@ byte *bfs_mdlrk;					//bitfs model rk
 
 //video stuff
 
+byte *ibuf;							//image buffer
 byte *blks;							//blocks buffer
 byte *lblks;						//last-frame blocks buffer
 byte *blksfl;
@@ -220,6 +228,7 @@ byte cmdwpos;						//command window position
 int xs, ys, clrs;					//resolution and colorspace
 int xbsz, ybsz;						//image size in blocks
 int nblks;							//image blocks count
+int qfl;							//quantization and flags
 
 int cy, cu, cv, cd;					//Current YUVD
 int qfy, qfuv, qfd;					//Aurrent Quantization Factors
@@ -243,6 +252,9 @@ byte tgtupdmask;					//Target YUVD update mask (encode).
 byte absupdmask;					//YUVD update mask (absolute).
 byte nextabsupdmask;				//Next YUVD update mask (absolute).
 byte colorpred;						//Color Prediction Mode
+
+byte clryuv;						//color YUV type
+byte clrdty;						//color data type
 
 u32 mark2;
 
@@ -318,6 +330,11 @@ int rc_msk_raw;
 byte *rc_mdl_raw;
 byte *rc_mdl_rc;
 
+int slys;
+int slbs;
+int slix;
+int sltid;
+
 int (*NextByte)(BTIC1H_Context *ctx);
 int (*ReadNBits)(BTIC1H_Context *ctx, int n);
 int (*Read8Bits)(BTIC1H_Context *ctx);
@@ -339,6 +356,24 @@ void (*WriteAdSRiceDc)(BTIC1H_Context *ctx, int v, int *rk);
 void (*FlushBits)(BTIC1H_Context *ctx);
 int (*EmitCommandCode)(BTIC1H_Context *ctx, int cmd);
 
+void (*DecTransColor1)(BTIC1H_Context *ctx,
+	int cy, int cu, int cv,
+	int *rcr, int *rcg, int *rcb);
+void (*DecTransColor1AB)(BTIC1H_Context *ctx,
+	int cya, int cua, int cva, int *rcra, int *rcga, int *rcba,
+	int cyb, int cub, int cvb, int *rcrb, int *rcgb, int *rcbb);
+void (*DecTransColor2)(BTIC1H_Context *ctx,
+	int cy0, int cy1, int cu, int cv,
+	int *rcr0, int *rcg0, int *rcb0,
+	int *rcr1, int *rcg1, int *rcb1);
+void (*DecTransColor420)(BTIC1H_Context *ctx,
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	int *rcr0, int *rcg0, int *rcb0,
+	int *rcr1, int *rcg1, int *rcb1,
+	int *rcr2, int *rcg2, int *rcb2,
+	int *rcr3, int *rcg3, int *rcb3);
+
+int (*DoWork)(BTIC1H_Context *ctx);
 
 u32 mark3;
 };
