@@ -65,12 +65,30 @@ If extended headers follow, the format is used:
 ** LLL=Length of header (1-7 bytes)
 ** TTTT=Header Tag (1-15)
 
-For extended headers, both length and tag of 0 are escape codes, and a VLI tag will follow. Extended headers are reserved for cases that relate to the format of the bitstream, and as such will depend on the type of bitstream used. As such, an unrecognized extended header means the frame should be rejected.
+For extended headers, both length and tag of 0 are escape codes, and a VLI length or tag will follow. Extended headers are reserved for cases that relate to the format of the bitstream, and as such will depend on the type of bitstream used. As such, an unrecognized extended header means the frame should be rejected.
+
+If both an explicit length and tag are used, then the length will precede the tag.
+
+The length encodes the full size of the header (includes tag byte, as well as the explicit tag and length fields, in addition to any payload data).
+
 
 Ext Header 1:
 * Sliced Image
 * Contents are a VLI encoding the number of scanlines per slice.
-* If absent, slices are not used, and the whole image is a single bitstream.
+* If zero or absent, slices are not used, and the whole image is a single bitstream.
+* The value is stored divided by 4. As such, the value is required to be a multiple of 4.
+
+Ext Header 2:
+* Colorspace
+* Bits 0-2: Color Transform
+** 0=Default/YCbCr
+** 1=CheapYUV
+** 2=GDbDr
+* Bits 3-5: Bit depth
+** 0=8-bit LDR
+** 1=10-bit LDR
+** 2=12-bit LDR
+** 3=16-bit HDR
 
 
 VLI (Unsigned, 32-bit)
@@ -107,13 +125,20 @@ Signed Rice values (AdSRice) will have the sign folded into the LSB (0, -1, 1, -
 
 Colorspaces:
 * YCbCr, with sample-points ranging from 0 to 255.
-* Alternate:
+* CheapYUV:
 ** Y=(2*G+B+R) SHR 2
 ** U=((B-Y) SHR 1)+128
 ** V=((R-Y) SHR 1)+128
 ** B'=Y+((U-128) SHL 1)
 ** R'=Y+((V-128) SHL 1)
 ** G'=(4*Y-B-R) SHR 1
+* GDbDr:
+** Y=G
+** U=((B-G) SHR 1)+128
+** V=((R-G) SHR 1)+128
+** B'=Y+((U-128) SHL 1)
+** G'=Y
+** R'=Y+((V-128) SHL 1)
 
 
 Color-points are represented mostly as YUVD, YUV encoding the center color, and D the difference between the brightest and darkest colors along the Y axis:
@@ -160,6 +185,9 @@ The use of YUVD or YUVDyuv will be two separate color sub-modes. Blocks which us
 * HDR will use a 16-bit Half-Float space.
 * Ranges in this case are 0 to 65535, and +/- 65536.
 * Bias for absolute colors is 0x3800 (+0.5), rather than 128.
+** Possible: HDR will map positive values as 0..32767
+** Negative values will map to (-32768)..(-1)
+** Will be essentially stored as one's complement.
 
 
 Delta Color:
@@ -200,6 +228,7 @@ With 2bpp block formats:
 * PixelBlock4x2: grid of 4x2 pixels (reduced vertical), 16 bits
 * PixelBlock2x4: grid of 2x4 pixels (reduced horizontal), 16 bits
 * PixelBlock4x4_UV2x2: grid of 4x4 pixels + 2x 2x2, 48 bits
+* PixelBlock4x4_UV2x4: grid of 4x4 pixels + 2x 2x4, 64 bits
 
 
 A 1bpp case will exist:
@@ -219,7 +248,9 @@ A 3bpp case will also exist:
 * 7=ColorB
 
 The 4x4x3 block type will require 48 bits for pixel data.
-* PixelBlock4x4x3_UV2x2: grid of 4x4x3 pixels + 2x 2x2, 96 bits
+* PixelBlock4x4x3: grid of 4x4x3 pixels, 48 bits
+* PixelBlock4x4x3_UV2x2: grid of 4x4x3 pixels + 2x 2x2, 64 bits
+* PixelBlock4x4x3_UV2x4: grid of 4x4x3 pixels + 2x 2x4, 80 bits
 * PixelBlock4x4x3_UV4x4: grid of 4x4x3 pixels + 2x 4x4, 112 bits
 
 
@@ -359,17 +390,21 @@ Commands:
 * C(1C) DeltaYUV*4
 **  Logical 4:2:0, 2x2 with 1 color per pixel
 **  Colors are encoded in Hilbert(2x2) order
+**  Deprecate?
 * C(1D) DeltaYUVD*4, Pixblock4x4
 **  Logical 4:2:0, 4x4 consisting of 2x2 sub-blocks
 **  Colors are encoded in Hilbert(2x2) order
+**  Deprecate?
 * C(1E) DeltaYUV*16
 **  Logical 4:4:4, 4x4 with 1 color per pixel
 **  Pixels are encoded in Hilbert(4x4) order
 **  Note: Non-Alpha Only
+**  Deprecate?
 * C(1F) AbsYUV*16
 **  Logical 4:4:4, 4x4 with 1 color per pixel
 **  Pixels are encoded in Hilbert(4x4) order
 **  Note: Non-Alpha Only
+**  Deprecate?
 
 * C(20) End Of Data
 ** Logical end of bitstream data. For multi-segment images, indicates the end of the current segment.
@@ -380,6 +415,9 @@ Commands:
 * C(22) RunCount, XOffset, YOffset
 ** Skip+Translate, Blocks are copied from the prior frame.
 ** Offsets indicate the source position in blocks relative to the current block.
+** Referenced blocks may not fall outside the bounds of the current image frame.
+** Blocks will be seen as they were in the previous frame.
+
 
 * C(23), Var, Val
 ** Set Parameter (Signed Integer)
@@ -409,9 +447,11 @@ Commands:
 * C(2E) DeltaY*16, DeltaUV*4
 **  Logical 4:2:0, Pixels are delta-coded, with Y and UV in Hilbert order.
 **  Note: Non-Alpha Only
+**  Deprecate?
 * C(2F) AbsY*16, AbsUV*4
 **  Logical 4:2:0, Pixels are absolute, with Y and UV in Hilbert order.
 **  Note: Non-Alpha Only
+**  Deprecate?
 
 * C(30) DeltaYUVDyuv, Pixblock4x4_UV2x2
 **  Logical 4:2:0, 4x4 Y block followed by 2x2 U and V sub-blocks
@@ -436,6 +476,23 @@ Commands:
 ** Separately interpolated YUV.
 ** YUVDyuv only.
 * C(37) RunCount, PixelBlock2x2_UV2x2*RunCount
+** Separately interpolated YUV.
+** YUVDyuv only.
+
+* C(38) DeltaYUVDyuv, Pixblock4x4_UV2x4
+**  Logical 4:2:2, 4x4 Y block followed by 2x4 U and V sub-blocks
+* C(39) DeltaYUVDyuv, Pixblock4x4x3_UV2x4
+**  Logical 4:2:2, 4x4x3 Y block followed by 2x4x2 U and V sub-blocks
+* C(3A) DeltaYUVDyuv, Pixblock4x4x3_UV2x4x3
+**  Logical 4:2:2, 4x4x3 Y block followed by 2x4x3 U and V sub-blocks
+
+* C(3C) RunCount, PixelBlock4x4_UV2x4*RunCount
+** Separately interpolated YUV.
+** YUVDyuv only.
+* C(3D) RunCount, PixelBlock4x4x3_UV2x4*RunCount
+** Separately interpolated YUV.
+** YUVDyuv only.
+* C(3E) RunCount, PixelBlock4x4x3_UV2x4x3*RunCount
 ** Separately interpolated YUV.
 ** YUVDyuv only.
 
@@ -586,10 +643,15 @@ Commands:
 ** Skip+Translate, Blocks are copied from the prior frame.
 ** Offsets indicate the source position in blocks relative to the current block.
 
+
 === (Side Info) Metablock2 ===
 
 Metablock is the block representation used internally by the codec.
 It represents an intermediate step between the internal bitstream Encode/Decode process, and the Input/Output framebuffer.
+
+Addition of HDR Mode:
+* Frames may only be HDR or LDR
+* Different blocks will be used between them.
 
 
 Reserve 256 bits.
@@ -621,10 +683,8 @@ Reserve 256 bits.
  d==0: Flat or Special
   M==0: Flat
   M==1: 2x2x2bpp (B)
-    Pb=Diff
     Pc=Pixel Bits
   M==2: 4x4x1bpp (B)
-    Pb=Diff
     Pc/Pd=Pixel Bits
   M==3: Skip (No Translate)
   M==4: Skip+Translate
@@ -632,21 +692,17 @@ Reserve 256 bits.
     Pd=X Offset
 
   M==5: 2x2x1bpp (B)
-    Pb=Diff
     Pc=Pixel Bits
   M==6: 4x4x3bpp (YUVD, B)
-    Pb=Diff
     Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits
   M==7: YUV 4:2:0 (D)
     Y0..Y15 (16..31), U0..U3 (8..11), V0..V3 (12..15)
   M==8: 2x1x2bpp (B)
   M==9: 1x2x2bpp (B)
-    Pb=Diff
     Pc=Pixel Bits
 
   M==10: 4x2x2bpp (B)
   M==11: 2x4x2bpp (B)
-    Pb=Diff
     Pc/Pd=Pixel Bits
   M==12: 4x2x2bpp (YUVDyuv, B)
   M==13: 2x4x2bpp
@@ -676,15 +732,29 @@ Reserve 256 bits.
     Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x3)
     Pc=Pixel Bits (U, 2x2x2)
     Pd=Pixel Bits (V, 2x2x2)
-  M==23: 4x4x2bpp 4:2:0 (YUVDyuv, B/E)
+  M==23: 2x2x2bpp 4:2:0 (YUVDyuv, B/E)
     Pc=Pixel Bits (Y, 2x2x2)
     Qe=Pixel Bits (U, 2x2x2)
     Qf=Pixel Bits (V, 2x2x2)
 
+  M==24: 4x4x2bpp 4:2:2 (YUVDyuv, E)
+    Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x2)
+    Sa/Sb=Pixel Bits (U, 2x4x2)
+    Ta/Tb=Pixel Bits (V, 2x4x2)
+  M==25: 4x4x3bpp 4:2:2 (YUVDyuv, E)
+    Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x3)
+    Sa/Sb=Pixel Bits (U, 2x4x2)
+    Ta/Tb=Pixel Bits (V, 2x4x2)
+  M==26: 4x4x3bpp 4:2:2 (YUVDyuv, E)
+    Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x3)
+    Sa/Sb/Sc=Pixel Bits (U, 2x4x3)
+    Ta/Tb/Tc=Pixel Bits (V, 2x4x3)
+
 
 Alpha Block
- A,D,Pe,Pf, Pa,Pb,Pc,Pd
- A,0,D, M,  Pa,Pb,Pc,Pd
+ A: A,D,Pe,Pf, Pa,Pb,Pc,Pd (A-E)
+ B: A,0, D, M, Pa,Pb,Pc,Pd (A-E)
+
  A=(A0+A1) SHR 1
  D=A1-A0
 
@@ -707,6 +777,57 @@ Alpha Block
   M==7: Flat
 
 
+HDR Pixel Blocks
+ HA: CY-Cy,DY-Dy, CU-Cu,DU-Du, CV-Cv,DV-Dv, Sa,Sb,Sc,Ta,
+     Tb,Tc,Qe,Qf, Qa,Qb,Qc,Qd,  a, a, a, a,  a, a, a, a
+ HB:  Z- M,CY-Cy, DY-Dy,CU,Cu, DU,Du,CV,Cv, DV,Dv,Sa,Sb,
+     Ta,Tb,Qe,Qf, Qa,Qb,Qc,Qd,  a, a, a, a,  a, a, a, a
+ HC:  Z- M,CY-Cy, DY-Dy,CU-Cu, DU-Du,CV-Cv, DV-Dv,Pc,Pd,
+     Qg,Qh,Qe,Qf, Qa,Qb,Qc,Qd, Sa,Sb,Sc,Sd, Ta,Tb,Tc,Td
+ CY-Cy, ...: 16-bit Half-Float Component (HDR).
+ Z-M: Z+Mode, High 8 bits encode 0xFF (NaN)
+
+  Default: 4x4x3bpp 4:2:2 (Y4x4x3+UV2x4x3)
+ 
+  M==0: Flat (YUV, HB)
+  M==1: 2x2x2bpp (YUVD, HB)
+  M==2: 4x2x2bpp (YUVD, HB)
+  M==3: 2x4x2bpp (YUVD, HB)
+  M==4: 4x4x2bpp (YUVD, HB)
+    Qa/Qb/Qc/Qd=Pixel Bits
+  M==5: 4x4x2bpp (YUVDyuv, HB)
+    Qa/Qb/Qc/Qd=Pixel Bits
+  M==6: 4x4x3bpp (YUVD, HB)
+    Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits
+  M==7: 4x4x3bpp (YUVDyuv, HB)
+    Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits
+
+  M==16: 4x4x2bpp 4:2:0 (YUVDyuv, HB)
+    Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x2)
+    Sa=Pixel Bits (U, 2x2x2)
+    Ta=Pixel Bits (V, 2x2x2)
+  M==17: 4x4x2bpp 4:2:2 (YUVDyuv, HB)
+    Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x2)
+    Sa/Sb=Pixel Bits (U, 2x4x2)
+    Ta/Tb=Pixel Bits (V, 2x4x2)
+  M==18: 4x4x3bpp 4:2:0 (YUVDyuv, HB)
+    Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x3)
+    Sa=Pixel Bits (U, 2x2x2)
+    Ta=Pixel Bits (V, 2x2x2)
+  M==19: 4x4x3bpp 4:2:2 (YUVDyuv, HB)
+    Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x3)
+    Sa/Sb=Pixel Bits (U, 2x4x2)
+    Ta/Tb=Pixel Bits (V, 2x4x2)
+  M==20: 4x4x3bpp 4:4:4 (YUVDyuv, HC)
+    Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x3)
+    Sa/Sb/Sc/Sd=Pixel Bits (U, 4x4x2)
+    Ta/Tb/Tc/Td=Pixel Bits (V, 4x4x2)
+
+HDR Alpha Block
+ HA: A-a, D- d, Pa,Pb,Pc,Pd (F/G)
+ HB: Z,M, A- a, D-  d,Pc,Pd (F/G)
+
+
 === Mini-Mode ===
 
 Mini-Mode will be a BTIC1H subset.
@@ -724,6 +845,8 @@ Each slice is encoded with its own bitstream.
 The slices may be encoded or decoded independently and in any order.
 
 The slices are packed end-to-end in the frame, each prefixed with a VLI giving its coded length in bytes.
+
+While the slice only encodes blocks within a certain range, note that motion compensation may still refer to blocks outside of the range controlled by this slice. The contents of skip blocks will be seen as they were in the previous frame.
 
 
 == (Optional) Range Coder ==

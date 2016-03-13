@@ -1324,12 +1324,32 @@ byte *BTIC1H_FillBlock2x2AB(BTIC1H_Context *ctx,
 	return(BTIC1H_FillBlock2x2(ctx, px, ct, stride));
 }
 
-int BTIC1H_DecodeCopyBlocks(
+int BTIC1H_DecodeCopyBlocks(BTIC1H_Context *ctx,
 	byte *dblk, byte *sblk, int nblks, int stride)
 {
 	byte *ct, *cs, *cse;
 	if(stride==32)
 	{
+#ifdef BT1H_ENABLE_AX
+		if(!ctx->hasax)
+		{
+//			memcpy(dblk, sblk, nblks*stride);
+//			return(0);
+
+			ct=dblk; cs=sblk; cse=sblk+nblks*32;
+			while(cs<cse)
+			{
+//				memcpy(ct, cs, 32);
+				((u64 *)ct)[0]=((u64 *)cs)[0];
+				((u64 *)ct)[1]=((u64 *)cs)[1];
+				((u64 *)ct)[2]=((u64 *)cs)[2];
+				((u64 *)ct)[3]=((u64 *)cs)[3];
+				ct+=32; cs+=32;
+			}
+			return(0);
+		}
+#endif
+
 		ct=dblk; cs=sblk; cse=sblk+nblks*32;
 		while(cs<cse)
 		{
@@ -1525,23 +1545,32 @@ int BTIC1H_DecodeBlocksCtx(BTIC1H_Context *ctx,
 	ct=blks; cte=ct+nblks*stride;
 	csl=lblks; csle=csl+nblks*stride;
 	
-	blksfl=ctx->blksfl;
+//	blksfl=ctx->blksfl;
+
 	i=stride; j=0;
 	while(i>1)
 		{ i=i>>1; j++; }
 	blkshr=j;
+
+	blksfl=ctx->blksfl+((blks-ctx->blks)>>blkshr);
 	
 	if(lblks && ctx->lblks && (lblks>=ctx->lblks) &&
 		(lblks<(ctx->lblks+(ctx->nblks*stride))))
 	{
 		lblks2=ctx->lblks;
 		csle2=ctx->lblks+(ctx->nblks*stride);
+		blksfl=ctx->blksfl+((lblks-ctx->lblks)>>blkshr);
 	}else
 	{
 		lblks2=lblks;
 		csle2=csle;
+		blksfl=NULL;
 	}
-	
+
+	if(blksfl)
+		memset(blksfl, 0, nblks);
+//	memset(ctx->blksfl, 0, ctx->nblks);
+
 	ret=0;
 	while((ct<cte) && !ret)
 	{
@@ -1779,13 +1808,16 @@ int BTIC1H_DecodeBlocksCtx(BTIC1H_Context *ctx,
 			n=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_cmdcnt));
 			if(!lblks)break;
 			csl=lblks+(ct-blks);
-			cfl=blksfl+((ct-blks)>>blkshr);
 //			memcpy(ct, csl, n*stride);
 			if((n<=0) || (ct+(n*stride))>cte)
 				{ ret=-1; break; }
-			BTIC1H_DecodeCopyBlocks(ct, csl, n, stride);
-			for(i=0; i<n; i++)
-				{ cfl[i]|=1; }
+			BTIC1H_DecodeCopyBlocks(ctx, ct, csl, n, stride);
+			if(blksfl)
+			{
+				cfl=blksfl+((ct-blks)>>blkshr);
+				for(i=0; i<n; i++)
+					{ cfl[i]|=1; }
+			}
 			ct=ct+(n*stride);
 			break;
 		case 0x22:
@@ -1797,7 +1829,7 @@ int BTIC1H_DecodeBlocksCtx(BTIC1H_Context *ctx,
 			if((csl<lblks2) || ((csl+(n*stride))>csle2))
 				{ ret=-1; break; }
 //			memcpy(ct, csl, n*stride);
-			BTIC1H_DecodeCopyBlocks(ct, csl, n, stride);
+			BTIC1H_DecodeCopyBlocks(ctx, ct, csl, n, stride);
 			ct=ct+(n*stride);
 			break;
 		case 0x23:
@@ -2212,6 +2244,8 @@ int BTIC1H_DecodeWorkSliceCtx(BTIC1H_Context *ctx)
 	case BTIC1H_PXF_UYVY:
 	case BTIC1H_PXF_YUYV:
 		str=2; break;
+	default:
+		str=4; break;
 	}
 
 	if(ctx->flip)
@@ -2360,7 +2394,7 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 
 	BTIC1H_SetupDecodeContextInitial(ctx);
 
-	memset(ctx->blksfl, 0, ctx->nblks);
+//	memset(ctx->blksfl, 0, ctx->nblks);
 
 //	BTIC1H_Rice_SetupRead(ctx, cs, cse-cs);
 //	BTIC1H_Rice_SetupRead(ctx, src+4, ssz-4);
@@ -2382,6 +2416,8 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 		return(-1);
 		break;
 	}
+
+	ctx->hasax=(csax!=NULL);
 
 	if(ctx->slscl)
 	{
@@ -2407,6 +2443,7 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 				etctx->clryuv=ctx->clryuv;
 				etctx->clrdty=ctx->clrdty;
 				etctx->flip=ctx->flip;
+				etctx->hasax=ctx->hasax;
 
 				etctx->xbsz=ctx->xbsz;
 				etctx->ybsz=ctx->ybsz;
@@ -2438,8 +2475,10 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 			BTIC1H_Work_CheckSpawnWorkers(
 				btic1h_workqueue_defaultworkers);
 			
-			while(BTIC1H_Work_GetTidCountNb(sltid)>0)
-				{ thSleep(1); }
+			BTIC1H_Work_WaitTaskComplete(sltid);
+			
+//			while(BTIC1H_Work_GetTidCountNb(sltid)>0)
+//				{ thSleep(1); }
 			BTIC1H_Work_FreeTidNb(sltid);
 			for(i=0; i<slys; i++)
 				{ BTIC1H_FreeContextF(encjob[i]); }

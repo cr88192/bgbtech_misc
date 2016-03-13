@@ -2481,6 +2481,8 @@ int BTIC1H_EncodeWorkSliceCtx(BTIC1H_Context *ctx)
 	case BTIC1H_PXF_UYVY:
 	case BTIC1H_PXF_YUYV:
 		str=2; break;
+	default:
+		str=4; break;
 	}
 
 	if(ctx->flip)
@@ -2737,8 +2739,9 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 			BTIC1H_Work_CheckSpawnWorkers(
 				btic1h_workqueue_defaultworkers);
 			
-			while(BTIC1H_Work_GetTidCountNb(sltid)>0)
-				{ thSleep(1); }
+			BTIC1H_Work_WaitTaskComplete(sltid);
+//			while(BTIC1H_Work_GetTidCountNb(sltid)>0)
+//				{ thSleep(1); }
 			BTIC1H_Work_FreeTidNb(sltid);
 
 			for(i=0; i<slys; i++)
@@ -2746,7 +2749,16 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 				etctx=encjob[i];
 
 				k=etctx->bs_ct-etctx->bs_cts;
-				if(k>16379)
+				if(k>2097147)
+				{
+					j=k+4;
+					ct[0]=0xE0+((j>>24)&15);
+					ct[1]=j>>16;
+					ct[2]=j>> 8;
+					ct[3]=j    ;
+					memcpy(ct+4, etctx->bs_cts, k);
+					ct+=j;
+				}else if(k>16379)
 				{
 					j=k+3;
 					ct[0]=0xC0+((j>>16)&31);

@@ -255,6 +255,7 @@ byte colorpred;						//Color Prediction Mode
 
 byte clryuv;						//color YUV type
 byte clrdty;						//color data type
+byte hasax;
 
 u32 mark2;
 

@@ -26,7 +26,7 @@ int btic1h_QueueWorker(void *data)
 //	btic1h_workqueue_workers++;
 	ljob=NULL;
 	idle1=1024;
-	idle2=64;
+	idle2=32;
 	while(idle1>0)
 	{
 		btic1h_thLockQueue();
@@ -50,7 +50,7 @@ int btic1h_QueueWorker(void *data)
 		}
 		
 		idle1=1024;
-		idle2=64;
+		idle2=32;
 		job->DoWork(job);
 		ljob=job;
 
@@ -123,4 +123,42 @@ void BTIC1H_Work_FreeTidNb(int tid)
 int BTIC1H_Work_GetTidCountNb(int tid)
 {
 	return(btic1h_workqueue_taskcnt[tid]-1);
+}
+
+void BTIC1H_Work_WaitTaskComplete(int tid)
+{
+	static int iysf=128;
+	int i, iys, iyc;
+
+	i=BTIC1H_Work_GetTidCountNb(tid);
+	iys=i;
+//	iyc=(iys*5)>>4;
+	iyc=(iys*iysf)>>8;
+	while(i>0)
+	{
+		if(i>iyc)
+		{
+			thSleep(1);
+			i=BTIC1H_Work_GetTidCountNb(tid);
+//			if(!i && (iysf<240))
+//				iysf+=16;
+//			if(!i && (iysf<252))
+//				iysf+=4;
+			if(!i)
+			{
+				iysf+=32;
+				if(iysf>255)iysf=255;
+			}
+			continue;
+		}
+		thSleep(0);
+		i=BTIC1H_Work_GetTidCountNb(tid);
+//		if(i && (iysf>0))
+		if(i)
+		{
+			iysf--;
+			if(iysf<1)iysf=1;
+			iyc=(iys*iysf)>>8;
+		}
+	}
 }

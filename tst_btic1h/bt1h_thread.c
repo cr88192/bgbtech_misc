@@ -506,9 +506,35 @@ void thLockFastMutex(void *p)
 	int i;
 
 	if(!p)return;
-	while(InterlockedExchange((PLONG)p, 2))
-		Sleep(0);
-	*(volatile int *)p=1;
+
+	i=65536;
+	while((i>0) && InterlockedExchange((PLONG)p, 2))i--;
+	if(i>0)
+	{
+		*(volatile int *)p=1;
+		return;
+	}
+
+	i=65536;
+	while((i>0) && InterlockedExchange((PLONG)p, 2))
+		{ Sleep(0); i--; }
+	if(i>0)
+	{
+		*(volatile int *)p=1;
+		return;
+	}
+
+	i=16384;
+	while((i>0) && InterlockedExchange((PLONG)p, 2))
+		{ Sleep(1); i--; }
+	if(i>0)
+	{
+		*(volatile int *)p=1;
+		return;
+	}
+
+	printf("thLockFastMutex: deadlock\n");
+//	*(volatile int *)p=1;
 }
 
 int thTryLockFastMutex(void *p)

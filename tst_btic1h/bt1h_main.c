@@ -341,7 +341,7 @@ int main(int argc, char *argv[])
 	ctx->flip=0;
 
 	t0=clock(); t1=t0; nf=0; ncf=0;
-	while((t1>=t0) && (t1<(t0+(15*CLOCKS_PER_SEC))))
+	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
 	{
 		yibuf2=yibuf;
 
@@ -407,7 +407,7 @@ int main(int argc, char *argv[])
 
 #if 1
 	t0=clock(); t1=t0; nf=0; ncf=0;
-	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
+	while((t1>=t0) && (t1<(t0+(15*CLOCKS_PER_SEC))))
 	{
 		
 //		BTIC1H_EncodeImageYUY2(blks, yibuf2, xs, ys, 85);
