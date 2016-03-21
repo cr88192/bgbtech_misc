@@ -785,7 +785,7 @@ HDR Pixel Blocks
  HC:  Z- M,CY-Cy, DY-Dy,CU-Cu, DU-Du,CV-Cv, DV-Dv,Pc,Pd,
      Qg,Qh,Qe,Qf, Qa,Qb,Qc,Qd, Sa,Sb,Sc,Sd, Ta,Tb,Tc,Td
  CY-Cy, ...: 16-bit Half-Float Component (HDR).
- Z-M: Z+Mode, High 8 bits encode 0xFF (NaN)
+ Z-M: Z+Mode, High 8 bits encode 0x82 (-NaN, ~)
 
   Default: 4x4x3bpp 4:2:2 (Y4x4x3+UV2x4x3)
  
