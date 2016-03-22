@@ -22,6 +22,8 @@ THE SOFTWARE.
 
 #if 1
 
+int btjpg_drv_defaultCodecDbfl;
+
 int BTIC1H_ReadCommandCode(BTIC1H_Context *ctx)
 {
 	return(ctx->ReadCommandCode(ctx));
@@ -47,7 +49,8 @@ int BTIC1H_ReadCommandCodeBase(BTIC1H_Context *ctx)
 			j=ctx->cmdwin[ctx->cmdwpos&255];
 #ifndef BTIC1H_VFWDRV
 			if(j==0xFF)
-				{ *(int *)-1=-1; }
+				{ BT1H_TRAPCRASH }
+//				{ *(int *)-1=-1; }
 #endif
 			return(j);
 		}
@@ -68,7 +71,8 @@ int BTIC1H_ReadCommandCodeBase(BTIC1H_Context *ctx)
 			ctx->cmdidx[k]=i0;	ctx->cmdidx[j]=i1;
 
 			if(j==0xFF)
-				{ *(int *)-1=-1; }
+				{ BT1H_TRAPCRASH }
+//				{ *(int *)-1=-1; }
 
 			return(j);
 		}
@@ -331,7 +335,8 @@ void BTIC1H_DecodeDeltaYUV(BTIC1H_Context *ctx)
 		(ctx->cv<0) || (ctx->cv>255))
 	{
 #ifndef BTIC1H_VFWDRV
-		*(int *)-1=-1;
+//		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 #endif
 	}
 #endif
@@ -417,7 +422,8 @@ void BTIC1H_DecodeDeltaYUVD(BTIC1H_Context *ctx)
 		((ctx->cd<0) || (ctx->cd>255)))
 	{
 #ifndef BTIC1H_VFWDRV
-		*(int *)-1=-1;
+//		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 #endif
 	}
 #endif
@@ -568,14 +574,16 @@ void BTIC1H_DecodeDeltaYUVDyuv(BTIC1H_Context *ctx)
 		((ctx->cu<0) || (ctx->cu>255)) ||
 		((ctx->cv<0) || (ctx->cv>255)))
 	{
-		*(int *)-1=-1;
+//		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 
 	if(	((ctx->cdy<-256)||(ctx->cdy>255))||
 		((ctx->cdu<-256)||(ctx->cdu>255))||
 		((ctx->cdv<-256)||(ctx->cdv>255)))
 	{
-		*(int *)-1=-1;
+//		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 #endif
 #endif
@@ -888,6 +896,13 @@ u32 BTIC1H_ReadPix32_2x4(BTIC1H_Context *ctx)
 	
 	k=(i0<<24)|(i1<<16)|(i2<<8)|i3;
 	return(k);
+}
+
+u32 BTIC1H_ReadPix24_2x4x3(BTIC1H_Context *ctx)
+{
+	u32 i;
+	i=BTIC1H_Rice_Read24Bits(ctx);
+	return(i);
 }
 
 u64 BTIC1H_ReadPix48_4x4x3(BTIC1H_Context *ctx)
@@ -1254,6 +1269,47 @@ byte *BTIC1H_FillBlock2x2B_UV2x2(BTIC1H_Context *ctx,
 	ct[10]=pxu;			ct[11]=pxv;
 	ct[12]=0;			ct[13]=0;
 	ct[14]=0;			ct[15]=0;
+	ct+=stride;
+	return(ct);
+}
+
+byte *BTIC1H_FillBlock4x4x3B_UV2x4x3(BTIC1H_Context *ctx,
+	u64 pxy, u32 pxu, u32 pxv, byte *ct, int stride)
+{
+	ct[ 0]=ctx->cy;		ct[ 1]=ctx->cu;
+	ct[ 2]=ctx->cv;		ct[ 3]=0;
+	ct[ 4]=26;			ct[ 5]=(ctx->cdy>>1)+128;
+	ct[ 6]=0;			ct[ 7]=0;
+	ct[ 8]=(ctx->cdu>>1)+128;
+	ct[ 9]=(ctx->cdv>>1)+128;
+	ct[10]=(pxy>>40);	ct[11]=(pxy>>32);
+	ct[12]=(pxy>>24);	ct[13]=(pxy>>16);
+	ct[14]=(pxy>> 8);	ct[15]=(pxy    );
+	ct[16]=(pxu>>24);	ct[17]=(pxu>>16);
+	ct[18]=(pxu>> 8);	ct[19]=(pxu    );
+	ct[20]=(pxv>>24);	ct[21]=(pxv>>16);
+	ct[22]=(pxv>> 8);	ct[23]=(pxv    );
+
+	ct+=stride;
+	return(ct);
+}
+
+byte *BTIC1H_FillBlock4x4B_UV4x4(BTIC1H_Context *ctx,
+	u32 pxy, u32 pxu, u32 pxv, byte *ct, int stride)
+{
+	ct[ 0]=ctx->cy;		ct[ 1]=ctx->cu;
+	ct[ 2]=ctx->cv;		ct[ 3]=0;
+	ct[ 4]=27;			ct[ 5]=(ctx->cdy>>1)+128;
+	ct[ 6]=0;			ct[ 7]=0;
+	ct[ 8]=(ctx->cdu>>1)+128;
+	ct[ 9]=(ctx->cdv>>1)+128;
+//	ct[10]=pxu;			ct[11]=pxv;
+	ct[12]=(pxy>>24);	ct[13]=(pxy>>16);
+	ct[14]=(pxy>> 8);	ct[15]=(pxy    );
+	ct[16]=(pxu>>24);	ct[17]=(pxu>>16);
+	ct[18]=(pxu>> 8);	ct[19]=(pxu    );
+	ct[20]=(pxv>>24);	ct[21]=(pxv>>16);
+	ct[22]=(pxv>> 8);	ct[23]=(pxv    );
 	ct+=stride;
 	return(ct);
 }
@@ -2024,10 +2080,68 @@ int BTIC1H_DecodeBlocksCtx(BTIC1H_Context *ctx,
 			}
 			break;
 
+		case 0x38:
+			BTIC1H_DecodeDeltaYUVDyuv(ctx);
+			j=BTIC1H_ReadPix32_4x4(ctx);
+			k=BTIC1H_ReadPix32_2x4(ctx);
+			l=BTIC1H_ReadPix32_2x4(ctx);
+			ct=BTIC1H_FillBlock4x4B_UV4x4(ctx, j, k, l, ct, stride);
+			break;
+		case 0x39:
+			BTIC1H_DecodeDeltaYUVDyuv(ctx);
+			lpx=BTIC1H_ReadPix48_4x4x3(ctx);
+			j=BTIC1H_ReadPix32_2x4(ctx);
+			k=BTIC1H_ReadPix32_2x4(ctx);
+			ct=BTIC1H_FillBlock4x4x3B_UV4x4(ctx, lpx, j, k, ct, stride);
+			break;
+		case 0x3A:
+			BTIC1H_DecodeDeltaYUVDyuv(ctx);
+			lpx=BTIC1H_ReadPix48_4x4x3(ctx);
+			j=BTIC1H_ReadPix24_2x4x3(ctx);
+			k=BTIC1H_ReadPix24_2x4x3(ctx);
+			ct=BTIC1H_FillBlock4x4x3B_UV2x4x3(ctx,
+				lpx, j, k, ct, stride);
+			break;
+
+		case 0x3C:
+			n=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_cmdcnt));
+			for(i=0; i<n; i++)
+			{
+				j=BTIC1H_ReadPix32_4x4(ctx);
+				k=BTIC1H_ReadPix32_2x4(ctx);
+				l=BTIC1H_ReadPix32_2x4(ctx);
+				ct=BTIC1H_FillBlock4x4B_UV4x4(ctx,
+					j, k, l, ct, stride);
+			}
+			break;
+		case 0x3D:
+			n=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_cmdcnt));
+			for(i=0; i<n; i++)
+			{
+				lpx=BTIC1H_ReadPix48_4x4x3(ctx);
+				j=BTIC1H_ReadPix32_2x4(ctx);
+				k=BTIC1H_ReadPix32_2x4(ctx);
+				ct=BTIC1H_FillBlock4x4x3B_UV4x4(ctx,
+					lpx, j, k, ct, stride);
+			}
+			break;
+		case 0x3E:
+			n=BTIC1H_Rice_ReadAdRice(ctx, &(ctx->rk_cmdcnt));
+			for(i=0; i<n; i++)
+			{
+				lpx=BTIC1H_ReadPix48_4x4x3(ctx);
+				j=BTIC1H_ReadPix24_2x4x3(ctx);
+				k=BTIC1H_ReadPix24_2x4x3(ctx);
+				ct=BTIC1H_FillBlock4x4x3B_UV2x4x3(ctx,
+					lpx, j, k, ct, stride);
+			}
+			break;
+
 		default:
 			printf("BTIC1H_DecodeBlocksCtx: Bad Command %02X\n", cmd);
 #ifndef BTIC1H_VFWDRV
-			*(int *)-1=-1;
+//			*(int *)-1=-1;
+			BT1H_TRAPCRASH
 #endif
 			ret=-1;
 			break;
@@ -2292,10 +2406,16 @@ int BTIC1H_DecodeWorkSliceCtx(BTIC1H_Context *ctx)
 		ctx->blks+j, ctx->lblks+j,
 		nblks, 32, &i);
 
+	if(btjpg_drv_defaultCodecDbfl&BTIC1H_DBFL_CLEARSKIP)
+	{
+		memset(ctx->blksfl+(j>>5), 0, (nblks+7)>>3);
+	}
+
 	BTIC1H_DecodeImageMB2B_ClrsBfl(
 		ctx, ctx->blks+j, ctx->blksfl+(j>>5),
 		32, ctx->ibuf+k,
 		ctx->xs, sys, ctx->clrs);
+	return(0);
 }
 
 int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
@@ -2550,6 +2670,11 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 	cs1=ctx->lblks;
 	ctx->lblks=ctx->blks;
 	ctx->blks=cs1;
+
+	if(btjpg_drv_defaultCodecDbfl&BTIC1H_DBFL_CLEARSKIP)
+	{
+		memset(ctx->lblks, 0, ctx->nblks*32);
+	}
 
 	return(0);
 }

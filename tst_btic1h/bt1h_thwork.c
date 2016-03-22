@@ -7,14 +7,19 @@ int btic1h_workqueue_defaultworkers=4;
 
 void btic1h_thLockQueue()
 {
+//	if(!btic1h_workqueue_lock)
+//		btic1h_workqueue_lock=thFastMutex();
+//	thLockFastMutex(btic1h_workqueue_lock);
+
 	if(!btic1h_workqueue_lock)
-		btic1h_workqueue_lock=thFastMutex();
-	thLockFastMutex(btic1h_workqueue_lock);
+		btic1h_workqueue_lock=thMutex();
+	thLockMutex(btic1h_workqueue_lock);
 }
 
 void btic1h_thUnlockQueue()
 {
-	thUnlockFastMutex(btic1h_workqueue_lock);
+//	thUnlockFastMutex(btic1h_workqueue_lock);
+	thUnlockMutex(btic1h_workqueue_lock);
 }
 
 int btic1h_QueueWorker(void *data)
@@ -25,8 +30,11 @@ int btic1h_QueueWorker(void *data)
 	
 //	btic1h_workqueue_workers++;
 	ljob=NULL;
-	idle1=1024;
-	idle2=32;
+//	idle1=1024;
+//	idle2=32;
+
+	idle1=65536;
+	idle2=64;
 	while(idle1>0)
 	{
 		btic1h_thLockQueue();
@@ -49,8 +57,11 @@ int btic1h_QueueWorker(void *data)
 			continue;
 		}
 		
-		idle1=1024;
-		idle2=32;
+//		idle1=1024;
+//		idle2=32;
+		idle1=65536;
+		idle2=64;
+
 		job->DoWork(job);
 		ljob=job;
 

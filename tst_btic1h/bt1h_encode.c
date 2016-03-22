@@ -20,6 +20,42 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+BTIC1H_Context *btic1h_context_free=NULL;
+
+
+BTIC1H_Context *BTIC1H_AllocContext(void)
+{
+	BTIC1H_Context *tmp;
+
+	tmp=btic1h_context_free;
+	if(tmp)
+	{
+		btic1h_context_free=tmp->wqnext;
+		memset(tmp, 0, sizeof(BTIC1H_Context));
+		return(tmp);
+	}
+	
+	tmp=malloc(sizeof(BTIC1H_Context));
+	memset(tmp, 0, sizeof(BTIC1H_Context));
+	return(tmp);
+}
+
+int BTIC1H_FreeContextF(BTIC1H_Context *ctx)
+{
+	ctx->wqnext=btic1h_context_free;
+	btic1h_context_free=ctx;
+	return(0);
+}
+
+int BTIC1H_DestroyContext(BTIC1H_Context *ctx)
+{
+	if(ctx->blks)free(ctx->blks);
+	if(ctx->lblks)free(ctx->lblks);
+	BTIC1H_FreeContextF(ctx);
+//	free(ctx);
+	return(0);
+}
+
 double btic1g_ssqrt(double f)
 {
 	return((f>=0)?sqrt(f):(-sqrt(-f)));
@@ -919,6 +955,7 @@ int btic1h_errfrac2(int a, int b)
 }
 
 static byte btic1h_errfrac4_tab[16][16];
+static byte btic1h_errfrac12to8_tab[4096];
 static int btic1h_errfrac4_init=0;
 
 int btic1h_errfrac4(int a, int b)
@@ -988,6 +1025,8 @@ int BTIC1H_CheckSkip(BTIC1H_Context *ctx,
 	int duvem, int duven,
 	int *rerr)
 {
+	int i0, i1, i2, i3, i4, i5, i6, i7;
+	int j0, j1, j2, j3, j4, j5, j6, j7;
 	int cy, cu, cv, cd, cm;
 	int cy1, cu1, cv1, cd1, cm1;
 	int ca, cb, ca1, cb1;
@@ -1010,6 +1049,14 @@ int BTIC1H_CheckSkip(BTIC1H_Context *ctx,
 				btic1h_errfrac2(i>>2, j>>2)+
 				btic1h_errfrac2(i&3, j&3);
 		}
+		
+		for(i=0; i<4096; i++)
+		{
+			j=	((i>>4)&0xC0)|((i>>3)&0x30)|
+				((i>>2)&0x0C)|((i>>1)&0x03);
+			btic1h_errfrac12to8_tab[i]=j;
+		}
+		
 		btic1h_errfrac4_init=1;
 	}
 
@@ -1152,6 +1199,50 @@ int BTIC1H_CheckSkip(BTIC1H_Context *ctx,
 		e3=(btic1h_errfrac8(blk[6], lblk[6])+
 			btic1h_errfrac8(blk[7], lblk[7]))*2;
 		break;
+
+	case 14:	case 16:
+	case 17:	case 24:
+	case 27:
+		e3=	btic1h_errfrac8(blk[12], lblk[12])+
+			btic1h_errfrac8(blk[13], lblk[13])+
+			btic1h_errfrac8(blk[14], lblk[14])+
+			btic1h_errfrac8(blk[15], lblk[15]);
+		break;
+
+	case 15:
+	case 21:	case 22:
+	case 25:	case 26:
+		i=(blk[10]<<16)|(blk[11]<<8)|blk[12];
+		j=(blk[13]<<16)|(blk[14]<<8)|blk[15];
+		i0=btic1h_errfrac12to8_tab[(i>>12)&4095];
+		i1=btic1h_errfrac12to8_tab[(i    )&4095];
+		i2=btic1h_errfrac12to8_tab[(j>>12)&4095];
+		i3=btic1h_errfrac12to8_tab[(j    )&4095];
+		i=(lblk[10]<<16)|(lblk[11]<<8)|lblk[12];
+		j=(lblk[13]<<16)|(lblk[14]<<8)|lblk[15];
+		j0=btic1h_errfrac12to8_tab[(i>>12)&4095];
+		j1=btic1h_errfrac12to8_tab[(i    )&4095];
+		j2=btic1h_errfrac12to8_tab[(j>>12)&4095];
+		j3=btic1h_errfrac12to8_tab[(j    )&4095];
+
+		e3=	btic1h_errfrac8(i0, j0)+
+			btic1h_errfrac8(i1, j1)+
+			btic1h_errfrac8(i2, j2)+
+			btic1h_errfrac8(i3, j3);
+		break;
+
+	case 18:	case 19:
+	case 23:
+		e3=btic1h_errfrac8(blk[6], lblk[6])*4;
+		break;
+
+	case 20:
+		e3=	btic1h_errfrac8(blk[12], lblk[12])+
+			btic1h_errfrac8(blk[13], lblk[13])+
+			btic1h_errfrac8(blk[14], lblk[14])+
+			btic1h_errfrac8(blk[15], lblk[15]);
+		break;
+
 	default:
 		e3=16*9;
 		break;
@@ -1251,10 +1342,15 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 //	dyen=qr*0.4;
 //	duven=qr*0.6;
 
-	dyem=qr*0.3;
-	duvem=qr*0.5;
-	dyen=qr*0.6;
-	duven=qr*0.9;
+//	dyem=qr*0.3;
+//	duvem=qr*0.5;
+//	dyen=qr*0.6;
+//	duven=qr*0.9;
+
+	dyem=qr*0.5;
+	duvem=qr*0.7;
+	dyen=qr*0.8;
+	duven=qr*1.1;
 
 	cs=blks; cse=cs+nblks*stride;
 	csl=lblks; csle=lblks+nblks*stride;
@@ -2321,41 +2417,6 @@ int BTIC1H_EncodeAlphaBlocksCtx(BTIC1H_Context *ctx,
 }
 #endif
 
-BTIC1H_Context *btic1h_context_free;
-
-
-BTIC1H_Context *BTIC1H_AllocContext(void)
-{
-	BTIC1H_Context *tmp;
-
-	tmp=btic1h_context_free;
-	if(tmp)
-	{
-		btic1h_context_free=tmp->wqnext;
-		memset(tmp, 0, sizeof(BTIC1H_Context));
-		return(tmp);
-	}
-	
-	tmp=malloc(sizeof(BTIC1H_Context));
-	memset(tmp, 0, sizeof(BTIC1H_Context));
-	return(tmp);
-}
-
-int BTIC1H_FreeContextF(BTIC1H_Context *ctx)
-{
-	ctx->wqnext=btic1h_context_free;
-	btic1h_context_free=ctx;
-	return(0);
-}
-
-int BTIC1H_DestroyContext(BTIC1H_Context *ctx)
-{
-	if(ctx->blks)free(ctx->blks);
-	if(ctx->lblks)free(ctx->lblks);
-	free(ctx);
-	return(0);
-}
-
 void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 {
 	int i, j, k;
@@ -2444,6 +2505,11 @@ void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 		ctx->maskwin[i]=j;
 		ctx->maskidx[j]=i;
 	}
+
+	for(i=0; i<256; i++)
+		{ ctx->cmdwin[i]=i; }
+	for(i=0; i<256; i++)
+		{ ctx->cmdidx[i]=i; }
 }
 
 void BTIC1H_SetupDecodeContextInitial(BTIC1H_Context *ctx)
@@ -2451,11 +2517,6 @@ void BTIC1H_SetupDecodeContextInitial(BTIC1H_Context *ctx)
 	int i, j, k;
 
 	BTIC1H_SetupContextInitial(ctx);
-
-	for(i=0; i<256; i++)
-		{ ctx->cmdwin[i]=i; }
-	for(i=0; i<256; i++)
-		{ ctx->cmdidx[i]=i; }
 }
 
 int BTIC1H_EncodeWorkSliceCtx(BTIC1H_Context *ctx)
@@ -2649,6 +2710,7 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 		{
 			i=ctx->ys/32;
 //			i=ctx->ys/16;
+//			i=ctx->ys/64;
 			i=(i+1)&(~3);
 			if(!i)i=4;
 			ctx->slscl=i;
@@ -2702,6 +2764,8 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 
 		if(btic1h_workqueue_defaultworkers>0)
 		{
+			sltid=BTIC1H_Work_AllocTidNb();
+
 			for(i=0; i<slys; i++)
 			{
 				etctx=BTIC1H_AllocContext();
@@ -2729,13 +2793,19 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 				etctx->slix=i;
 				
 				etctx->DoWork=BTIC1H_EncodeWorkSliceCtx;
+				
+//				BTIC1H_Work_QueueJob(encjob[i], sltid);
 			}
 
+#if 1
 			btic1h_thLockQueue();
-			sltid=BTIC1H_Work_AllocTidNb();
+//			sltid=BTIC1H_Work_AllocTidNb();
 			for(i=0; i<slys; i++)
 				{ BTIC1H_Work_QueueJobNb(encjob[i], sltid); }
+//			for(i=slys-1; i>=0; i--)
+//				{ BTIC1H_Work_QueueJobNb(encjob[i], sltid); }
 			btic1h_thUnlockQueue();
+#endif
 			BTIC1H_Work_CheckSpawnWorkers(
 				btic1h_workqueue_defaultworkers);
 			
@@ -2749,6 +2819,53 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 				etctx=encjob[i];
 
 				k=etctx->bs_ct-etctx->bs_cts;
+
+#if 1
+				if(k<126)
+				{
+					if(k<=0)
+					{
+						printf("BTIC1H_EncodeCtx: "
+							"Bad Slice Length %d\n", k);
+						*ct++=0;
+						continue;
+					}
+					
+					j=k+1;
+					ct[0]=j;
+					memcpy(ct+1, etctx->bs_cts, k);
+					ct+=j;
+				}else if(k<16379)
+				{
+					j=k+2;
+					ct[0]=0x80+((j>>8)&63);
+					ct[1]=j;
+					memcpy(ct+2, etctx->bs_cts, k);
+					ct+=j;
+				}else if(k<2097147)
+				{
+					j=k+3;
+					ct[0]=0xC0+((j>>16)&31);
+					ct[1]=j>> 8;
+					ct[2]=j    ;
+					memcpy(ct+3, etctx->bs_cts, k);
+					ct+=j;
+				}else
+				{
+					printf("BTIC1H_EncodeCtx: "
+						"Debug Slice Length %d\n", k);
+
+					j=k+4;
+					ct[0]=0xE0+((j>>24)&15);
+					ct[1]=j>>16;
+					ct[2]=j>> 8;
+					ct[3]=j    ;
+					memcpy(ct+4, etctx->bs_cts, k);
+					ct+=j;
+				}
+#endif
+
+#if 0
 				if(k>2097147)
 				{
 					j=k+4;
@@ -2780,6 +2897,7 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 					memcpy(ct+1, etctx->bs_cts, k);
 					ct+=j;
 				}
+#endif
 
 				BTIC1H_FreeContextF(etctx);
 			}
@@ -2904,7 +3022,8 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 
 	if(sz>dsz)
 	{
-		*(int *)-1=-1;
+//		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 
 	return(sz);

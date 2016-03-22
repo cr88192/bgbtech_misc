@@ -173,15 +173,21 @@ An encoder may not allowed these values to go outside this range.
 
 Dyuv will have an allowed range of -256 .. 255, but with the requirement that the resultant YUV values (after calculating the color endpoints) are required to fall in the range of 0 to 255.
 
-The valid ranges will be different for HDR.
-
-
 The results of going out of range are undefined.
 * A decoder may, but is not required to, implement range clamping.
 * An encoder may not assume the use of modular arithmetic here.
 * Likewise, out of gamut colors are not allowed.
 
 The use of YUVD or YUVDyuv will be two separate color sub-modes. Blocks which use one or another will change the current sub-mode, and may effect the subsequent interpretation of certain block types. Raw YUV will be neutral, and will not effect the current mode. YUVD will be the default mode.
+
+
+(Possible) Exception, HDR:
+* HDR will use a 16-bit Half-Float space.
+* Ranges in this case are 0 to 65535, and +/- 65536.
+* Bias for absolute colors is 0x3800 (+0.5), rather than 128.
+** Possible: HDR will map positive values as 0..32767
+** Negative values will map to (-32768)..(-1)
+** Will be essentially stored as one's complement.
 
 
 Delta Color:
@@ -202,22 +208,6 @@ Quantization Factors:
 * QfDeltaYUVDyuv: 4 AdRice quantization factors (QfDeltaY, QfDeltaUV, QfDeltaDy, QfDeltaDuv)
 * QfAbsYUV*: Similar, but for the absolute quantization factors (QfAbs)
 
-
-HDR:
-* HDR will use a 16-bit Half-Float space.
-* The value range for HDR will be +/- 32768 for YUV.
-* D and Dyuv will have a range of +/- 65536.
-* Positive values will map to 0..32767
-* Negative values will map to -32768..-1 (ones complement).
-* Values over +/- 31744 will be in the Inf/NaN space.
-** NaN values will be used for escape codes.
-
-LDR-12:
-* Will use the same block format as HDR
-* Values will be represented as signed twos complement integer values.
-** Will map 0.0 maps to 0, and 1.0 maps to 32767.
-* LDR-10 and LDR-12 will be for the most part treated as equivalent.
-** Low-order bits are discarded from the result to fit the value in range.
 
 
 === Pixel Blocks ===
@@ -495,7 +485,6 @@ Commands:
 **  Logical 4:2:2, 4x4x3 Y block followed by 2x4x2 U and V sub-blocks
 * C(3A) DeltaYUVDyuv, Pixblock4x4x3_UV2x4x3
 **  Logical 4:2:2, 4x4x3 Y block followed by 2x4x3 U and V sub-blocks
-* C(3B)
 
 * C(3C) RunCount, PixelBlock4x4_UV2x4*RunCount
 ** Separately interpolated YUV.
@@ -506,7 +495,6 @@ Commands:
 * C(3E) RunCount, PixelBlock4x4x3_UV2x4x3*RunCount
 ** Separately interpolated YUV.
 ** YUVDyuv only.
-* C(3F)
 
 
 === Parameters and Feature Flags ===
@@ -759,12 +747,8 @@ Reserve 256 bits.
     Ta/Tb=Pixel Bits (V, 2x4x2)
   M==26: 4x4x3bpp 4:2:2 (YUVDyuv, E)
     Qe/Qf/Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x3)
-    Sb/Sc/Sd=Pixel Bits (U, 2x4x3)
-    Tb/Tc/Td=Pixel Bits (V, 2x4x3)
-  M==27: 4x4x2bpp 4:4:4 (YUVDyuv, E)
-    Qa/Qb/Qc/Qd=Pixel Bits (Y, 4x4x2)
-    Sa/Sb/Sc/Sd=Pixel Bits (U, 4x4x2)
-    Ta/Tb/Tc/Td=Pixel Bits (V, 4x4x2)
+    Sa/Sb/Sc=Pixel Bits (U, 2x4x3)
+    Ta/Tb/Tc=Pixel Bits (V, 2x4x3)
 
 
 Alpha Block
@@ -801,7 +785,7 @@ HDR Pixel Blocks
  HC:  Z- M,CY-Cy, DY-Dy,CU-Cu, DU-Du,CV-Cv, DV-Dv,Pc,Pd,
      Qg,Qh,Qe,Qf, Qa,Qb,Qc,Qd, Sa,Sb,Sc,Sd, Ta,Tb,Tc,Td
  CY-Cy, ...: 16-bit Half-Float Component (HDR).
- Z-M: Z+Mode, High 8 bits encode 0x87 (-NaN)
+ Z-M: Z+Mode, High 8 bits encode 0x82 (-NaN, ~)
 
   Default: 4x4x3bpp 4:2:2 (Y4x4x3+UV2x4x3)
  

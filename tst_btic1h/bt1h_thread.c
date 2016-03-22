@@ -2,56 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__x86_64__) || defined(_M_X64)
-#ifndef X86_64
-#define X86_64
-#endif
-#endif
-
-#if defined(__i386__) || defined(_M_IX86)
-#ifndef X86
-#define X86
-#endif
-#endif
-
-#if defined(__arm__) || defined(_M_ARM)
-#ifndef ARM
-#define ARM
-#endif
-#endif
-
-
-#ifdef _WIN32
-#ifndef WIN32
-#define WIN32
-#endif
-#endif
-
-#ifdef _WIN64
-#ifndef WIN64
-#define WIN64
-#endif
-#endif
-
-#ifdef _MSC_VER
-#ifndef MSVC
-#define MSVC
-#endif
-#endif
-
-#ifdef __ANDROID__
-#ifndef ANDROID
-#define ANDROID
-#endif
-#endif
-
-#ifdef __linux__
-#ifndef linux
-#define linux
-#endif
-#endif
-
-
 #ifdef _WIN32
 #include <windows.h>
 #include <tlhelp32.h>
@@ -952,6 +902,8 @@ void *BIPRO_LookupLabel(char *name)
 
 #ifdef _WIN32
 
+#define HAS_LOOKUPLABELOS
+
 int BIPRO_GetModuleListOS(char **buf, int max)
 {
 	int i, n;
@@ -1278,7 +1230,7 @@ int BIPRO_InitDbgHelpOS()
 	return(1);
 }
 
-char *BIPRO_LookupAddrNameOS(void *addr, void **addr2)
+char *BIPRO_NameOS(void *addr, void **addr2)
 {
 	char buf[1024];
 	HANDLE hProcess;
@@ -1639,6 +1591,23 @@ int BIPRO_ProcessEXE(char *name)
 
 #endif
 
+#ifndef HAS_LOOKUPLABELOS
+#define HAS_LOOKUPLABELOS
+void *BIPRO_LookupLabelOS(char *name)
+{
+	return(NULL);
+}
+#endif
+
+#ifndef HAS_LOOKUPADDRNAMEOS
+#define HAS_LOOKUPADDRNAMEOS
+char *BIPRO_LookupAddrNameOS(void *ptr, void **rbase)
+{
+	return(NULL);
+}
+#endif
+
+#if 1
 char *BIPRO_GetNamePtr(void *ptr)
 {
 	void *q;
@@ -1709,3 +1678,4 @@ char *BIPRO_LookupSectionAddrName(void *ptr)
 
 	return(NULL);
 }
+#endif

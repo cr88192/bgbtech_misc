@@ -20,10 +20,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+#include "bt1h_conf.h"
+
 #define BT1H_USEHV			//use half-blocks
 // #define BT1H_USEGRAD		//use gradient blocks
 #define BT1H_USETSKIP		//use translation-skip
-#define BT1H_TSKIP_MAX 4	//translation-skip max value
+// #define BT1H_TSKIP_MAX 4	//translation-skip max value
+#define BT1H_TSKIP_MAX 12	//translation-skip max value
 
 // #define BT1H_CHEAPYUV		//use cheaper YUV
 // #define BT1H_USEGDBDR		//use GDbDr
@@ -31,6 +34,16 @@ THE SOFTWARE.
 #define BT1H_ENABLE_AX		//enable alpha extension
 
 #define BT1H_BITSTATS
+
+#ifdef linux
+#define BT1H_TRAPCRASH
+#endif
+
+
+#ifndef BT1H_TRAPCRASH
+#define BT1H_TRAPCRASH		*(int *)-1=-1;
+#endif
+
 
 // #define BT1H_DEBUG_TRAPRANGE
 
@@ -172,6 +185,8 @@ typedef signed long long s64;
 #define	BTIC1H_QFL_USERC66		(1<<11)		//Use Range Coder if Q<66%
 #define	BTIC1H_QFL_USESLICE		(1<<12)		//Use Slice Coding
 #define	BTIC1H_QFL_USEGDBDR		(1<<13)		//Use Slice Coding
+
+#define	BTIC1H_DBFL_CLEARSKIP	(1<< 8)		//I-Frame
 
 #ifndef BTIC1H_API
 #define BTIC1H_API __declspec(dllexport)

@@ -46,6 +46,7 @@ int btjpg_uselog=0;
 
 extern u32 btjpg_drv_defaultCodecFcc;
 extern int btjpg_drv_defaultCodecQfl;
+extern int btjpg_drv_defaultCodecDbfl;
 
 int BTJPG_DriverTryLoadConfig(char *name)
 {
@@ -99,6 +100,15 @@ int BTJPG_DriverTryLoadConfig(char *name)
 					btjpg_drv_defaultCodecQfl|=BTIC1H_QFL_USESLICE;
 				if(!strcmp(a[i], "gdbdr"))
 					btjpg_drv_defaultCodecQfl|=BTIC1H_QFL_USEGDBDR;
+			}
+		}
+
+		if(!strcmp(a[0], "debugFlags"))
+		{
+			for(i=1; a[i]; i++)
+			{
+				if(!strcmp(a[i], "clearskip"))
+					btjpg_drv_defaultCodecDbfl|=BTIC1H_DBFL_CLEARSKIP;
 			}
 		}
 	}

@@ -49,6 +49,32 @@ THE SOFTWARE.
 // #include "bt2d_dct.c"
 // #include "bt2d_encode.c"
 
+double curtime()
+{
+#ifdef _WIN32
+	int t0;
+	t0=clock();
+	return(t0/((double)CLOCKS_PER_SEC));
+#else
+	static time_t base=0;
+	struct timeval tv;
+	time_t ds;
+	
+	gettimeofday(&tv, NULL);
+	if(!base)
+		base=tv.tv_sec;
+	
+	ds=tv.tv_sec-base;
+	return((ds)+(tv.tv_usec*0.000001));
+//	return((double)ds);
+#endif
+}
+
+s64 curtime_ms()
+{
+	return(curtime()*1000);
+}
+
 double checkrmse(byte *ibuf1, byte *ibuf2, int xs, int ys)
 {
 	double e, er, eg, eb;
@@ -147,8 +173,34 @@ int main(int argc, char *argv[])
 	int xs, ys, xs1, ys1;
 	int cr, cg, cb, cy, cu, cv, cu1, cv1;
 	int t0, t1, t2, t3;
-	int n, n1, nf, ncf, qf;
+	int n, n1, nf, ncf, qf, nwe, nwd;
 	int i, j, k, l;
+
+	nwe=4; nwd=4;
+
+	for(i=1; i<argc; i++)
+	{
+		if(!strncmp(argv[i], "--th=", 5))
+		{
+			nwe=atoi(argv[i]+5);
+			nwd=nwe;
+			btic1h_workqueue_defaultworkers=nwe;
+//			btic1h_workqueue_defaultworkers=atoi(argv[i]+5);
+			continue;
+		}
+
+		if(!strncmp(argv[i], "--thd=", 6))
+		{
+			nwd=atoi(argv[i]+6);
+			continue;
+		}
+
+		if(!strncmp(argv[i], "--the=", 6))
+		{
+			nwe=atoi(argv[i]+6);
+			continue;
+		}
+	}
 
 //	BTIC1H_InitCamera();
 
@@ -335,13 +387,18 @@ int main(int argc, char *argv[])
 	xs1=xs>>2; ys1=ys>>2; n=xs1*ys1;
 	blks=malloc(n*32);
 
+	btic1h_workqueue_defaultworkers=nwe;
+
 	ctx=BTIC1H_AllocContext();
 	ctx->xs=xs;
 	ctx->ys=ys;
 	ctx->flip=0;
 
-	t0=clock(); t1=t0; nf=0; ncf=0;
-	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
+//	t0=clock();
+	t0=curtime_ms();
+	t1=t0; nf=0; ncf=0;
+//	while((t1>=t0) && (t1<(t0+(1*CLOCKS_PER_SEC))))
+	while((t1>=t0) && (t1<(t0+1000)))
 	{
 		yibuf2=yibuf;
 
@@ -360,13 +417,16 @@ int main(int argc, char *argv[])
 //			xs, ys, qf, BTIC1H_PXF_YUYV);
 		ct1=tbuf+i;
 
-		nf++; t1=clock();
+		nf++;
+//		t1=clock();
+		t1=curtime_ms();
 		
 //		if(!(nf&15))
 		if(1)
 		{
 			t2=t1-t0;
-			f=(t2)/((double)CLOCKS_PER_SEC);
+//			f=(t2)/((double)CLOCKS_PER_SEC);
+			f=(t2)/1000.0;
 			printf("fc=%d dt=%f fps=%f Mpix=%f, ncf=%d cfps=%f\r",
 				nf, f, nf/f, (nf/f)*(xs*ys*(1.0/1000000)),
 				ncf, (ncf/f)*(xs*ys*(1.0/1000000)));
@@ -397,6 +457,8 @@ int main(int argc, char *argv[])
 
 	memcpy(tbuf1, tbuf, 1<<20);
 
+	btic1h_workqueue_defaultworkers=nwd;
+
 	ctx=BTIC1H_AllocContext();
 	ctx->xs=xs;
 	ctx->ys=ys;
@@ -406,8 +468,11 @@ int main(int argc, char *argv[])
 		memset(ctx->blks, 0, n*32);
 
 #if 1
-	t0=clock(); t1=t0; nf=0; ncf=0;
-	while((t1>=t0) && (t1<(t0+(15*CLOCKS_PER_SEC))))
+//	t0=clock();
+	t0=curtime_ms();
+	t1=t0; nf=0; ncf=0;
+//	while((t1>=t0) && (t1<(t0+(15*CLOCKS_PER_SEC))))
+	while((t1>=t0) && (t1<(t0+15000)))
 	{
 		
 //		BTIC1H_EncodeImageYUY2(blks, yibuf2, xs, ys, 85);
@@ -423,13 +488,16 @@ int main(int argc, char *argv[])
 //		BTIC1H_DecodeCtx(ctx, tbuf, obuf, ct1-tbuf,
 //			xs*ys*4, &xs1, &ys1, BTIC1H_PXF_BC7);
 
-		nf++; t1=clock();
+		nf++;
+//		t1=clock();
+		t1=curtime_ms();
 		
 //		if(!(nf&15))
 		if(1)
 		{
 			t2=t1-t0;
-			f=(t2)/((double)CLOCKS_PER_SEC);
+//			f=(t2)/((double)CLOCKS_PER_SEC);
+			f=(t2)/1000.0;
 			printf("fc=%d dt=%f fps=%f Mpix=%f, ncf=%d cfps=%f\r",
 				nf, f, nf/f, (nf/f)*(xs*ys*(1.0/1000000)),
 				ncf, (ncf/f)*(xs*ys*(1.0/1000000)));

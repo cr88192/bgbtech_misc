@@ -18,3 +18,5 @@ workerThreads 4
 
 # encoderFlags rangecoder66
 encoderFlags slice gdbdr
+
+# debugFlags clearskip

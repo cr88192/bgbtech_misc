@@ -321,6 +321,14 @@ int BTIC1H_Rice_Read16Bits(BTIC1H_Context *ctx)
 }
 #endif
 
+u32 BTIC1H_Rice_Read24Bits(BTIC1H_Context *ctx)
+{
+	int i, j;
+	i=BTIC1H_Rice_Read8Bits(ctx);
+	j=BTIC1H_Rice_Read16Bits(ctx);
+	return((i<<16)|j);
+}
+
 u32 BTIC1H_Rice_Read32Bits(BTIC1H_Context *ctx)
 {
 	int i, j;
