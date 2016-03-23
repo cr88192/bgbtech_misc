@@ -14,6 +14,8 @@ This supports being compiled as a VfW codec driver. This allows its use from oth
 
 BTIC1H is a modestly fast Blocky VQ codec using Adaptive Rice coding for things like color deltas and commands.
 
+There are both faster blocky VQ codecs, as well as codecs which offer a better quality/bpp, but it works ok.
+
 
 tst_fastbcn
 ===========
@@ -55,20 +57,20 @@ Pixel Format
 
 ppss-yqao
 * o: RGB/YUYV vs BGR/UYVY
-* * 0=RGB/YUYV
-* * 1=BGR/UYVY
+** 0=RGB/YUYV
+** 1=BGR/UYVY
 * a: Alpha (If pattern can have alpha)
-* * 0=Alpha
-* * 1=No Alpha
+** 0=Alpha
+** 1=No Alpha
 * q: Don't use partitions (Resv)
 * y: Use YUV.
 * rr: Reserved, MBZ
 * ss: Stride=4-ss; (0->4, 3->1)
 * pp: Pixel Bit Type
-* * 0=Unsigned Byte
-* * 1=Reserved
-* * 2=Half-Float
-* * 3=Float
+** 0=Unsigned Byte
+** 1=Reserved
+** 2=Half-Float
+** 3=Float
 
 
 tst_btlzazip
