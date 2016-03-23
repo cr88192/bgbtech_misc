@@ -1866,6 +1866,8 @@ void BT1H_EncodeBlockEdgeRGBI(byte *block, int blksz,
 		block, blksz, tblk, 4, 4*4, tflip, ep);
 }
 
+BTIC1H_PTune *btic1h_dbg_ptune=NULL;
+
 void BTIC1H_EncodeImageYUY2(byte *block, int blkstride,
 	byte *yuv, int xs, int ys, int qf)
 {
@@ -1956,10 +1958,13 @@ void BTIC1H_EncodeImageYUY2(byte *block, int blkstride,
 	}
 }
 
+// BTIC1H_PTune *btic1h_dbg_ptune=NULL;
+
 void BTIC1H_EncodeImageRGBI(byte *block, int blkstride,
 	byte *yuv, int xs, int ys, int qf, int xstr, int tflip)
 {
 //	int df, d2x2, d4x4x1, d4x4x2, qr;
+	BTIC1H_PTune *pt;
 	byte *yuv2, *yuv3;
 	float qrf;
 	int qr, ystr;
@@ -1979,20 +1984,47 @@ void BTIC1H_EncodeImageRGBI(byte *block, int blkstride,
 	if(qf&BTIC1H_QFL_USEGDBDR)
 		ep->EncodeBlock=BT1H_EncodeBlockRGBI_GDbDr;
 
-	qrf=qr/50.0;
-	ep->dflat  =qr*(0.33+0.5*qrf);
-//	ep->d2x2   =qr*(0.85+0.7*qrf);
-//	ep->d4x4x1 =qr*(1.50+1.0*qrf);
-//	ep->d4x4x2 =qr*(3.00+2.0*qrf);
-//	ep->d4x4x3 =qr*(9.00+2.0*qrf);
-	ep->d2x2   =qr*(0.70+0.7*qrf);
-	ep->d4x4x1 =qr*(0.75+1.0*qrf);
-	ep->d4x4x2 =qr*(2.00+2.0*qrf);
-	ep->d4x4x3 =qr*(8.00+2.0*qrf);
-//	ep->dchflat=qr*(0.45+2.5*qrf);
-//	ep->dchflat=qr*(0.15+1.5*qrf);
-//	ep->dchflat=qr*(0.15+1.0*qrf);
-	ep->dchflat=qr*(0.35+0.7*qrf);
+	if(qf&BTIC1H_QFL_DBGPTUNE)
+	{
+		pt=btic1h_dbg_ptune;
+		qrf=qr/50.0;
+		ep->dflat  =qr*(pt->dflat  +pt->dflate  *qrf);
+		ep->d2x2   =qr*(pt->d2x2   +pt->d2x2e   *qrf);
+		ep->d4x4x1 =qr*(pt->d4x4x1 +pt->d4x4x1e *qrf);
+		ep->d4x4x2 =qr*(pt->d4x4x2 +pt->d4x4x2e *qrf);
+		ep->d4x4x3 =qr*(pt->d4x4x3 +pt->d4x4x3e *qrf);
+		ep->dchflat=qr*(pt->dchflat+pt->dchflate*qrf);
+	}else
+	{
+		qrf=qr/50.0;
+
+#if 0
+		ep->dflat  =qr*(0.33+0.5*qrf);
+//		ep->d2x2   =qr*(0.85+0.7*qrf);
+//		ep->d4x4x1 =qr*(1.50+1.0*qrf);
+//		ep->d4x4x2 =qr*(3.00+2.0*qrf);
+//		ep->d4x4x3 =qr*(9.00+2.0*qrf);
+		ep->d2x2   =qr*(0.70+0.7*qrf);
+		ep->d4x4x1 =qr*(0.75+1.0*qrf);
+		ep->d4x4x2 =qr*(2.00+2.0*qrf);
+		ep->d4x4x3 =qr*(8.00+2.0*qrf);
+//		ep->dchflat=qr*(0.45+2.5*qrf);
+//		ep->dchflat=qr*(0.15+1.5*qrf);
+//		ep->dchflat=qr*(0.15+1.0*qrf);
+		ep->dchflat=qr*(0.35+0.7*qrf);
+#endif
+
+#if 1
+//		1.49+1.61 1.89+2.22 2.34+2.24 3.42+4.22 11.37+2.68 1.82+2.20
+
+		ep->dflat  =qr*( 1.49+1.61*qrf);
+		ep->d2x2   =qr*( 1.89+2.22*qrf);
+		ep->d4x4x1 =qr*( 2.34+2.24*qrf);
+		ep->d4x4x2 =qr*( 3.42+4.22*qrf);
+		ep->d4x4x3 =qr*(11.37+2.68*qrf);
+		ep->dchflat=qr*( 1.82+2.20*qrf);
+#endif
+	}
 
 #if 0
 //	ep->dflat  =qr*0.56;

@@ -593,6 +593,7 @@ int BTIC1H_Rice_SetupReadRange(
 	ctx->ReadAdSRiceDc=BTIC1H_Rice_ReadAdSRiceDcRange;
 
 	BTIC1H_Range_SetupDecode(ctx, buf, szbuf);
+	return(0);
 }
 
 int BTIC1H_DecodeReadVLI(BTIC1H_Context *ctx, byte **rcs)

@@ -186,6 +186,8 @@ typedef signed long long s64;
 #define	BTIC1H_QFL_USESLICE		(1<<12)		//Use Slice Coding
 #define	BTIC1H_QFL_USEGDBDR		(1<<13)		//Use Slice Coding
 
+#define	BTIC1H_QFL_DBGPTUNE		(1<<14)		//Parameter Tuning
+
 #define	BTIC1H_DBFL_CLEARSKIP	(1<< 8)		//I-Frame
 
 #ifndef BTIC1H_API
@@ -193,6 +195,44 @@ typedef signed long long s64;
 #endif
 
 typedef struct BTIC1H_Context_s BTIC1H_Context;
+
+typedef struct BTIC1H_PTune_s BTIC1H_PTune;
+
+struct BTIC1H_PTune_s {
+float dflat;
+float d2x2;
+float d4x4x1;
+float d4x4x2;
+float d4x4x3;
+float d2x2h;
+float d4x4x2h;
+float dchflat;
+
+float dflate;
+float d2x2e;
+float d4x4x1e;
+float d4x4x2e;
+float d4x4x3e;
+float d2x2he;
+float d4x4x2he;
+float dchflate;
+
+float dyem;
+float duvem;
+float dyen;
+float duven;
+float dyeme;
+float duveme;
+float dyene;
+float duvene;
+
+float qyi, quvi, qdyi;
+float qyp, quvp, qdyp;
+
+float ebit;
+float ebpp;
+float ermse;
+};
 
 struct BTIC1H_Context_s {
 u32 mark1;

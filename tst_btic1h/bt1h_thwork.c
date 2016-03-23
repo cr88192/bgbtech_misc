@@ -2,6 +2,7 @@ volatile BTIC1H_Context *btic1h_workqueue;
 void *btic1h_workqueue_lock;
 volatile int btic1h_workqueue_workers;
 volatile int btic1h_workqueue_taskcnt[1024];
+volatile byte btic1h_workqueue_kill=0;
 
 int btic1h_workqueue_defaultworkers=4;
 
@@ -33,10 +34,14 @@ int btic1h_QueueWorker(void *data)
 //	idle1=1024;
 //	idle2=32;
 
-	idle1=65536;
+//	idle1=65536;
+	idle1=4096;
 	idle2=64;
 	while(idle1>0)
 	{
+		if(btic1h_workqueue_kill)
+			break;
+	
 		btic1h_thLockQueue();
 		if(ljob)
 			{ btic1h_workqueue_taskcnt[ljob->sltid]--; ljob=NULL; }
@@ -59,7 +64,8 @@ int btic1h_QueueWorker(void *data)
 		
 //		idle1=1024;
 //		idle2=32;
-		idle1=65536;
+//		idle1=65536;
+		idle1=4096;
 		idle2=64;
 
 		job->DoWork(job);
@@ -77,12 +83,27 @@ int BTIC1H_Work_CheckSpawnWorkers(int n)
 {
 	int i;
 	
+	btic1h_workqueue_kill=0;
 	i=n-btic1h_workqueue_workers;
 	while(i>0)
 	{
 		btic1h_workqueue_workers++;
 		thThread(btic1h_QueueWorker, NULL);
 		i--;
+	}
+	return(0);
+}
+
+int BTIC1H_Work_KillWorkers(void)
+{
+	int n;
+
+	btic1h_workqueue_kill=1; n=256;
+	while((btic1h_workqueue_workers>0) && ((n--)>0))
+	{
+		thSleep(1);
+		if(!btic1h_workqueue_kill)
+			break;
 	}
 	return(0);
 }

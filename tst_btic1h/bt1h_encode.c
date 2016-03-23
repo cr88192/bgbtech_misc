@@ -1314,8 +1314,10 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 		{-2, 2},{ 2, 2},{2,-2},{-2,-2}
 		};
 
+	BTIC1H_PTune *pt;
 	byte *cs2, *csl2;
 	byte *cs, *cse, *csl, *csle, *csle2, *lblks2, *cs1, *cs1e;
+	double qrf;
 	int bit0;
 	int cy, cu, cv, cd, cm;
 //	int dye, duve, qr;
@@ -1347,10 +1349,78 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 //	dyen=qr*0.6;
 //	duven=qr*0.9;
 
-	dyem=qr*0.5;
-	duvem=qr*0.7;
-	dyen=qr*0.8;
-	duven=qr*1.1;
+//	dyem=qr*0.5;
+//	duvem=qr*0.7;
+//	dyen=qr*0.8;
+//	duven=qr*1.1;
+//	dyen=qr*1.2;
+//	duven=qr*1.5;
+
+	if(qf&BTIC1H_QFL_DBGPTUNE)
+	{
+		pt=btic1h_dbg_ptune;
+
+		qrf=qr/50.0;
+		dyem =qr*(pt->dyem +qrf*pt->dyeme );
+		duvem=qr*(pt->duvem+qrf*pt->duveme);
+		dyen =qr*(pt->dyen +qrf*pt->dyene );
+		duven=qr*(pt->duven+qrf*pt->duvene);
+
+		if(lblks)
+		{
+			cy=qr*pt->qyp;
+			cu=qr*pt->quvp;
+			cd=qr*pt->qdyp;
+		}else
+		{
+			cy=qr*pt->qyi;
+			cu=qr*pt->quvi;
+			cd=qr*pt->qdyi;
+		}
+	}else
+	{
+		qrf=qr/50.0;
+//		dyem=qr*(0.3+qrf*0.25);
+//		duvem=qr*(0.5+qrf*0.25);
+//		dyen=qr*(0.6+qrf*0.5);
+//		duven=qr*(0.8+qrf*0.5);
+
+		dyem=qr*(1.39+qrf*1.27);
+		duvem=qr*(1.33+qrf*1.35);
+		dyen=qr*(1.53+qrf*1.36);
+		duven=qr*(1.72+qrf*1.59);
+
+		if(lblks)
+		{
+			cy=qr*1.09;
+			cu=qr*1.53;
+			cd=qr*1.22;
+
+//			cy=qr/5;
+//			cu=qr/4;
+//			cd=qr/3;
+		}else
+		{
+			cy=qr/6.5;
+			cu=qr/6;
+	//		cu=qr/4;
+			cd=qr/5;
+		}
+	}
+
+//	cy=(100-qf)/4;
+//	cu=(100-qf)/3;
+//	cy=(100-qf)/8;
+//	cu=(100-qf)/6;
+
+//	cy=(100-qf)/6.5;
+//	cu=(100-qf)/6;
+//	cd=(100-qf)/5;
+
+	if(cy<1)cy=1;
+	if(cu<1)cu=1;
+	if(cd<1)cd=1;
+	
 
 	cs=blks; cse=cs+nblks*stride;
 	csl=lblks; csle=lblks+nblks*stride;
@@ -1366,32 +1436,6 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 		csle2=csle;
 	}
 
-//	cy=(100-qf)/4;
-//	cu=(100-qf)/3;
-//	cy=(100-qf)/8;
-//	cu=(100-qf)/6;
-
-//	cy=(100-qf)/6.5;
-//	cu=(100-qf)/6;
-//	cd=(100-qf)/5;
-
-	if(lblks)
-	{
-		cy=qr/5;
-		cu=qr/4;
-		cd=qr/3;
-	}else
-	{
-		cy=qr/6.5;
-		cu=qr/6;
-//		cu=qr/4;
-		cd=qr/5;
-	}
-
-	if(cy<1)cy=1;
-	if(cu<1)cu=1;
-	if(cd<1)cd=1;
-	
 	BTIC1H_EmitCommandCode(ctx, 0x04);
 	BTIC1H_EmitDeltaQfYUVD(ctx, cy, cu, cd);
 

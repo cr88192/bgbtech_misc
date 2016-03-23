@@ -75,6 +75,18 @@ int bt1h_compress_frame(BTIC1H_VidCodecCTX *ctx,
 	return(sz);
 }
 
+int bt1h_end_compress(BTIC1H_VidCodecCTX *ctx)
+{
+	BTIC1H_Work_KillWorkers();
+	BTIC1H_DestroyContext(ctx->data);
+}
+
+int bt1h_end_decompress(BTIC1H_VidCodecCTX *ctx)
+{
+	BTIC1H_Work_KillWorkers();
+	BTIC1H_DestroyContext(ctx->data);
+}
+
 BTIC1H_VidCodecCTX *bt1h_begin_decompress(int fcc,
 	BTIC1H_BMPInfoHeader *in, BTIC1H_BMPInfoHeader *out)
 {
@@ -159,6 +171,7 @@ BTIC1H_VidCodecCTX *bt1h_begin_decompress(int fcc,
 
 	ctx->decompress_frame=&bt1h_decompress_frame;
 	ctx->decompress_frame_clrs=&bt1h_decompress_frame_clrs;
+	ctx->end_decompress=bt1h_end_decompress;
 
 	return(ctx);
 }
@@ -233,6 +246,7 @@ BTIC1H_VidCodecCTX *bt1h_begin_compress(int fcc,
 		{ info->clrs=BTIC1H_PXF_RGBA; }
 
 	ctx->compress_frame=&bt1h_compress_frame;
+	ctx->end_compress=bt1h_end_compress;
 
 	return(ctx);
 }
@@ -278,5 +292,6 @@ int BTIC1H_CodecBT1H_Init()
 
 	codec->decompress_query=&bt1h_decompress_query;
 	codec->compress_query=&bt1h_compress_query;
+	
 	return(0);
 }
