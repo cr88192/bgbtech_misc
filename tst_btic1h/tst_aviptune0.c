@@ -145,7 +145,8 @@ float btic1h_ptune_rlerp(float a, float b)
 	g=2.0*g-1.0;
 	c=(a*(1.0-f))+(b*f);
 //	c=c*(1.0+g*0.1)+g*0.025;
-	c=c*(1.0+g*0.1)+h*0.1;
+//	c=c*(1.0+g*0.1)+h*0.1;
+	c=c*(1.0+g*0.05)+h*0.025;
 	return(c);
 }
 
@@ -185,32 +186,40 @@ void btic1h_ptune_breed(
 	ptc->duvene  =btic1h_ptune_rlerp(pta->duvene  ,ptb->duvene  );
 }
 
+void btic1h_ptune_dumpfd(
+	BTIC1H_PTune *pt, FILE *fd)
+{
+	fprintf(fd, "fxx=%2.2f+%2.2f ", pt->dflat   , pt->dflate  );
+	fprintf(fd, "22x=%2.2f+%2.2f ", pt->d2x2    , pt->d2x2e   );
+	fprintf(fd, "441=%2.2f+%2.2f ", pt->d4x4x1  , pt->d4x4x1e );
+	fprintf(fd, "\n");
+	fprintf(fd, "442=%2.2f+%2.2f ", pt->d4x4x2  , pt->d4x4x2e );
+	fprintf(fd, "443=%2.2f+%2.2f ", pt->d4x4x3  , pt->d4x4x3e );
+	fprintf(fd, "chf=%2.2f+%2.2f", pt->dchflat  , pt->dchflate);
+	fprintf(fd, "\n");
+
+	fprintf(fd, "yem=%2.2f+%2.2f ", pt->dyem    , pt->dyeme   );
+	fprintf(fd, "uvm=%2.2f+%2.2f ", pt->duvem   , pt->duveme  );
+	fprintf(fd, "yen=%2.2f+%2.2f ", pt->dyen    , pt->dyene   );
+	fprintf(fd, "uvn=%2.2f+%2.2f ", pt->duven   , pt->duvene  );
+	fprintf(fd, "\n");
+
+	fprintf(fd, "qyx=%2.2f/%2.2f ", pt->qyi     , pt->qyp     );
+	fprintf(fd, "quv=%2.2f/%2.2f ", pt->quvi    , pt->quvp    );
+	fprintf(fd, "qdy=%2.2f/%2.2f ", pt->qdyi    , pt->qdyp    );
+	fprintf(fd, "\n");
+
+	fprintf(fd, "eb=%2.2f bpp=%2.2f", pt->ebit, pt->ebpp);
+	fprintf(fd, "\n");
+}
+
 void btic1h_ptune_dump(
 	BTIC1H_PTune *pt)
 {
-	printf("fxx=%2.2f+%2.2f ", pt->dflat   , pt->dflate  );
-	printf("22x=%2.2f+%2.2f ", pt->d2x2    , pt->d2x2e   );
-	printf("441=%2.2f+%2.2f ", pt->d4x4x1  , pt->d4x4x1e );
-	printf("\n");
-	printf("442=%2.2f+%2.2f ", pt->d4x4x2  , pt->d4x4x2e );
-	printf("443=%2.2f+%2.2f ", pt->d4x4x3  , pt->d4x4x3e );
-	printf("chf=%2.2f+%2.2f", pt->dchflat  , pt->dchflate);
-	printf("\n");
-
-	printf("yem=%2.2f+%2.2f ", pt->dyem    , pt->dyeme   );
-	printf("uvm=%2.2f+%2.2f ", pt->duvem   , pt->duveme  );
-	printf("yen=%2.2f+%2.2f ", pt->dyen    , pt->dyene   );
-	printf("uvn=%2.2f+%2.2f ", pt->duven   , pt->duvene  );
-	printf("\n");
-
-	printf("qyx=%2.2f/%2.2f ", pt->qyi     , pt->qyp     );
-	printf("quv=%2.2f/%2.2f ", pt->quvi    , pt->quvp    );
-	printf("qdy=%2.2f/%2.2f ", pt->qdyi    , pt->qdyp    );
-	printf("\n");
-
-	printf("eb=%2.2f bpp=%2.2f", pt->ebit, pt->ebpp);
-	printf("\n");
+	btic1h_ptune_dumpfd(pt, stdout);
 }
+
+#define HALFSAMPLE
 
 int main(int argc, char *argv[])
 {
@@ -218,17 +227,18 @@ int main(int argc, char *argv[])
 	BTIC1H_Context *btectx;
 	BTIC1H_Context *btdctx;
 	BTIC1H_PTune *ptune;
+	FILE *logfd;
 
-	byte *ibuf, *obuf, *tbuf;
+	byte *ibuf, *ibuf2, *obuf, *tbuf;
 	char *ifn;
 	double dt, fsz;
 	double f, g, h, e, ebit;
 	double qff, tgte;
 	int tgsz;
-	int tsz, xs1, ys1, ptrov, ptron, ptgen;
+	int tsz, xs1, ys1, xsi, ysi, ptrov, ptron, ptgen;
 	int fc, xs, ys, qf, qfl;
 	int t0, t1, t2;
-	int i, j, k;
+	int i, j, k, l;
 
 	ifn=NULL;
 	for(i=1; i<argc; i++)
@@ -263,7 +273,8 @@ int main(int argc, char *argv[])
 	}
 
 #if 1
-	for(i=0; i<64; i++)
+//	for(i=0; i<64; i++)
+	for(i=0; i<16; i++)
 	{
 //		ptune=main_ptune[16];
 		ptune=main_ptune[i];
@@ -300,6 +311,19 @@ int main(int argc, char *argv[])
 	}
 #endif
 
+#if 1
+	for(i=0; i<32; i++)
+	{
+		j=rand()&31;
+		k=rand()&31;
+		btic1h_ptune_breed(
+			main_ptune[j],
+			main_ptune[k],
+			main_ptune[32+i]);
+	}
+#endif
+	logfd=fopen("ptune_log0.tct", "wt");
+
 	if(!ifn)
 	{
 		printf("No Input\n");
@@ -313,11 +337,19 @@ int main(int argc, char *argv[])
 		return(-1);
 	}
 	
+#ifdef HALFSAMPLE
+	xsi=ctx->bmihead->biWidth;
+	ysi=ctx->bmihead->biHeight;
+	xs=ctx->bmihead->biWidth>>1;
+	ys=ctx->bmihead->biHeight>>1;
+	fsz=xs*ys/1000000.0;
+#else
 	xs=ctx->bmihead->biWidth;
 	ys=ctx->bmihead->biHeight;
 	fsz=xs*ys/1000000.0;
 	printf("%d x %d, fsz=%f Mpix\n", xs, ys, fsz);
-	
+#endif
+
 	btectx=BTIC1H_AllocContext();
 	btdctx=BTIC1H_AllocContext();
 	btectx->xs=xs;
@@ -325,6 +357,9 @@ int main(int argc, char *argv[])
 	btdctx->xs=xs;
 	btdctx->ys=ys;
 
+#ifdef HALFSAMPLE
+	ibuf=malloc(xs*ys*4);
+#endif
 	obuf=malloc(xs*ys*4);
 	tbuf=malloc(1<<24);
 
@@ -342,7 +377,8 @@ int main(int argc, char *argv[])
 	{
 		if(qfl&BTIC1H_QFL_PFRAME)
 		{
-			if(!(fc&31))
+//			if(!(fc&31))
+			if(!(fc&127))
 			{
 				ibuf=BGBBTJ_AVI_DecodeFrameBGRA(ctx);
 				fc++;
@@ -358,7 +394,22 @@ int main(int argc, char *argv[])
 			}
 		}
 	
+#ifdef HALFSAMPLE
+		ibuf2=BGBBTJ_AVI_DecodeFrameBGRA(ctx);
+		for(i=0; i<ys; i++)
+			for(j=0; j<ys; j++)
+		{
+			k=(i*xs+j)*4;
+			l=(i*2*xsi+j*2)*4;
+			ibuf[k+0]=ibuf2[l+0];
+			ibuf[k+1]=ibuf2[l+1];
+			ibuf[k+2]=ibuf2[l+2];
+			ibuf[k+3]=ibuf2[l+3];
+		}
+#else
 		ibuf=BGBBTJ_AVI_DecodeFrameBGRA(ctx);
+#endif
+
 		fc++;
 
 		ptune=main_ptune[ptrov];
@@ -401,13 +452,13 @@ int main(int argc, char *argv[])
 		dt=t2/((double)CLOCKS_PER_SEC);
 		if(dt==0)dt=0.01;
 		
-		printf("%.2fs %.2f fps, %3.2f Mpix/sec  ",
+		printf("%.1fs %.1f fps, %3.1f Mpix/sec ",
 			dt, fc/dt, fsz*(fc/dt));
-		printf("sz=%d eb=%.2f e=%2.2f qf=%d rtj=%d/%d/%d  ",
+		printf("sz=%d eb=%.1f e=%2.1f qf=%d rtj=%d/%d/%d ",
 			tsz, ebit, e, qf, ptrov, ptron, ptgen);
 		printf("\r");
 
-		if(ptron>=4)
+		if(ptron>=8)
 		{
 			k=ptron;
 			ptron=0;
@@ -455,6 +506,14 @@ int main(int argc, char *argv[])
 			}
 			
 			btic1h_ptune_dump(main_ptune[0]);
+
+			fprintf(logfd, "Gen %d\n", ptgen);
+			for(i=0; i<8; i++)
+			{
+				fprintf(logfd, "%d:\n", i);
+				btic1h_ptune_dumpfd(main_ptune[i], logfd);
+				fprintf(logfd, "\n");
+			}
 
 			for(i=0; i<64; i++)
 			{

@@ -1380,15 +1380,19 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 	}else
 	{
 		qrf=qr/50.0;
-//		dyem=qr*(0.3+qrf*0.25);
-//		duvem=qr*(0.5+qrf*0.25);
-//		dyen=qr*(0.6+qrf*0.5);
-//		duven=qr*(0.8+qrf*0.5);
+#if 0
+		dyem=qr*(0.3+qrf*0.25);
+		duvem=qr*(0.5+qrf*0.25);
+		dyen=qr*(0.6+qrf*0.5);
+		duven=qr*(0.8+qrf*0.5);
+#endif
 
+#if 1
 		dyem=qr*(1.39+qrf*1.27);
 		duvem=qr*(1.33+qrf*1.35);
 		dyen=qr*(1.53+qrf*1.36);
 		duven=qr*(1.72+qrf*1.59);
+#endif
 
 		if(lblks)
 		{
