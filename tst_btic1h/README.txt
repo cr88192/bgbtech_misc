@@ -28,6 +28,15 @@ Most other mainstream codecs are based on the use of the DCT transform, and focu
 Instead, this codec is primarily based on operation similar to that in Color Cell Compression.
 
 
+Presumed Build Environment (Windows):
+  MSVC Command Prompt with MinGW or Cygwin tools in PATH.
+  'makecodec.bat' should then compile the codec.
+
+The file 'inst_inf.bat' is an install batch. It may need to be modified depending on the source path for the codec and similar.
+
+Note that the code
+
+
 Legal Blob:
 <--
 Copyright (C) 2015 by Brendan G Bohannon

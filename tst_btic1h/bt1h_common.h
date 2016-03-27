@@ -190,6 +190,12 @@ typedef signed long long s64;
 
 #define	BTIC1H_DBFL_CLEARSKIP	(1<< 8)		//I-Frame
 
+#define	BTIC1H_PTFL_BLKENC		(1<< 0)		//Tune Block Encoding
+#define	BTIC1H_PTFL_BLKSKIP		(1<< 1)		//Tune Block Skipping
+#define	BTIC1H_PTFL_LQUANTI		(1<< 2)		//Tune Linear Quantization (I)
+#define	BTIC1H_PTFL_LQUANTP		(1<< 3)		//Tune Linear Quantization (P)
+#define	BTIC1H_PTFL_LQUANT		(3<< 2)		//Tune Linear Quantization (IP)
+
 #ifndef BTIC1H_API
 #define BTIC1H_API __declspec(dllexport)
 #endif
@@ -232,6 +238,7 @@ float qyp, quvp, qdyp;
 float ebit;
 float ebpp;
 float ermse;
+int parmfl;
 };
 
 struct BTIC1H_Context_s {
@@ -286,7 +293,7 @@ int nblks;							//image blocks count
 int qfl;							//quantization and flags
 
 int cy, cu, cv, cd;					//Current YUVD
-int qfy, qfuv, qfd;					//Aurrent Quantization Factors
+int qfy, qfuv, qfd;					//Current Quantization Factors
 int absyuvbias;						//Absolute YUV Bias
 
 int cdy, cdu, cdv;					//Dyuv

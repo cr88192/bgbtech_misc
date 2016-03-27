@@ -312,7 +312,9 @@ The command table will start with its contents initially undefined.
 
 === Commands ===
 
-C(XX), expresses a logical command number in Hex:
+C(XX), expresses a logical command number in Hex.
+
+Image Mode 0:
 * CmdRIdx encoded as AdRice
 ** 0: Followed by CmdAbs, which encodes an absolute command number.
 ** 1..256: Repeat a prior command (encodes RIdx 0..255).
@@ -323,7 +325,7 @@ The RIdx is an index into a 256-entry rotating table of commands:
 * (New) RIdx=1..31: Use command at entry RIdx, Swap entries RIdx and RIdx-1.
 * (New) RIdx=32..255: Rotate back one place and swap new 0 and old RIdx.
 
-CmdAbs:
+CmdAbs (Image Mode 0 Only):
 * Table rotates back 1 place, command added to front of table.
 * Initial contents of the table are undefined and may not be used.
 * If the command exists at a prior location in the table, a hole is created.
@@ -364,10 +366,12 @@ Commands:
 * C(0B) DeltaYUVDyuv, Pixblock2x4
 ** Color and pixel-blocks (but with more endpoints)
 
-* C(0C) AbsYUVD, Pixblock2x2
-* C(0D) AbsYUVD, Pixblock4x4
-* C(0E) AbsYUVDyuv, Pixblock2x2
-* C(0F) AbsYUVDyuv, Pixblock4x4
+* C(0C) AbsYUVD, Pixblock2x2 (Deprecated)
+* C(0D) AbsYUVD, Pixblock4x4 (Deprecated)
+* C(0E) AbsYUVDyuv, Pixblock2x2 (Deprecated)
+* C(0F) AbsYUVDyuv, Pixblock4x4 (Deprecated)
+** AbsYUV blocks.
+** This case is to be replaced by explicit Abs color points.
 
 * C(10) RunCount
 ** Run of blocks repeating a single color.
@@ -397,24 +401,20 @@ Commands:
 * C(1B) RunCount, DeltaYUV*RunCount
 ** Run of flat-color blocks.
 
-* C(1C) DeltaYUV*4
+* C(1C) DeltaYUV*4 (Deprecated)
 **  Logical 4:2:0, 2x2 with 1 color per pixel
 **  Colors are encoded in Hilbert(2x2) order
-**  Deprecate?
-* C(1D) DeltaYUVD*4, Pixblock4x4
+* C(1D) DeltaYUVD*4, Pixblock4x4 (Deprecated)
 **  Logical 4:2:0, 4x4 consisting of 2x2 sub-blocks
 **  Colors are encoded in Hilbert(2x2) order
-**  Deprecate?
-* C(1E) DeltaYUV*16
+* C(1E) DeltaYUV*16 (Deprecated)
 **  Logical 4:4:4, 4x4 with 1 color per pixel
 **  Pixels are encoded in Hilbert(4x4) order
 **  Note: Non-Alpha Only
-**  Deprecate?
-* C(1F) AbsYUV*16
+* C(1F) AbsYUV*16 (Deprecated)
 **  Logical 4:4:4, 4x4 with 1 color per pixel
 **  Pixels are encoded in Hilbert(4x4) order
 **  Note: Non-Alpha Only
-**  Deprecate?
 
 * C(20) End Of Data
 ** Logical end of bitstream data. For multi-segment images, indicates the end of the current segment.
@@ -507,6 +507,10 @@ Commands:
 ** Separately interpolated YUV.
 ** YUVDyuv only.
 * C(3F)
+
+* C(40) AbsYUVD
+* C(41) AbsYUVDyuv
+** Absolute Color Point
 
 
 === Parameters and Feature Flags ===

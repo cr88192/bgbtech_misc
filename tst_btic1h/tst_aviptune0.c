@@ -97,7 +97,9 @@ double checkrmse(byte *ibuf1, byte *ibuf2, int xs, int ys)
 		eb+=db*db;
 	}
 	
-	e=(er+eg+eb)/3;
+//	e=(er+eg+eb)/3;
+//	e=(er+2*eg+eb)/4;
+	e=0.35*er+0.5*eg+0*15*eb;
 	n=xs*ys;
 //	printf("RMSE: Er=%.3f Eg=%.3f Eb=%.3f Eavg=%.3f\n",
 //		sqrt(er/n), sqrt(eg/n), sqrt(eb/n), sqrt(e/n));
@@ -189,25 +191,46 @@ void btic1h_ptune_breed(
 void btic1h_ptune_dumpfd(
 	BTIC1H_PTune *pt, FILE *fd)
 {
-	fprintf(fd, "fxx=%2.2f+%2.2f ", pt->dflat   , pt->dflate  );
-	fprintf(fd, "22x=%2.2f+%2.2f ", pt->d2x2    , pt->d2x2e   );
-	fprintf(fd, "441=%2.2f+%2.2f ", pt->d4x4x1  , pt->d4x4x1e );
-	fprintf(fd, "\n");
-	fprintf(fd, "442=%2.2f+%2.2f ", pt->d4x4x2  , pt->d4x4x2e );
-	fprintf(fd, "443=%2.2f+%2.2f ", pt->d4x4x3  , pt->d4x4x3e );
-	fprintf(fd, "chf=%2.2f+%2.2f", pt->dchflat  , pt->dchflate);
-	fprintf(fd, "\n");
+//	ptune->parmfl=BTIC1H_PTFL_BLKENC|
+//				BTIC1H_PTFL_BLKSKIP|
+//				BTIC1H_PTFL_LQUANT;
+				
+	if((pt->parmfl)&BTIC1H_PTFL_BLKENC)
+	{
+		fprintf(fd, "fxx=%2.2f+%2.2f ", pt->dflat   , pt->dflate  );
+		fprintf(fd, "22x=%2.2f+%2.2f ", pt->d2x2    , pt->d2x2e   );
+		fprintf(fd, "441=%2.2f+%2.2f ", pt->d4x4x1  , pt->d4x4x1e );
+		fprintf(fd, "\n");
+		fprintf(fd, "442=%2.2f+%2.2f ", pt->d4x4x2  , pt->d4x4x2e );
+		fprintf(fd, "443=%2.2f+%2.2f ", pt->d4x4x3  , pt->d4x4x3e );
+		fprintf(fd, "chf=%2.2f+%2.2f", pt->dchflat  , pt->dchflate);
+		fprintf(fd, "\n");
+	}
 
-	fprintf(fd, "yem=%2.2f+%2.2f ", pt->dyem    , pt->dyeme   );
-	fprintf(fd, "uvm=%2.2f+%2.2f ", pt->duvem   , pt->duveme  );
-	fprintf(fd, "yen=%2.2f+%2.2f ", pt->dyen    , pt->dyene   );
-	fprintf(fd, "uvn=%2.2f+%2.2f ", pt->duven   , pt->duvene  );
-	fprintf(fd, "\n");
+	if((pt->parmfl)&BTIC1H_PTFL_BLKSKIP)
+	{
+		fprintf(fd, "yem=%2.2f+%2.2f ", pt->dyem    , pt->dyeme   );
+		fprintf(fd, "uvm=%2.2f+%2.2f ", pt->duvem   , pt->duveme  );
+		fprintf(fd, "yen=%2.2f+%2.2f ", pt->dyen    , pt->dyene   );
+		fprintf(fd, "uvn=%2.2f+%2.2f ", pt->duven   , pt->duvene  );
+		fprintf(fd, "\n");
+	}
 
-	fprintf(fd, "qyx=%2.2f/%2.2f ", pt->qyi     , pt->qyp     );
-	fprintf(fd, "quv=%2.2f/%2.2f ", pt->quvi    , pt->quvp    );
-	fprintf(fd, "qdy=%2.2f/%2.2f ", pt->qdyi    , pt->qdyp    );
-	fprintf(fd, "\n");
+	if((pt->parmfl)&BTIC1H_PTFL_LQUANTI)
+	{
+		fprintf(fd, "qyxi=%2.2f ", pt->qyi );
+		fprintf(fd, "quvi=%2.2f ", pt->quvi);
+		fprintf(fd, "qdyi=%2.2f ", pt->qdyi);
+		fprintf(fd, "\n");
+	}
+
+	if((pt->parmfl)&BTIC1H_PTFL_LQUANTP)
+	{
+		fprintf(fd, "qyxp=%2.2f ", pt->qyp );
+		fprintf(fd, "quvp=%2.2f ", pt->quvp);
+		fprintf(fd, "qdyp=%2.2f ", pt->qdyp);
+		fprintf(fd, "\n");
+	}
 
 	fprintf(fd, "eb=%2.2f bpp=%2.2f", pt->ebit, pt->ebpp);
 	fprintf(fd, "\n");
@@ -219,7 +242,7 @@ void btic1h_ptune_dump(
 	btic1h_ptune_dumpfd(pt, stdout);
 }
 
-#define HALFSAMPLE
+// #define HALFSAMPLE
 
 int main(int argc, char *argv[])
 {
@@ -236,8 +259,9 @@ int main(int argc, char *argv[])
 	double qff, tgte;
 	int tgsz;
 	int tsz, xs1, ys1, xsi, ysi, ptrov, ptron, ptgen;
-	int fc, xs, ys, qf, qfl;
+	int fc, xs, ys, qf, qfl, qfn;
 	int t0, t1, t2;
+	int l0, l1;
 	int i, j, k, l;
 
 	ifn=NULL;
@@ -270,6 +294,26 @@ int main(int argc, char *argv[])
 		ptune->d4x4x2e =(rand()&4095)/2048.0;
 		ptune->d4x4x3e =(rand()&4095)/2048.0;
 		ptune->dchflate=(rand()&4095)/2048.0;
+
+		ptune->dyem  =(rand()&4095)/2048.0;
+		ptune->duvem =(rand()&4095)/2048.0;
+		ptune->dyen  =(rand()&4095)/2048.0;
+		ptune->duven =(rand()&4095)/2048.0;
+		ptune->dyeme =(rand()&4095)/2048.0;
+		ptune->duveme=(rand()&4095)/2048.0;
+		ptune->dyene =(rand()&4095)/2048.0;
+		ptune->duvene=(rand()&4095)/2048.0;
+
+		ptune->qyp =(rand()&4095)/2048.0;
+		ptune->quvp=(rand()&4095)/2048.0;
+		ptune->qdyp=(rand()&4095)/2048.0;
+		ptune->qyi =(rand()&4095)/2048.0;
+		ptune->quvi=(rand()&4095)/2048.0;
+		ptune->qdyi=(rand()&4095)/2048.0;
+		
+//		ptune->parmfl=BTIC1H_PTFL_BLKENC|
+//			BTIC1H_PTFL_BLKSKIP|
+//			BTIC1H_PTFL_LQUANT;
 	}
 
 #if 1
@@ -322,7 +366,7 @@ int main(int argc, char *argv[])
 			main_ptune[32+i]);
 	}
 #endif
-	logfd=fopen("ptune_log0.tct", "wt");
+	logfd=fopen("ptune_log0.txt", "wt");
 
 	if(!ifn)
 	{
@@ -365,11 +409,34 @@ int main(int argc, char *argv[])
 
 	qf=75; ptrov=0; ptron=0; ptgen=0;
 	qff=75;
+	qfn=99;
 	
 	qfl=BTIC1H_QFL_DBGPTUNE;
 	qfl|=BTIC1H_QFL_PFRAME;
 
-	tgsz=1500000/30;
+	if(qfl&BTIC1H_QFL_PFRAME)
+	{
+		tgsz=1500000/30;
+		for(i=0; i<64; i++)
+		{
+			ptune=main_ptune[i];
+			ptune->parmfl=BTIC1H_PTFL_BLKENC|
+				BTIC1H_PTFL_BLKSKIP|
+				BTIC1H_PTFL_LQUANTP;
+		}
+	}else
+	{
+		tgsz=1500000/5;
+
+		for(i=0; i<64; i++)
+		{
+			ptune=main_ptune[i];
+//			ptune->parmfl=BTIC1H_PTFL_BLKENC|
+//				BTIC1H_PTFL_BLKSKIP|
+//				BTIC1H_PTFL_LQUANT;
+			ptune->parmfl=BTIC1H_PTFL_LQUANTI;
+		}
+	}
 
 	fc=0; t0=clock(); t1=t0;
 //	while(t1<(t0+(30*CLOCKS_PER_SEC)))
@@ -400,11 +467,21 @@ int main(int argc, char *argv[])
 			for(j=0; j<ys; j++)
 		{
 			k=(i*xs+j)*4;
-			l=(i*2*xsi+j*2)*4;
-			ibuf[k+0]=ibuf2[l+0];
-			ibuf[k+1]=ibuf2[l+1];
-			ibuf[k+2]=ibuf2[l+2];
-			ibuf[k+3]=ibuf2[l+3];
+			l0=((i*2+0)*xsi+j*2)*4;
+			l1=((i*2+1)*xsi+j*2)*4;
+//			ibuf[k+0]=ibuf2[l0+0];
+//			ibuf[k+1]=ibuf2[l0+1];
+//			ibuf[k+2]=ibuf2[l0+2];
+//			ibuf[k+3]=ibuf2[l0+3];
+
+			ibuf[k+0]=(ibuf2[l0+0]+ibuf2[l0+4]+
+				ibuf2[l1+0]+ibuf2[l1+4])>>2;
+			ibuf[k+1]=(ibuf2[l0+1]+ibuf2[l0+5]+
+				ibuf2[l1+1]+ibuf2[l1+5])>>2;
+			ibuf[k+2]=(ibuf2[l0+2]+ibuf2[l0+6]+
+				ibuf2[l1+2]+ibuf2[l1+6])>>2;
+			ibuf[k+3]=(ibuf2[l0+3]+ibuf2[l0+7]+
+				ibuf2[l1+3]+ibuf2[l1+7])>>2;
 		}
 #else
 		ibuf=BGBBTJ_AVI_DecodeFrameBGRA(ctx);
@@ -429,16 +506,23 @@ int main(int argc, char *argv[])
 		
 		qf=qff;
 		
-		if(qf<10)qf=10;
-		if(qf>100)qf=100;
+		if(qf<10)
+			{ qf=10; qff=qf; }
+//		if(qf>100)qf=100;
+		if(qf>qfn)
+			{ qf=qfn; qff=qf; }
 
 //		tgte=25.0/(101-qf);
 //		tgte=25.0/((qf+1)/4);
-		tgte=64.0*((101-qf)/100.0);
+//		tgte=32.0*((101-qf)/100.0);
+//		tgte=16.0*((101-qf)/100.0);
+		tgte=16.0*((100-qf)/100.0);
+		tgte=tgte*tgte;
 
 		e=checkrmse(ibuf, obuf, xs, ys);
 		h=(tsz*8.0)/(xs*ys);
-		f=e/tgte; f=f*f;
+		f=e/tgte;
+//		f=f*f;
 		
 		ebit=h*e*(f+1);
 //		ebit=h*e;
@@ -452,6 +536,9 @@ int main(int argc, char *argv[])
 		dt=t2/((double)CLOCKS_PER_SEC);
 		if(dt==0)dt=0.01;
 		
+		printf(
+			"                                      "
+			"                                    \r");
 		printf("%.1fs %.1f fps, %3.1f Mpix/sec ",
 			dt, fc/dt, fsz*(fc/dt));
 		printf("sz=%d eb=%.1f e=%2.1f qf=%d rtj=%d/%d/%d ",

@@ -2137,6 +2137,13 @@ int BTIC1H_DecodeBlocksCtx(BTIC1H_Context *ctx,
 			}
 			break;
 
+		case 0x40:
+			BTIC1H_DecodeAbsYUVD(ctx);
+			break;
+		case 0x41:
+			BTIC1H_DecodeAbsYUVDyuv(ctx);
+			break;
+
 		default:
 			printf("BTIC1H_DecodeBlocksCtx: Bad Command %02X\n", cmd);
 #ifndef BTIC1H_VFWDRV

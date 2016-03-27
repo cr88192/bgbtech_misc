@@ -863,6 +863,249 @@ int BTIC1H_EmitDeltaQfAD(BTIC1H_Context *ctx,
 }
 
 
+#if 1
+int BTIC1H_EmitAbsYUVD(BTIC1H_Context *ctx,
+	int cy, int cu, int cv, int cd)
+{
+	int bit0, um;
+	int by, bu, bv, bd;
+	int dy, du, dv, dd;
+	int py, pu, pv, pd;
+	int qdy, qdu, qdv, qdd;
+
+	dy=cy-ctx->absyuvbias;
+	du=cu-ctx->absyuvbias;
+	dv=cv-ctx->absyuvbias;
+	dd=cd;
+	qdy=(dy*ctx->fx_qfay +2048)>>12;
+	qdu=(du*ctx->fx_qfauv+2048)>>12;
+	qdv=(dv*ctx->fx_qfauv+2048)>>12;
+	qdd=(dd*ctx->fx_qfad +2048)>>12;
+	py=ctx->absyuvbias+qdy*ctx->qfay;
+	pu=ctx->absyuvbias+qdu*ctx->qfauv;
+	pv=ctx->absyuvbias+qdv*ctx->qfauv;
+	pd=qdd*ctx->qfad;
+
+	if((py|pu|pv|pd)>>8)
+	{
+		qdy=qdy-(py>>8);		qdu=qdu-(pu>>8);
+		qdv=qdv-(pv>>8);		qdd=qdd-(pd>>8);
+		py=ctx->absyuvbias+qdy*ctx->qfay;
+		pu=ctx->absyuvbias+qdu*ctx->qfauv;
+		pv=ctx->absyuvbias+qdv*ctx->qfauv;
+		pd=qdd*ctx->qfad;
+	}
+
+	ctx->cy=py;		ctx->cu=pu;
+	ctx->cv=pv;		ctx->cd=pd;
+
+#if 0
+	ctx->cnt_dpts+=4;
+	if(!qdy)ctx->cnt_dzpts++;
+	if(!qdu)ctx->cnt_dzpts++;
+	if(!qdv)ctx->cnt_dzpts++;
+	if(!qdd)ctx->cnt_dzpts++;
+#endif
+
+#if 0
+	if(ctx->absupdmask)
+	{
+		ctx->cnt_dcpts[0]++;
+		ctx->cnt_dcpts[1]++;
+		ctx->cnt_dcpts[2]++;
+		ctx->cnt_dcpts[3]++;
+
+		if(!qdy)ctx->cnt_dczpts[0]++;
+		if(!qdu)ctx->cnt_dczpts[1]++;
+		if(!qdv)ctx->cnt_dczpts[2]++;
+		if(!qdd)ctx->cnt_dczpts[3]++;
+	}
+#endif
+
+	if(ctx->absupdmask)
+	{
+		um=0;
+		if(qdy)um|=1;
+		if(qdu)um|=2;
+		if(qdv)um|=4;
+		if(qdd)um|=8;
+		um=BTIC1H_EmitDeltaMask4(ctx, um);
+	}else { um=255; }
+
+	bit0=ctx->bs_bits;
+	if(um&1)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdy, &(ctx->rk_ay));
+	ctx->bits_dy+=ctx->bs_bits-bit0;
+	ctx->bits_dyuv+=ctx->bs_bits-bit0;
+
+	bit0=ctx->bs_bits;
+	if(um&2)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdu, &(ctx->rk_auv));
+	if(um&4)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdv, &(ctx->rk_auv));
+	ctx->bits_duv+=ctx->bs_bits-bit0;
+	ctx->bits_dyuv+=ctx->bs_bits-bit0;
+
+	bit0=ctx->bs_bits;
+	if(um&8)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdd, &(ctx->rk_ady));
+	ctx->bits_ddy+=ctx->bs_bits-bit0;
+
+#ifdef BT1H_DEBUG_TRAPRANGE
+	if(	((ctx->cy<0) || (ctx->cy>255)) ||
+		((ctx->cu<0) || (ctx->cu>255)) ||
+		((ctx->cv<0) || (ctx->cv>255)) ||
+		((ctx->cd<0) || (ctx->cd>255)))
+	{
+		*(int *)-1=-1;
+	}
+#endif
+
+	return(0);
+}
+#endif
+
+#if 1
+int BTIC1H_EmitAbsYUVDyuv(BTIC1H_Context *ctx,
+	int cy, int cu, int cv,
+	int cdy, int cdu, int cdv)
+{
+	int bit0, um;
+	int by, bu, bv, bdy, bdu, bdv;
+	int dy, du, dv, ddy, ddu, ddv;
+	int py, pu, pv, pdy, pdu, pdv;
+	int qdy, qdu, qdv, qddy, qddu, qddv;
+
+	dy=cy-ctx->absyuvbias;
+	du=cu-ctx->absyuvbias;
+	dv=cv-ctx->absyuvbias;
+	ddy=cdy;
+	ddu=cdu;
+	ddv=cdv;
+	qdy=(dy*ctx->fx_qfay +2048)>>12;
+	qdu=(du*ctx->fx_qfauv+2048)>>12;
+	qdv=(dv*ctx->fx_qfauv+2048)>>12;
+	qddy=(ddy*ctx->fx_qfady +2048)>>12;
+	qddu=(ddu*ctx->fx_qfaduv+2048)>>12;
+	qddv=(ddv*ctx->fx_qfaduv+2048)>>12;
+	py=ctx->absyuvbias+qdy*ctx->qfay;
+	pu=ctx->absyuvbias+qdu*ctx->qfauv;
+	pv=ctx->absyuvbias+qdv*ctx->qfauv;
+	pdy=qddy*ctx->qfady;
+	pdu=qddu*ctx->qfaduv;
+	pdv=qddv*ctx->qfaduv;
+
+	if((py|pu|pv)>>8)
+	{
+		qdy=qdy-(py>>8);			qdu=qdu-(pu>>8);
+		qdv=qdv-(pv>>8);
+		py=ctx->absyuvbias+qdy*ctx->qfay;
+		pu=ctx->absyuvbias+qdu*ctx->qfauv;
+		pv=ctx->absyuvbias+qdv*ctx->qfauv;
+	}
+
+	if(((pdy^(pdy>>8))|(pdu^(pdu>>8))|(pdv^(pdv>>8)))>>8)
+	{
+		qddy=qddy-(pdy>>8);
+		qddu=qddu-(pdu>>8);			qddv=qddv-(pdv>>8);
+		pdy=qddy*ctx->qfady;
+		pdu=qddu*ctx->qfaduv;
+		pdv=qddv*ctx->qfaduv;
+	}
+
+	ctx->cy=py;		ctx->cu=pu;
+	ctx->cv=pv;		ctx->cdy=pdy;
+	ctx->cdu=pdu;	ctx->cdv=pdv;
+
+#if 0
+	ctx->cnt_dpts+=6;
+	if(!qdy)ctx->cnt_dzpts++;
+	if(!qdu)ctx->cnt_dzpts++;
+	if(!qdv)ctx->cnt_dzpts++;
+	if(!qddy)ctx->cnt_dzpts++;
+	if(!qddu)ctx->cnt_dzpts++;
+	if(!qddv)ctx->cnt_dzpts++;
+#endif
+
+#if 0
+	if(ctx->absupdmask)
+	{
+		ctx->cnt_dcpts[0]++;
+		ctx->cnt_dcpts[1]++;
+		ctx->cnt_dcpts[2]++;
+		ctx->cnt_dcpts[3]++;
+		ctx->cnt_dcpts[4]++;
+		ctx->cnt_dcpts[5]++;
+
+		if(!qdy)ctx->cnt_dczpts[0]++;
+		if(!qdu)ctx->cnt_dczpts[1]++;
+		if(!qdv)ctx->cnt_dczpts[2]++;
+		if(!qddy)ctx->cnt_dczpts[3]++;
+		if(!qddu)ctx->cnt_dczpts[4]++;
+		if(!qddv)ctx->cnt_dczpts[5]++;
+	}
+#endif
+
+	if(ctx->absupdmask)
+	{
+		um=0;
+		if(qdy)um|=1;
+		if(qdu)um|=2;
+		if(qdv)um|=4;
+		if(qddy)um|=8;
+		if(qddu)um|=16;
+		if(qddv)um|=32;
+		um=BTIC1H_EmitDeltaMask6(ctx, um);
+	}else { um=255; }
+
+	bit0=ctx->bs_bits;
+	if(um&1)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdy, &(ctx->rk_ay));
+	ctx->bits_dy+=ctx->bs_bits-bit0;
+	ctx->bits_dyuv+=ctx->bs_bits-bit0;
+
+	bit0=ctx->bs_bits;
+	if(um&2)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdu, &(ctx->rk_auv));
+	if(um&4)
+		BTIC1H_Rice_WriteAdSRice(ctx, qdv, &(ctx->rk_auv));
+	ctx->bits_duv+=ctx->bs_bits-bit0;
+	ctx->bits_dyuv+=ctx->bs_bits-bit0;
+
+	bit0=ctx->bs_bits;
+	if(um&8)
+		BTIC1H_Rice_WriteAdSRice(ctx, qddy, &(ctx->rk_ady));
+	ctx->bits_ddy+=ctx->bs_bits-bit0;
+
+	bit0=ctx->bs_bits;
+	if(um&16)
+		BTIC1H_Rice_WriteAdSRice(ctx, qddu, &(ctx->rk_aduv));
+	if(um&32)
+		BTIC1H_Rice_WriteAdSRice(ctx, qddv, &(ctx->rk_aduv));
+	ctx->bits_dduv+=ctx->bs_bits-bit0;
+	ctx->bits_dyuv+=ctx->bs_bits-bit0;
+
+#ifdef BT1H_DEBUG_TRAPRANGE
+	if(	((ctx->cy<0) || (ctx->cy>255)) ||
+		((ctx->cu<0) || (ctx->cu>255)) ||
+		((ctx->cv<0) || (ctx->cv>255)))
+	{
+		*(int *)-1=-1;
+	}
+
+	if(	((ctx->cdy<-256)||(ctx->cdy>255))||
+		((ctx->cdu<-256)||(ctx->cdu>255))||
+		((ctx->cdv<-256)||(ctx->cdv>255)))
+	{
+		*(int *)-1=-1;
+	}
+#endif
+
+	return(0);
+}
+#endif
+
+
 int BTIC1H_CheckZeroDeltaYUV(BTIC1H_Context *ctx,
 	int cy, int cu, int cv)
 {
@@ -1319,6 +1562,7 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 	byte *cs, *cse, *csl, *csle, *csle2, *lblks2, *cs1, *cs1e;
 	double qrf;
 	int bit0;
+	int setyuv;
 	int cy, cu, cv, cd, cm;
 //	int dye, duve, qr;
 	int dyem, duvem, qr;
@@ -1356,7 +1600,8 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 //	dyen=qr*1.2;
 //	duven=qr*1.5;
 
-	if(qf&BTIC1H_QFL_DBGPTUNE)
+	if((qf&BTIC1H_QFL_DBGPTUNE) &&
+		(btic1h_dbg_ptune->parmfl&BTIC1H_PTFL_BLKSKIP))
 	{
 		pt=btic1h_dbg_ptune;
 
@@ -1365,7 +1610,49 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 		duvem=qr*(pt->duvem+qrf*pt->duveme);
 		dyen =qr*(pt->dyen +qrf*pt->dyene );
 		duven=qr*(pt->duven+qrf*pt->duvene);
+	}else
+	{
+		qrf=qr/50.0;
+#if 0
+		dyem=qr*(0.3+qrf*0.25);
+		duvem=qr*(0.5+qrf*0.25);
+		dyen=qr*(0.6+qrf*0.5);
+		duven=qr*(0.8+qrf*0.5);
+#endif
 
+#if 1
+		dyem=qr*(0.75+qrf*0.55);
+		duvem=qr*(0.77+qrf*0.52);
+		dyen=qr*(0.98+qrf*0.93);
+		duven=qr*(1.30+qrf*0.93);
+#endif
+
+#if 0
+		dyem=qr*(0.88+qrf*0.73);
+		duvem=qr*(0.92+qrf*0.76);
+		dyen=qr*(1.18+qrf*1.01);
+		duven=qr*(1.22+qrf*1.04);
+#endif
+
+#if 0
+		dyem=qr*(0.90+qrf*0.90);
+		duvem=qr*(1.00+qrf*0.80);
+		dyen=qr*(1.10+qrf*1.10);
+		duven=qr*(1.40+qrf*1.10);
+#endif
+
+#if 0
+		dyem=qr*(1.39+qrf*1.27);
+		duvem=qr*(1.33+qrf*1.35);
+		dyen=qr*(1.53+qrf*1.36);
+		duven=qr*(1.72+qrf*1.59);
+#endif
+	}
+
+	if((qf&BTIC1H_QFL_DBGPTUNE) &&
+		(btic1h_dbg_ptune->parmfl&BTIC1H_PTFL_LQUANT))
+	{
+		pt=btic1h_dbg_ptune;
 		if(lblks)
 		{
 			cy=qr*pt->qyp;
@@ -1379,36 +1666,32 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 		}
 	}else
 	{
-		qrf=qr/50.0;
-#if 0
-		dyem=qr*(0.3+qrf*0.25);
-		duvem=qr*(0.5+qrf*0.25);
-		dyen=qr*(0.6+qrf*0.5);
-		duven=qr*(0.8+qrf*0.5);
-#endif
-
-#if 1
-		dyem=qr*(1.39+qrf*1.27);
-		duvem=qr*(1.33+qrf*1.35);
-		dyen=qr*(1.53+qrf*1.36);
-		duven=qr*(1.72+qrf*1.59);
-#endif
-
 		if(lblks)
 		{
-			cy=qr*1.09;
-			cu=qr*1.53;
-			cd=qr*1.22;
+			cy=qr*0.50;
+			cu=qr*0.60;
+			cd=qr*0.75;
+
+//			cy=qr*0.70;
+//			cu=qr*0.75;
+//			cd=qr*0.90;
+
+//			cy=qr*0.75;
+//			cu=qr*0.79;
+//			cd=qr*0.93;
 
 //			cy=qr/5;
 //			cu=qr/4;
 //			cd=qr/3;
 		}else
 		{
-			cy=qr/6.5;
-			cu=qr/6;
-	//		cu=qr/4;
-			cd=qr/5;
+			cy=qr*0.40;
+			cu=qr*0.45;
+			cd=qr*0.50;
+
+//			cy=qr/6.5;
+//			cu=qr/6;
+//			cd=qr/5;
 		}
 	}
 
@@ -1424,6 +1707,8 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 	if(cy<1)cy=1;
 	if(cu<1)cu=1;
 	if(cd<1)cd=1;
+	
+	setyuv=0;
 	
 
 	cs=blks; cse=cs+nblks*stride;
@@ -1526,6 +1811,15 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 		
 		if(cd)
 		{
+			if(!setyuv)
+			{
+				BTIC1H_EmitCommandCode(ctx, 0x40);
+				BTIC1H_EmitAbsYUVD(ctx, cy, cu, cv, cd);
+//				BTIC1H_EmitAbsYUVD(ctx, 0, 128, 128, 0);
+//				BTIC1H_EmitAbsYUVD(ctx, 128, 128, 128, 0);
+				setyuv=1;
+			}
+			
 #if 1
 			if(BTIC1H_CheckZeroDeltaYUVD(ctx, cy, cu, cv, cd))
 			{
@@ -1570,6 +1864,15 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 		
 		cm=cs[4];
 		cd=cs[5];
+
+		if(!setyuv)
+		{
+			BTIC1H_EmitCommandCode(ctx, 0x40);
+			BTIC1H_EmitAbsYUVD(ctx, cy, cu, cv, cd);
+//			BTIC1H_EmitAbsYUVD(ctx, 0, 128, 128, 0);
+//			BTIC1H_EmitAbsYUVD(ctx, 128, 128, 128, 0);
+			setyuv=1;
+		}
 		
 		if(cm==0)
 		{
@@ -2504,6 +2807,12 @@ void BTIC1H_SetupContextInitial(BTIC1H_Context *ctx)
 
 	ctx->qfay=1;	ctx->qfauv=1;	ctx->qfad=1;
 	ctx->qfady=1;	ctx->qfaduv=1;
+
+	ctx->fx_qfy  =4096;		ctx->fx_qfuv  =4096;
+	ctx->fx_qfdy =4096;		ctx->fx_qfduv =4096;
+	ctx->fx_qfay =4096;		ctx->fx_qfauv =4096;
+	ctx->fx_qfady=4096;		ctx->fx_qfaduv=4096;
+	ctx->fx_qfd  =4096;		ctx->fx_qfad  =4096;
 
 	ctx->rk_cmdidx=2;	ctx->rk_cmdabs=4;
 	ctx->rk_cmdcnt=2;

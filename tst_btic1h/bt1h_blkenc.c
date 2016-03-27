@@ -1984,7 +1984,8 @@ void BTIC1H_EncodeImageRGBI(byte *block, int blkstride,
 	if(qf&BTIC1H_QFL_USEGDBDR)
 		ep->EncodeBlock=BT1H_EncodeBlockRGBI_GDbDr;
 
-	if(qf&BTIC1H_QFL_DBGPTUNE)
+	if((qf&BTIC1H_QFL_DBGPTUNE) &&
+		(btic1h_dbg_ptune->parmfl&BTIC1H_PTFL_BLKENC))
 	{
 		pt=btic1h_dbg_ptune;
 		qrf=qr/50.0;
@@ -2014,7 +2015,25 @@ void BTIC1H_EncodeImageRGBI(byte *block, int blkstride,
 		ep->dchflat=qr*(0.35+0.7*qrf);
 #endif
 
+#if 0
+		ep->dflat  =qr*( 0.90+1.00*qrf);
+		ep->d2x2   =qr*( 1.60+1.30*qrf);
+		ep->d4x4x1 =qr*( 1.30+1.50*qrf);
+		ep->d4x4x2 =qr*( 3.25+2.80*qrf);
+		ep->d4x4x3 =qr*( 8.50+2.45*qrf);
+		ep->dchflat=qr*( 0.90+1.20*qrf);
+#endif
+
 #if 1
+		ep->dflat  =qr*( 0.68+0.94*qrf);
+		ep->d2x2   =qr*( 1.15+1.02*qrf);
+		ep->d4x4x1 =qr*( 1.07+1.27*qrf);
+		ep->d4x4x2 =qr*( 3.08+2.53*qrf);
+		ep->d4x4x3 =qr*( 9.12+2.38*qrf);
+		ep->dchflat=qr*( 0.58+0.96*qrf);
+#endif
+
+#if 0
 //		1.49+1.61 1.89+2.22 2.34+2.24 3.42+4.22 11.37+2.68 1.82+2.20
 
 		ep->dflat  =qr*( 1.49+1.61*qrf);
