@@ -552,8 +552,8 @@ static LRESULT btjvfw_decompress_query(BTIC1H_VidCodecCTX *ctx,
 			(lParam2->bmiHeader.biCompression!=BI_RGB) &&
 			(lParam2->bmiHeader.biCompression!=BI_BITFIELDS) &&
 			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_RGBA) &&
-			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_YUY2) &&
-			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_UYVY) &&
+//			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_YUY2) &&
+//			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_UYVY) &&
 			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_DXT1) &&
 			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_DXT5) &&
 			(lParam2->bmiHeader.biCompression!=BTIC1H_FCC_BC1) &&
@@ -673,10 +673,10 @@ static LRESULT btjvfw_decompress_get_format(BTIC1H_VidCodecCTX *ctx,
 	lParam2->bmiHeader.biHeight=ys;
 	lParam2->bmiHeader.biPlanes=1;
 	lParam2->bmiHeader.biBitCount=32;
-//	lParam2->bmiHeader.biCompression=BI_RGB;
+	lParam2->bmiHeader.biCompression=BI_RGB;
 //	lParam2->bmiHeader.biCompression=BTIC1H_FCC_RGBA;
 //	lParam2->bmiHeader.biCompression=BI_BITFIELDS;
-	lParam2->bmiHeader.biCompression=BTIC1H_FCC_YUY2;
+//	lParam2->bmiHeader.biCompression=BTIC1H_FCC_YUY2;
 	lParam2->bmiHeader.biSizeImage=xs*ys*4;
 	lParam2->bmiHeader.biXPelsPerMeter=0;
 	lParam2->bmiHeader.biYPelsPerMeter=0;

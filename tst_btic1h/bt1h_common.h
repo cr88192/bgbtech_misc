@@ -31,6 +31,8 @@ THE SOFTWARE.
 // #define BT1H_CHEAPYUV		//use cheaper YUV
 // #define BT1H_USEGDBDR		//use GDbDr
 
+// #define BT1H_USECLRPRED		//use color predictors
+
 #define BT1H_ENABLE_AX		//enable alpha extension
 
 #define BT1H_BITSTATS
@@ -45,7 +47,7 @@ THE SOFTWARE.
 #endif
 
 
-// #define BT1H_DEBUG_TRAPRANGE
+#define BT1H_DEBUG_TRAPRANGE
 
 typedef unsigned char byte;
 typedef signed char sbyte;
@@ -314,6 +316,7 @@ byte tgtupdmask;					//Target YUVD update mask (encode).
 byte absupdmask;					//YUVD update mask (absolute).
 byte nextabsupdmask;				//Next YUVD update mask (absolute).
 byte colorpred;						//Color Prediction Mode
+byte reqcolorpred;					//Request Color Prediction Mode
 
 byte clryuv;						//color YUV type
 byte clrdty;						//color data type
@@ -383,6 +386,8 @@ int cnt_dcpts[8];					//count delta points
 int cnt_dczpts[8];					//count zero delta points
 byte maskwin[256];					//mask update window
 byte maskidx[256];					//mask update index
+
+int cnt_pred[4];
 
 int stat_cmds[256];
 
@@ -496,5 +501,7 @@ int (*end_compress)(BTIC1H_VidCodecCTX *ctx);
 int (*decompress_frame_clrs)(BTIC1H_VidCodecCTX *ctx,
 	void *src, void *dst, int ssz, int dsz, int clrs);
 };
+
+void BTIC1H_AccumEncodeStats(BTIC1H_Context *ctx, BTIC1H_Context *ctx1);
 
 void btjpg_puts(char *str);

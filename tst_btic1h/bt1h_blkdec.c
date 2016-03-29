@@ -1268,12 +1268,25 @@ void BTIC1H_DecodeBlockMB2B_RGBI(
 				clr[2]=cb;	clr[3]=255;
 			}
 
-			l=*(u32 *)(clr+0);
-
 			if(xstride==4)
 			{
+				l=*(u32 *)(clr+0);
+
+#if 0
+				if(tflip&16)
+				{
+					ct=rgba+ystride;
+					i1=*(u32 *)(ct-4);
+					ct=rgba-ystride;
+					i2=*(u32 *)(ct+4);
+				}else
+				{
+					i1=l; i2=l;
+				}
+#endif
+
 //				pxb2=(((u64)l)<<32)|l;
-			
+#if 1		
 				ct=rgba;
 //				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
 				*(u32 *)(ct+ 0)=l;	*(u32 *)(ct+ 4)=l;
@@ -1290,6 +1303,23 @@ void BTIC1H_DecodeBlockMB2B_RGBI(
 //				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
 				*(u32 *)(ct+ 0)=l;	*(u32 *)(ct+ 4)=l;
 				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=l;
+#endif
+
+#if 0	
+				ct=rgba;
+				*(u32 *)(ct+ 0)=l;	*(u32 *)(ct+ 4)=i2;
+				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=i2;
+				ct=ct+ystride;
+				*(u32 *)(ct+ 0)=i1;	*(u32 *)(ct+ 4)=l;
+				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=l;
+				ct=ct+ystride;
+				*(u32 *)(ct+ 0)=l;	*(u32 *)(ct+ 4)=l;
+				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=l;
+				ct=ct+ystride;
+				*(u32 *)(ct+ 0)=i1;	*(u32 *)(ct+ 4)=l;
+				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=l;
+#endif
+
 				return;
 			}
 
@@ -1532,6 +1562,38 @@ void BTIC1H_DecodeBlockMB2B_RGBI(
 		pxb=block[6];
 		if(xstride==4)
 		{
+#if 0
+			if(tflip&16)
+			{
+				ct=rgba+ystride;
+				i0=*(u32 *)(ct-4);
+				ct=rgba+3*ystride;
+				i1=*(u32 *)(ct-4);
+				ct=rgba-ystride;
+				i2=*(u32 *)(ct+4);
+				i3=*(u32 *)(ct+12);
+
+				i=clri[(pxb>>6)&3];
+				j=clri[(pxb>>4)&3];
+				k=clri[(pxb>>2)&3];
+				l=clri[(pxb   )&3];
+			
+				ct=rgba;
+				*(u32 *)(ct+ 0)=i;	*(u32 *)(ct+ 4)=i2;
+				*(u32 *)(ct+ 8)=j;	*(u32 *)(ct+12)=i3;
+				ct+=ystride;
+				*(u32 *)(ct+ 0)=i0;	*(u32 *)(ct+ 4)=i;
+				*(u32 *)(ct+ 8)=i;	*(u32 *)(ct+12)=j;
+				ct+=ystride;
+				*(u32 *)(ct+ 0)=k;	*(u32 *)(ct+ 4)=i;
+				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=j;
+				ct+=ystride;
+				*(u32 *)(ct+ 0)=i1;	*(u32 *)(ct+ 4)=k;
+				*(u32 *)(ct+ 8)=k;	*(u32 *)(ct+12)=l;
+				return;
+			}
+#endif
+
 			i=clri[(pxb>>6)&3];
 			j=clri[(pxb>>4)&3];
 			k=clri[(pxb>>2)&3];
@@ -2458,7 +2520,7 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 	byte *rgba, int xs, int ys, int clrs)
 {
 	byte *rgba2;
-	int xstr, ystr, tflip;
+	int xstr, ystr, tflip, tfl2;
 	int xs1, ys1, xs2, ys2, xf, yf;
 	int i, j;
 	
@@ -2510,18 +2572,27 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 		}
 		
 		tflip=(clrs==BTIC1H_PXF_UYVY)?1:0;
-	
+		tfl2=tflip;
+
 		xs1=xs>>2; ys1=ys>>2;
 		xs2=(xs+3)>>2; ys2=(ys+3)>>2;
 		for(i=0; i<ys1; i++)
-			for(j=0; j<xs1; j++)
 		{
-			if(blockfl && (blockfl[i*xs2+j]&1))
-				continue;
-			BTIC1H_DecodeBlockMB2B_YUY(ctx,
-				block+(i*xs2+j)*blkstride,
-				rgba2+(i*4*ystr)+(j*4*xstr),
-				xstr, ystr, tflip);
+			for(j=0; j<xs1; j++)
+			{
+				if(blockfl && (blockfl[i*xs2+j]&1))
+					continue;
+
+//				tfl2=tflip|16;
+//				if(!i || !j || ((i+1)>=ys1) || ((j+1)>=xs1))
+//					tfl2=tflip;
+
+				BTIC1H_DecodeBlockMB2B_YUY(ctx,
+					block+(i*xs2+j)*blkstride,
+					rgba2+(i*4*ystr)+(j*4*xstr),
+					xstr, ystr, tfl2);
+			}
+		
 		}
 		return;
 	}
@@ -2554,14 +2625,24 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 	xf=xs&3; yf=ys&3;
 	for(i=0; i<ys1; i++)
 	{
+//		tfl2=tflip|16;
+//		if(!i || ((i+1)>=ys1))
+//			tfl2=tflip;
+		tfl2=tflip;
+
 		for(j=0; j<xs1; j++)
 		{
 			if(blockfl && (blockfl[i*xs2+j]&1))
 				continue;
+
+//			tfl2=tflip|16;
+//			if(!i || !j || ((i+1)>=ys1) || ((j+1)>=xs1))
+//				tfl2=tflip;
+
 			BTIC1H_DecodeBlockMB2B_RGBI(ctx,
 				block+(i*xs2+j)*blkstride,
 				rgba2+(i*4*ystr)+(j*4*xstr),
-				xstr, ystr, tflip);
+				xstr, ystr, tfl2);
 
 #ifdef BT1H_ENABLE_AX
 			if(tflip&2)

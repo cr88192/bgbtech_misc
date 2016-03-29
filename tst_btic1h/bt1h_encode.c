@@ -95,7 +95,7 @@ int BTIC1H_EmitCommandCodeBase(BTIC1H_Context *ctx, int cmd)
 	int i, j, k;
 	
 	if((cmd<0) || (cmd>=64))
-		{ *(int *)-1=-1; }
+		{ BT1H_TRAPCRASH }
                           
 	ctx->cnt_cmds++;
 	ctx->stat_cmds[cmd]++;
@@ -268,10 +268,35 @@ int BTIC1H_EmitMaskCode(BTIC1H_Context *ctx, int val)
 	}
 }
 
+#ifdef BT1H_USECLRPRED
+int BTIC1H_EmitCheckUpdColorPred(BTIC1H_Context *ctx)
+{
+	if(ctx->reqcolorpred!=ctx->colorpred)
+	{
+		if(!ctx->colorpred)
+		{
+			ctx->lcy=ctx->cy;		ctx->lcu=ctx->cu;
+			ctx->lcv=ctx->cv;		ctx->lcd=ctx->cd;
+			ctx->lcdy=ctx->cdy;		ctx->lcdu=ctx->cdu;
+			ctx->lcdv=ctx->cdv;
+		}
+	
+		BTIC1H_EmitParmVarVal(ctx,
+			-2, -ctx->reqcolorpred);
+		ctx->colorpred=ctx->reqcolorpred;
+	}
+	return(0);
+}
+#endif
+
 int BTIC1H_EmitCheckEnableDeltaMask(BTIC1H_Context *ctx)
 {
 	int i, j, k;
-	
+
+#ifdef BT1H_USECLRPRED
+	BTIC1H_EmitCheckUpdColorPred(ctx);
+#endif
+
 	i=ctx->cnt_dpts;
 	if(i<64)
 		return(0);
@@ -348,6 +373,274 @@ int BTIC1H_EmitDeltaMask4(BTIC1H_Context *ctx, int um)
 int BTIC1H_EmitDeltaMask6(BTIC1H_Context *ctx, int um)
 	{ return(BTIC1H_EmitDeltaMaskI(ctx, um, 6)); }
 
+void BTIC1H_EmitUpdPredDeltaYUV(BTIC1H_Context *ctx,
+	int cy, int cu, int cv)
+{
+#ifdef BT1H_USECLRPRED
+	int pw0, pw1, pw2, pwb;
+	int py, pu, pv, pi;
+	int dy, du, dv;
+
+	dy=cy-ctx->cy;	du=cu-ctx->cu;	dv=cv-ctx->cv;
+	pw0=2*btic1h_sgnfold(dy)+btic1h_sgnfold(du)+btic1h_sgnfold(dv);
+
+	py=(3*ctx->cy-ctx->lcy)>>1;
+	pu=(3*ctx->cu-ctx->lcu)>>1;
+	pv=(3*ctx->cv-ctx->lcv)>>1;
+	dy=cy-py;	du=cu-pu;	dv=cv-pv;
+	pw1=2*btic1h_sgnfold(dy)+btic1h_sgnfold(du)+btic1h_sgnfold(dv);
+
+	py=2*ctx->cy-ctx->lcy;
+	pu=2*ctx->cu-ctx->lcu;
+	pv=2*ctx->cv-ctx->lcv;
+	dy=cy-py;	du=cu-pu;	dv=cv-pv;
+	pw2=2*btic1h_sgnfold(dy)+btic1h_sgnfold(du)+btic1h_sgnfold(dv);
+
+	pi=0; pwb=pw0;
+	if(pw1<pwb) { pi=1; pwb=pw1; }
+	if(pw2<pwb) { pi=2; pwb=pw2; }
+	ctx->cnt_pred[pi]++;
+	
+	if(ctx->cnt_pred[pi]>(ctx->cnt_pred[ctx->colorpred]+16))
+		{ ctx->reqcolorpred=pi; }
+
+	if(ctx->colorpred)
+	{
+		if(ctx->colorpred==1)
+		{
+			py=(3*ctx->cy-ctx->lcy)>>1;
+			pu=(3*ctx->cu-ctx->lcu)>>1;
+			pv=(3*ctx->cv-ctx->lcv)>>1;
+		}else if(ctx->colorpred==2)
+		{
+			py=2*ctx->cy-ctx->lcy;
+			pu=2*ctx->cu-ctx->lcu;
+			pv=2*ctx->cv-ctx->lcv;
+		}
+
+#if 0
+		if((py|pu|pv)>>8)
+		{
+			py=clamp255(py);
+			pu=clamp255(pu);
+			pv=clamp255(pv);
+		}
+#endif
+
+		ctx->lcy=ctx->cy;
+		ctx->lcu=ctx->cu;
+		ctx->lcv=ctx->cv;
+		
+		ctx->cy=py;
+		ctx->cu=pu;
+		ctx->cv=pv;
+	}else
+	{
+		ctx->lcy=ctx->cy;
+		ctx->lcu=ctx->cu;
+		ctx->lcv=ctx->cv;
+//		py=ctx->cy;
+//		pu=ctx->cu;
+//		pv=ctx->cv;
+	}
+#endif
+}
+
+void BTIC1H_EmitUpdPredDeltaYUVD(BTIC1H_Context *ctx,
+	int cy, int cu, int cv, int cd)
+{
+#ifdef BT1H_USECLRPRED
+	int pw0, pw1, pw2, pwb;
+	int py, pu, pv, pd, pi;
+	int dy, du, dv, dd;
+
+	dy=cy-ctx->cy;	du=cu-ctx->cu;	dv=cv-ctx->cv;	dd=cd-ctx->cd;
+	pw0=btic1h_sgnfold(dy)+btic1h_sgnfold(du)+
+		btic1h_sgnfold(dv)+btic1h_sgnfold(dd);
+
+	py=(3*ctx->cy-ctx->lcy)>>1;	pu=(3*ctx->cu-ctx->lcu)>>1;
+	pv=(3*ctx->cv-ctx->lcv)>>1;	pd=(3*ctx->cd-ctx->lcd)>>1;
+	dy=cy-py;	du=cu-pu;	dv=cv-pv;	dd=cd-pd;
+	pw1=btic1h_sgnfold(dy)+btic1h_sgnfold(du)+
+		btic1h_sgnfold(dv)+btic1h_sgnfold(dd);
+
+	py=2*ctx->cy-ctx->lcy;	pu=2*ctx->cu-ctx->lcu;
+	pv=2*ctx->cv-ctx->lcv;	pd=2*ctx->cd-ctx->lcd;
+	dy=cy-py;	du=cu-pu;	dv=cv-pv;	dd=cd-pd;
+	pw2=btic1h_sgnfold(dy)+btic1h_sgnfold(du)+
+		btic1h_sgnfold(dv)+btic1h_sgnfold(dd);
+
+	pi=0; pwb=pw0;
+	if(pw1<pwb) { pi=1; pwb=pw1; }
+	if(pw2<pwb) { pi=2; pwb=pw2; }
+	ctx->cnt_pred[pi]++;
+	
+	if(ctx->cnt_pred[pi]>(ctx->cnt_pred[ctx->colorpred]+16))
+		{ ctx->reqcolorpred=pi; }
+
+	if(ctx->colorpred)
+	{
+		if(ctx->colorpred==1)
+		{
+			py=(3*ctx->cy-ctx->lcy)>>1;		pu=(3*ctx->cu-ctx->lcu)>>1;
+			pv=(3*ctx->cv-ctx->lcv)>>1;		pd=(3*ctx->cd-ctx->lcd)>>1;
+		}else if(ctx->colorpred==2)
+		{
+			py=2*ctx->cy-ctx->lcy;		pu=2*ctx->cu-ctx->lcu;
+			pv=2*ctx->cv-ctx->lcv;		pd=2*ctx->cd-ctx->lcd;
+		}
+
+		if((py|pu|pv|pd)>>8)
+		{
+			dd=0;
+		}
+
+#if 0
+		if((py|pu|pv|pd)>>8)
+		{
+			py=clamp255(py);
+			pu=clamp255(pu);
+			pv=clamp255(pv);
+			pd=clamp255(pd);
+		}
+#endif
+
+		ctx->lcy=ctx->cy;		ctx->lcu=ctx->cu;
+		ctx->lcv=ctx->cv;		ctx->lcd=ctx->cd;
+		ctx->cy=py;		ctx->cu=pu;
+		ctx->cv=pv;		ctx->cd=pd;
+	}else
+	{
+		ctx->lcy=ctx->cy;		ctx->lcu=ctx->cu;
+		ctx->lcv=ctx->cv;		ctx->lcd=ctx->cd;
+	}
+#endif
+}
+
+void BTIC1H_EmitUpdPredDeltaYUVDyuv(BTIC1H_Context *ctx,
+	int cy, int cu, int cv, int cdy, int cdu, int cdv)
+{
+#ifdef BT1H_USECLRPRED
+	int pw0, pw1, pw2, pwb;
+	int py, pu, pv, pdy, pdu, pdv, pi;
+	int dy, du, dv, ddy, ddu, ddv;
+
+	dy=cy-ctx->cy;		du=cu-ctx->cu;		dv=cv-ctx->cv;
+	ddy=cdy-ctx->cdy;	ddu=cdu-ctx->cdu;	ddv=cdv-ctx->cdv;
+	pw0=btic1h_sgnfold(dy)+btic1h_sgnfold(du)+
+		btic1h_sgnfold(dv)+btic1h_sgnfold(ddy)+
+		btic1h_sgnfold(ddu)+btic1h_sgnfold(ddv);
+
+	py=(3*ctx->cy-ctx->lcy)>>1;		pu=(3*ctx->cu-ctx->lcu)>>1;
+	pv=(3*ctx->cv-ctx->lcv)>>1;		pdy=(3*ctx->cdy-ctx->lcdy)>>1;
+	pdu=(3*ctx->cdu-ctx->lcdu)>>1;	pdv=(3*ctx->cdv-ctx->lcdv)>>1;
+	dy=cy-py;		du=cu-pu;		dv=cv-pv;
+	ddy=cdy-pdy;	ddu=cdu-pdu;	ddv=cdv-pdv;
+	pw1=btic1h_sgnfold(dy)+btic1h_sgnfold(du)+
+		btic1h_sgnfold(dv)+btic1h_sgnfold(ddy)+
+		btic1h_sgnfold(ddu)+btic1h_sgnfold(ddv);
+
+	py=2*ctx->cy-ctx->lcy;		pu=2*ctx->cu-ctx->lcu;
+	pv=2*ctx->cv-ctx->lcv;		pdy=2*ctx->cdy-ctx->lcdy;
+	pdu=2*ctx->cdu-ctx->lcdu;	pdv=2*ctx->cdv-ctx->lcdv;
+	dy=cy-py;		du=cu-pu;		dv=cv-pv;
+	ddy=cdy-pdy;	ddu=cdu-pdu;	ddv=cdv-pdv;
+	pw2=btic1h_sgnfold(dy)+btic1h_sgnfold(du)+
+		btic1h_sgnfold(dv)+btic1h_sgnfold(ddy)+
+		btic1h_sgnfold(ddu)+btic1h_sgnfold(ddv);
+
+	pi=0; pwb=pw0;
+	if(pw1<pwb) { pi=1; pwb=pw1; }
+	if(pw2<pwb) { pi=2; pwb=pw2; }
+	ctx->cnt_pred[pi]++;
+	
+	if(ctx->cnt_pred[pi]>(ctx->cnt_pred[ctx->colorpred]+16))
+		{ ctx->reqcolorpred=pi; }
+
+	if(ctx->colorpred)
+	{
+		if(ctx->colorpred==1)
+		{
+			py=(3*ctx->cy-ctx->lcy)>>1;		pu=(3*ctx->cu-ctx->lcu)>>1;
+			pv=(3*ctx->cv-ctx->lcv)>>1;
+			pdy=(3*ctx->cdy-ctx->lcdy)>>1;	pdu=(3*ctx->cdu-ctx->lcdu)>>1;
+			pdv=(3*ctx->cdv-ctx->lcdv)>>1;
+		}else if(ctx->colorpred==2)
+		{
+			py=2*ctx->cy-ctx->lcy;		pu=2*ctx->cu-ctx->lcu;
+			pv=2*ctx->cv-ctx->lcv;
+			pdy=2*ctx->cdy-ctx->lcdy;	pdu=2*ctx->cdu-ctx->lcdu;
+			pdv=2*ctx->cdv-ctx->lcdv;
+		}
+
+#if 0
+		if((py|pu|pv)>>8)
+		{
+			py=clamp255(py);
+			pu=clamp255(pu);
+			pv=clamp255(pv);
+		}
+
+		if((pdy|pdu|pdv)>>8)
+		{
+			pdy=clamp255sg(pdy);
+			pdu=clamp255sg(pdu);
+			pdv=clamp255sg(pdv);
+		}
+#endif
+
+		ctx->lcy=ctx->cy;		ctx->lcu=ctx->cu;
+		ctx->lcv=ctx->cv;		ctx->lcdy=ctx->cdy;
+		ctx->lcdu=ctx->cdu;		ctx->lcdv=ctx->cdv;
+		ctx->cy=py;		ctx->cu=pu;
+		ctx->cv=pv;		ctx->cdy=pdy;
+		ctx->cdu=pdu;	ctx->cdv=pdv;
+	}else
+	{
+		ctx->lcy=ctx->cy;		ctx->lcu=ctx->cu;
+		ctx->lcv=ctx->cv;		ctx->lcdy=ctx->cdy;
+		ctx->lcdu=ctx->cdu;		ctx->lcdv=ctx->cdv;
+	}
+#endif
+}
+
+void BTIC1H_EmitUpdPredDeltaY(BTIC1H_Context *ctx,
+	int cy)
+{
+	int lcy, lcu, lcv;
+	int tcy, tcu, tcv;
+
+	lcu=ctx->lcu;	lcv=ctx->lcv;
+	tcu=ctx->cu;	tcv=ctx->cv;
+	BTIC1H_EmitUpdPredDeltaYUV(ctx, cy, tcu, tcv);
+	ctx->lcu=lcu;	ctx->lcv=lcv;
+	ctx->cu=tcu;	ctx->cv=tcv;
+}
+
+void BTIC1H_EmitUpdPredDeltaYD(BTIC1H_Context *ctx,
+	int cy, int cd)
+{
+	int lcy, lcu, lcv;
+	int tcy, tcu, tcv;
+
+	lcu=ctx->lcu;	lcv=ctx->lcv;
+	tcu=ctx->cu;	tcv=ctx->cv;
+	BTIC1H_EmitUpdPredDeltaYUVD(ctx, cy, tcu, tcv, cd);
+	ctx->lcu=lcu;	ctx->lcv=lcv;
+	ctx->cu=tcu;	ctx->cv=tcv;
+}
+
+void BTIC1H_EmitUpdPredDeltaUV(BTIC1H_Context *ctx,
+	int cu, int cv)
+{
+	int lcy, tcy;
+
+	lcy=ctx->lcy;	tcy=ctx->cy;
+	BTIC1H_EmitUpdPredDeltaYUV(ctx, tcy, cu, cv);
+	ctx->lcy=lcy;	ctx->cy=tcy;
+}
+
+
 int BTIC1H_EmitDeltaYUV(BTIC1H_Context *ctx,
 	int cy, int cu, int cv)
 {
@@ -355,6 +648,8 @@ int BTIC1H_EmitDeltaYUV(BTIC1H_Context *ctx,
 	int dy, du, dv, dd;
 	int py, pu, pv;
 	int qdy, qdu, qdv, qdd;
+	
+	BTIC1H_EmitUpdPredDeltaYUV(ctx, cy, cu, cv);
 	
 	dy=cy-ctx->cy;
 	du=cu-ctx->cu;
@@ -368,7 +663,8 @@ int BTIC1H_EmitDeltaYUV(BTIC1H_Context *ctx,
 	pu=ctx->cu+(qdu*ctx->qfuv);
 	pv=ctx->cv+(qdv*ctx->qfuv);
 
-	if((py|pu|pv)>>8)
+//	if((py|pu|pv)>>8)
+	while((py|pu|pv)>>8)
 	{
 		qdy=qdy-(py>>8);
 		qdu=qdu-(pu>>8);
@@ -437,7 +733,7 @@ int BTIC1H_EmitDeltaYUV(BTIC1H_Context *ctx,
 	   (ctx->cv<0) || (ctx->cv>255) ||
 	   (ctx->cd<0) || (ctx->cd>255))
 	{
-		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 #endif
 
@@ -482,6 +778,8 @@ int BTIC1H_EmitDeltaYUVD(BTIC1H_Context *ctx,
 	int py, pu, pv, pd;
 	int qdy, qdu, qdv, qdd;
 
+	BTIC1H_EmitUpdPredDeltaYUVD(ctx, cy, cu, cv, cd);
+
 	by=ctx->cy;		bu=ctx->cu;
 	bv=ctx->cv;		bd=ctx->cd;
 	dy=cy-by;		du=cu-bu;
@@ -493,7 +791,8 @@ int BTIC1H_EmitDeltaYUVD(BTIC1H_Context *ctx,
 	py=by+(qdy*ctx->qfy);	pu=bu+(qdu*ctx->qfuv);
 	pv=bv+(qdv*ctx->qfuv);	pd=bd+(qdd*ctx->qfd);
 
-	if((py|pu|pv|pd)>>8)
+//	if((py|pu|pv|pd)>>8)
+	while((py|pu|pv|pd)>>8)
 	{
 		qdy=qdy-(py>>8);		qdu=qdu-(pu>>8);
 		qdv=qdv-(pv>>8);		qdd=qdd-(pd>>8);
@@ -563,7 +862,7 @@ int BTIC1H_EmitDeltaYUVD(BTIC1H_Context *ctx,
 		((ctx->cv<0) || (ctx->cv>255)) ||
 		((ctx->cd<0) || (ctx->cd>255)))
 	{
-		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 #endif
 
@@ -581,6 +880,8 @@ int BTIC1H_EmitDeltaYUVDyuv(BTIC1H_Context *ctx,
 	int dy, du, dv, ddy, ddu, ddv;
 	int py, pu, pv, pdy, pdu, pdv;
 	int qdy, qdu, qdv, qddy, qddu, qddv;
+
+	BTIC1H_EmitUpdPredDeltaYUVDyuv(ctx, cy, cu, cv, cdy, cdu, cdv);
 
 	by=ctx->cy;		bu=ctx->cu;
 	bv=ctx->cv;		bdy=ctx->cdy;
@@ -601,7 +902,8 @@ int BTIC1H_EmitDeltaYUVDyuv(BTIC1H_Context *ctx,
 	pdv=bdv+(qddv*ctx->qfduv);
 
 //	if((py|pu|pv|pdy|pdu|pdv)>>8)
-	if((py|pu|pv)>>8)
+//	if((py|pu|pv)>>8)
+	while((py|pu|pv)>>8)
 	{
 		qdy=qdy-(py>>8);			qdu=qdu-(pu>>8);
 		qdv=qdv-(pv>>8);
@@ -612,7 +914,11 @@ int BTIC1H_EmitDeltaYUVDyuv(BTIC1H_Context *ctx,
 //	if(((pdy<-256)||(pdy>256))||
 //		((pdu<-256)||(pdu>256))||
 //		((pdv<-256)||(pdv>256)))
-	if(((pdy^(pdy>>8))|(pdu^(pdu>>8))|(pdv^(pdv>>8)))>>8)
+//	if(((pdy^(pdy>>8))|(pdu^(pdu>>8))|(pdv^(pdv>>8)))>>8)
+//	while(((pdy^(pdy>>8))|(pdu^(pdu>>8))|(pdv^(pdv>>8)))>>8)
+	if(((pdy<-255)||(pdy>255))||
+		((pdu<-255)||(pdu>255))||
+		((pdv<-255)||(pdv>255)))
 	{
 		qddy=qddy-(pdy>>8);
 		qddu=qddu-(pdu>>8);			qddv=qddv-(pdv>>8);
@@ -695,14 +1001,14 @@ int BTIC1H_EmitDeltaYUVDyuv(BTIC1H_Context *ctx,
 		((ctx->cu<0) || (ctx->cu>255)) ||
 		((ctx->cv<0) || (ctx->cv>255)))
 	{
-		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 
 	if(	((ctx->cdy<-256)||(ctx->cdy>255))||
 		((ctx->cdu<-256)||(ctx->cdu>255))||
 		((ctx->cdv<-256)||(ctx->cdv>255)))
 	{
-		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 #endif
 
@@ -715,7 +1021,9 @@ int BTIC1H_EmitDeltaY(BTIC1H_Context *ctx, int cy)
 	int bit0;
 	int dy, du, dv, dd;
 	int qdy, qdu, qdv, qdd;
-	
+
+	BTIC1H_EmitUpdPredDeltaY(ctx, cy);
+
 	dy=cy-ctx->cy;
 	qdy=(dy*ctx->fx_qfy +2048)>>12;
 	ctx->cy+=qdy*ctx->qfy;
@@ -732,7 +1040,9 @@ int BTIC1H_EmitDeltaUV(BTIC1H_Context *ctx, int cu, int cv)
 	int bit0;
 	int dy, du, dv, dd;
 	int qdy, qdu, qdv, qdd;
-	
+
+	BTIC1H_EmitUpdPredDeltaUV(ctx, cu, cv);
+
 	du=cu-ctx->cu;
 	dv=cv-ctx->cv;
 
@@ -756,7 +1066,9 @@ int BTIC1H_EmitDeltaYD(BTIC1H_Context *ctx, int cy, int cd)
 	int bit0;
 	int dy, du, dv, dd;
 	int qdy, qdu, qdv, qdd;
-	
+
+	BTIC1H_EmitUpdPredDeltaYD(ctx, cy, cd);
+
 	dy=cy-ctx->cy;
 	dd=cd-ctx->cd;
 	qdy=(dy*ctx->fx_qfy+2048)>>12;
@@ -898,6 +1210,8 @@ int BTIC1H_EmitAbsYUVD(BTIC1H_Context *ctx,
 
 	ctx->cy=py;		ctx->cu=pu;
 	ctx->cv=pv;		ctx->cd=pd;
+	ctx->lcy=py;	ctx->lcu=pu;
+	ctx->lcv=pv;	ctx->lcd=pd;
 
 #if 0
 	ctx->cnt_dpts+=4;
@@ -957,7 +1271,7 @@ int BTIC1H_EmitAbsYUVD(BTIC1H_Context *ctx,
 		((ctx->cv<0) || (ctx->cv>255)) ||
 		((ctx->cd<0) || (ctx->cd>255)))
 	{
-		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 #endif
 
@@ -1016,6 +1330,10 @@ int BTIC1H_EmitAbsYUVDyuv(BTIC1H_Context *ctx,
 	ctx->cy=py;		ctx->cu=pu;
 	ctx->cv=pv;		ctx->cdy=pdy;
 	ctx->cdu=pdu;	ctx->cdv=pdv;
+
+	ctx->lcy=py;	ctx->lcu=pu;
+	ctx->lcv=pv;	ctx->lcdy=pdy;
+	ctx->lcdu=pdu;	ctx->lcdv=pdv;
 
 #if 0
 	ctx->cnt_dpts+=6;
@@ -1090,14 +1408,14 @@ int BTIC1H_EmitAbsYUVDyuv(BTIC1H_Context *ctx,
 		((ctx->cu<0) || (ctx->cu>255)) ||
 		((ctx->cv<0) || (ctx->cv>255)))
 	{
-		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 
 	if(	((ctx->cdy<-256)||(ctx->cdy>255))||
 		((ctx->cdu<-256)||(ctx->cdu>255))||
 		((ctx->cdv<-256)||(ctx->cdv>255)))
 	{
-		*(int *)-1=-1;
+		BT1H_TRAPCRASH
 	}
 #endif
 
@@ -1599,6 +1917,8 @@ int BTIC1H_EncodeBlocksCtx(BTIC1H_Context *ctx,
 //	duven=qr*1.1;
 //	dyen=qr*1.2;
 //	duven=qr*1.5;
+
+//	ctx->reqcolorpred=2;
 
 	if((qf&BTIC1H_QFL_DBGPTUNE) &&
 		(btic1h_dbg_ptune->parmfl&BTIC1H_PTFL_BLKSKIP))
@@ -3119,6 +3439,14 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 		slbs=((ctx->xs+3)>>2)*((ctx->slscl+3)>>2);
 		sldbs=(dsz-1024)/slys;
 
+		j=0; k=0;
+		for(i=0; i<4; i++)
+		{
+			if(ctx->cnt_pred[i]>k)
+				{ j=i; k=ctx->cnt_pred[i]; }
+		}
+		ctx->reqcolorpred=j;
+
 		if(btic1h_workqueue_defaultworkers>0)
 		{
 			sltid=BTIC1H_Work_AllocTidNb();
@@ -3148,6 +3476,7 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 				etctx->slys=slys;
 				etctx->slbs=slbs;
 				etctx->slix=i;
+				etctx->reqcolorpred=ctx->reqcolorpred;
 				
 				etctx->DoWork=BTIC1H_EncodeWorkSliceCtx;
 				
@@ -3255,9 +3584,10 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 					ct+=j;
 				}
 #endif
-
+				BTIC1H_AccumEncodeStats(ctx, etctx);
 				BTIC1H_FreeContextF(etctx);
 			}
+			ctx->bits_total+=ctx->bs_bits;
 		}else
 		{
 			BTIC1H_EncodeImageClrs(ctx->blks, 32, src,
@@ -3272,10 +3602,14 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 
 				BTIC1H_Rice_SetupWrite(ctx, ct1, cte-ct1);
 				
+				n=slbs;
+				if((i*slbs+n)>ctx->nblks)
+					n=ctx->nblks-i*slbs;
+				
 				j=i*slbs*32;
 				BTIC1H_EncodeBlocksCtx(ctx,
 					ctx->blks+j, (qfl&BTIC1H_QFL_PFRAME)?(ctx->lblks+j):NULL,
-					slbs, 32, &k, qfl);
+					n, 32, &k, qfl);
 				ctx->bits_total+=ctx->bs_bits;
 				BTIC1H_Rice_FlushBits(ctx);
 
@@ -3287,6 +3621,7 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 			}
 		}
 
+		ctx->bits_total+=ctx->bs_bits;
 		sz=ct-dst;
 	}else
 	{
@@ -3379,7 +3714,6 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 
 	if(sz>dsz)
 	{
-//		*(int *)-1=-1;
 		BT1H_TRAPCRASH
 	}
 
@@ -3431,8 +3765,46 @@ void BTIC1H_ClearEncodeStats(BTIC1H_Context *ctx)
 	ctx->bits_pix4x4x3=0;	ctx->bits_pix4x2=0;
 	ctx->bits_pix2x2=0;		ctx->bits_pix2x1=0;
 	
+	for(i=0; i<4; i++)
+		ctx->cnt_pred[i]=0;
+
 	for(i=0; i<256; i++)
 		ctx->stat_cmds[i]=0;
+}
+
+void BTIC1H_AccumEncodeStats(BTIC1H_Context *ctx, BTIC1H_Context *ctx1)
+{
+	int i;
+
+	ctx->bits_total+=ctx1->bits_total;
+	ctx->cnt_statframes+=ctx1->cnt_statframes;
+	ctx->cnt_totqfl+=ctx1->cnt_totqfl;
+
+	ctx->bs_bits+=ctx1->bs_bits;
+	ctx->cnt_cmds+=ctx1->cnt_cmds;
+	ctx->bits_cmdidx+=ctx1->bits_cmdidx;
+	ctx->bits_cmdabs+=ctx1->bits_cmdabs;
+	ctx->cnt_parms+=ctx1->cnt_parms;
+	ctx->bits_parm+=ctx1->bits_parm;
+
+	ctx->bits_dyuv+=ctx1->bits_dyuv;
+	ctx->bits_dy+=ctx1->bits_dy;
+	ctx->bits_duv+=ctx1->bits_duv;
+	ctx->bits_ddy+=ctx1->bits_ddy;
+	ctx->bits_dumask+=ctx1->bits_dumask;
+
+	ctx->bits_pix4x4+=ctx1->bits_pix4x4;
+	ctx->bits_pix4x4x1+=ctx1->bits_pix4x4x1;
+	ctx->bits_pix4x4x3+=ctx1->bits_pix4x4x3;
+	ctx->bits_pix4x2+=ctx1->bits_pix4x2;
+	ctx->bits_pix2x2+=ctx1->bits_pix2x2;
+	ctx->bits_pix2x1+=ctx1->bits_pix2x1;
+
+	for(i=0; i<4; i++)
+		ctx->cnt_pred[i]+=ctx1->cnt_pred[i];
+	
+	for(i=0; i<256; i++)
+		ctx->stat_cmds[i]+=ctx1->stat_cmds[i];
 }
 
 void BTIC1H_DumpEncodeStats(BTIC1H_Context *ctx)
@@ -3503,6 +3875,13 @@ void BTIC1H_DumpEncodeStats(BTIC1H_Context *ctx)
 	printf( "  qfy=%d qfuv=%d qfdy=%d qfduv=%d\n",
 		ctx->rk_qfy, ctx->rk_qfuv, ctx->rk_qfdy, ctx->rk_qfduv);
 
+	printf("\n");
+
+	printf("Pred: ");
+	for(i=0; i<4; i++)
+	{
+		printf("%d ", ctx->cnt_pred[i]);
+	}
 	printf("\n");
 
 	printf("Command Stats:\n");

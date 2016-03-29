@@ -145,6 +145,15 @@ int clamp255(int i)
 	return((i<0)?0:((i>255)?255:i));
 }
 
+int clamp255sg(int i)
+{
+//	int j;
+//	j=i|((255-i)>>8);
+//	j&=(~(i>>31))&255;
+//	return(j);
+	return((i<-255)?-255:((i>255)?255:i));
+}
+
 int clamp15(int i)
 	{ return((i<0)?0:((i>15)?15:i)); }
 int clamp31(int i)
@@ -162,6 +171,13 @@ int btic1h_subfold(int a, int b)
 	int c;
 	c=a-b;
 	c=(c<<1)^(c>>31);
+	return(c);
+}
+
+int btic1h_sgnfold(int a)
+{
+	int c;
+	c=(a<<1)^(a>>31);
 	return(c);
 }
 
