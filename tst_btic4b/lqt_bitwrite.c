@@ -1,4 +1,9 @@
-static int lqtvq_encrice8[16*512];		//0-15=bits, 16-19=len
+static int lqtvq_encrice8[16*512];		//0-15=bits, 16-19=len, 20-23='Rk
+
+static int lqtvq_decrice8[16*256];		//0-15=sym, 16-19=len, 20-23='Rk
+static byte lqtvq_decriceq8[256];		//Q table
+static byte lqtvq_decricenk8[256];		//Next K Table
+
 static byte lqtvq_initrice=0;
 
 void LQTVQ_InitRice(void)
@@ -8,6 +13,29 @@ void LQTVQ_InitRice(void)
 
 	if(lqtvq_initrice)
 		return;
+
+	for(i=0; i<256; i++)
+	{
+		for(j=0; (i>>j)&1; j++);
+		lqtvq_decriceq8[i]=j;
+	}
+
+	for(i=0; i<256; i++)
+	{
+		k=(i>>4)&15; q=i&15;
+		k1=k;
+		if(!q)
+		{
+			if(k1>0)k1--;
+		}else if(q>1)
+		{
+			j=q;
+			while(j>1)
+				{ k1++; j=j>>1; }
+			if(k1>15)k1=15;
+		}
+		lqtvq_decricenk8[i]=k1;
+	}
 		
 	for(k=0; k<16; k++)
 	{
@@ -27,6 +55,12 @@ void LQTVQ_InitRice(void)
 					{ k1++; j=j>>1; }
 				if(k1>15)k1=15;
 			}
+			
+			j=((1<<q)-1)|((i&((1<<k)-1))<<(q+1));
+			if(l<=8)
+				{ lqtvq_decrice8[(k<<8)|j]=i|(l<<16)|(k1<<20); }
+			else
+				{ lqtvq_decrice8[(k<<8)|(j&255)]=0; }
 			
 			if((l>=16) || (q>=8))
 			{
