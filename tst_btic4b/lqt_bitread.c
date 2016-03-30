@@ -57,6 +57,47 @@ int LQTVQ_ReadNBits(BT4A_Context *ctx, int len)
 	return(bits);
 }
 
+int LQTVQ_Read8BitsNM(BT4A_Context *ctx)
+{
+	int bits;
+	bits=ctx->bit_win>>ctx->bit_pos;
+	ctx->cs++;
+	ctx->bit_win=*(u32 *)ctx->cs;
+	return(bits);
+}
+
+int LQTVQ_Read16BitsNM(BT4A_Context *ctx)
+{
+	int bits;
+	bits=ctx->bit_win>>ctx->bit_pos;
+	ctx->cs+=2;
+	ctx->bit_win=*(u32 *)ctx->cs;
+	return(bits);
+}
+
+int LQTVQ_Read24BitsNM(BT4A_Context *ctx)
+{
+	int bits;
+	bits=ctx->bit_win>>ctx->bit_pos;
+	ctx->cs+=3;
+	ctx->bit_win=*(u32 *)ctx->cs;
+	return(bits);
+}
+
+int LQTVQ_Read16Bits(BT4A_Context *ctx)
+{
+	return((u16)LQTVQ_Read16BitsNM(ctx));
+}
+
+u32 LQTVQ_Read32Bits(BT4A_Context *ctx)
+{
+	int l, h;
+	
+	l=LQTVQ_Read16Bits(ctx);
+	h=LQTVQ_Read16BitsNM(ctx);
+	return((h<<16)|l);
+}
+
 void LQTVQ_SkipNBits(BT4A_Context *ctx, int len)
 {
 	int bp;
@@ -165,6 +206,35 @@ int LQTVQ_ReadAdSRiceLL(BT4A_Context *ctx, byte *rk)
 	v=LQTVQ_ReadAdRiceLL(ctx, rk);
 	v=(v>>1)^((v<<31)>>31);
 	return(v);
+}
+
+int LQTVQ_DecodeSymbolIndexSmtf(BT4A_Context *ctx,
+	BT4A_SmtfState *st, int i)
+{
+	int i0, i1, i2, i3;
+
+	if(!i)
+	{
+		i0=(byte)(st->rov+i);
+		i2=st->tab[i0];
+		return(i2);
+	}
+
+	if(i<32)
+	{
+		i0=(byte)(st->rov+i);		i1=(byte)(st->rov+i-1);
+		i2=st->tab[i0];		i3=st->tab[i1];
+		st->tab[i0]=i3;		st->tab[i1]=i2;
+		st->idx[i2]=i1;		st->idx[i3]=i0;
+		return(i2);
+	}
+
+	i0=(byte)(st->rov+i);	i1=(byte)(st->rov-1);
+	i2=st->tab[i0];		i3=st->tab[i1];
+	st->tab[i0]=i3;		st->tab[i1]=i2;
+	st->idx[i2]=i1;		st->idx[i3]=i0;
+	st->rov--;
+	return(i2);
 }
 
 int LQTVQ_ReadSymbolSmtf(BT4A_Context *ctx,

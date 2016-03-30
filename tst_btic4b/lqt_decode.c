@@ -1,9 +1,6 @@
+// #define LQTVQ_BYTES
 
-int LQTVQ_DecReadCommand(BT4A_Context *ctx)
-{
-	return(*ctx->cs++);
-}
-
+#ifdef LQTVQ_BYTES
 int LQTVQ_DecodeUVLI(BT4A_Context *ctx)
 {
 	int i;
@@ -35,6 +32,11 @@ int LQTVQ_DecodeUVLI(BT4A_Context *ctx)
 		i=(i<<8)|(*ctx->cs++);
 		return(i);
 	}
+}
+
+int LQTVQ_DecReadCommand(BT4A_Context *ctx)
+{
+	return(*ctx->cs++);
 }
 
 void LQTVQ_DecColorYUV(BT4A_Context *ctx)
@@ -172,6 +174,153 @@ void LQTVQ_DecColorYUVDyuv(BT4A_Context *ctx)
 	ctx->du+=ddu*ctx->qduv;
 	ctx->dv+=ddv*ctx->qduv;
 }
+#else
+int LQTVQ_DecReadCommand(BT4A_Context *ctx)
+{
+	int i;
+	i=LQTVQ_ReadSymbolSmtf(ctx, &(ctx->sm_cmd));
+	return(i);
+}
+
+int LQTVQ_DecReadMask(BT4A_Context *ctx)
+{
+	int i;
+	i=LQTVQ_ReadAdRiceLL(ctx, &(ctx->sm_cmd.rk));
+	if(!i)
+		return(ctx->cmask);
+	j=LQTVQ_DecodeSymbolIndexSmtf(ctx, &(ctx->sm_cmd), i-1);
+	if(j&1)ctx->cmask=j;
+	return(j);
+}
+
+int LQTVQ_DecReadGenericVal(BT4A_Context *ctx)
+{
+	int i;
+	i=LQTVQ_ReadAdSRiceLL(ctx, &(ctx->rk_misc));
+	return(i);
+}
+
+void LQTVQ_DecColorYUV(BT4A_Context *ctx)
+{
+	int dcy, dcu, dcv;
+	int m;
+	int i;
+	
+	m=LQTVQ_DecReadMask(ctx);
+	
+	dcy=0;	dcu=0;	dcv=0;
+	if(m&0x02)dcy=LQTVQ_DecReadGenericVal(ctx);
+	if(m&0x04)dcu=LQTVQ_DecReadGenericVal(ctx);
+	if(m&0x08)dcv=LQTVQ_DecReadGenericVal(ctx);
+
+	ctx->cy+=dcy*ctx->qy;
+	ctx->cu+=dcu*ctx->quv;
+	ctx->cv+=dcv*ctx->quv;
+}
+
+void LQTVQ_DecColorYUVD(BT4A_Context *ctx)
+{
+	int dcy, dcu, dcv, ddy, ddu, ddv;
+	int i;
+	
+	i=LQTVQ_DecReadMask(ctx);
+	dcy=0;	dcu=0;	dcv=0;
+	ddy=0;	ddu=0;	ddv=0;
+
+	if(i&0x02)dcy=LQTVQ_DecReadGenericVal(ctx);
+	if(i&0x04)dcu=LQTVQ_DecReadGenericVal(ctx);
+	if(i&0x08)dcv=LQTVQ_DecReadGenericVal(ctx);
+	if(i&0x10)ddy=LQTVQ_DecReadGenericVal(ctx);
+
+	ctx->cy+=dcy*ctx->qy;
+	ctx->cu+=dcu*ctx->quv;
+	ctx->cv+=dcv*ctx->quv;
+	ctx->dy+=ddy*ctx->qdy;
+}
+
+void LQTVQ_DecColorYUVDyuv(BT4A_Context *ctx)
+{
+	int dcy, dcu, dcv, ddy, ddu, ddv;
+	int i;
+	
+	i=LQTVQ_DecReadMask(ctx);
+	dcy=0;	dcu=0;
+	dcv=0;	ddy=0;
+	ddu=0;	ddv=0;
+	if(i&0x02)dcy=LQTVQ_DecReadGenericVal(ctx);
+	if(i&0x04)dcu=LQTVQ_DecReadGenericVal(ctx);
+	if(i&0x08)dcv=LQTVQ_DecReadGenericVal(ctx);
+	if(i&0x10)ddy=LQTVQ_DecReadGenericVal(ctx);
+	if(i&0x20)ddu=LQTVQ_DecReadGenericVal(ctx);
+	if(i&0x40)ddv=LQTVQ_DecReadGenericVal(ctx);
+
+	ctx->cy+=dcy*ctx->qy;
+	ctx->cu+=dcu*ctx->quv;
+	ctx->cv+=dcv*ctx->quv;
+	ctx->dy+=ddy*ctx->qdy;
+	ctx->du+=ddu*ctx->qduv;
+	ctx->dv+=ddv*ctx->qduv;
+}
+
+force_inline void LQTVQ_DecRead8B(BT4A_Context *ctx, byte *buf)
+{
+	*buf=LQTVQ_Read8BitsNM(ctx);
+}
+
+force_inline void LQTVQ_DecRead16B(BT4A_Context *ctx, byte *buf)
+{
+	*(u16 *)buf=LQTVQ_Read16BitsNM(ctx);
+}
+
+force_inline void LQTVQ_DecRead32B(BT4A_Context *ctx, byte *buf)
+{
+	*(u32 *)buf=LQTVQ_Read32Bits(ctx);
+}
+
+force_inline void LQTVQ_DecRead64B(BT4A_Context *ctx, byte *buf)
+{
+	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
+}
+
+force_inline void LQTVQ_DecRead96B(BT4A_Context *ctx, byte *buf)
+{
+	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[2]=LQTVQ_Read32Bits(ctx);
+}
+
+force_inline void LQTVQ_DecRead128B(BT4A_Context *ctx, byte *buf)
+{
+	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[2]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[3]=LQTVQ_Read32Bits(ctx);
+}
+
+force_inline void LQTVQ_DecRead192B(BT4A_Context *ctx, byte *buf)
+{
+	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[2]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[3]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[4]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[5]=LQTVQ_Read32Bits(ctx);
+}
+
+force_inline void LQTVQ_DecRead256B(BT4A_Context *ctx, byte *buf)
+{
+	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[2]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[3]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[4]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[5]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[6]=LQTVQ_Read32Bits(ctx);
+	((u32 *)buf)[7]=LQTVQ_Read32Bits(ctx);
+}
+
+#endif
 
 void LQTVQ_FillBlockHeadTag(BT4A_Context *ctx, byte *blk, int tag)
 {
