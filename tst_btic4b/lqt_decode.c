@@ -373,77 +373,108 @@ int LQTVQ_DecImgBufFastBGRA(BT4A_Context *ctx,
 		case 0x09:
 			LQTVQ_DecColorYUVD(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, 0x09);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 1);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 1);
+			LQTVQ_DecodeRead8B(ctx, ct+16);
 			ct+=64;
 			break;
 		case 0x0A:	case 0x0B:
 			LQTVQ_DecColorYUVD(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 2);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 2);
+			LQTVQ_DecodeRead16B(ctx, ct+16);
 			ct+=64;
 			break;
 		case 0x0C:
 			LQTVQ_DecColorYUVD(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 4);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 4);
+			LQTVQ_DecodeRead32B(ctx, ct+16);
 			ct+=64;
 			break;
 		case 0x0D:	case 0x0E:
 			LQTVQ_DecColorYUVD(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 8);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 8);
+			LQTVQ_DecodeRead64B(ctx, ct+16);
 			ct+=64;
 			break;
 		case 0x0F:
 			LQTVQ_DecColorYUVD(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 16);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 16);
+			LQTVQ_DecodeRead128B(ctx, ct+16);
 			ct+=64;
 			break;
 
 		case 0x13:
 			LQTVQ_DecColorYUVD(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 24);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 24);
+			LQTVQ_DecodeRead192B(ctx, ct+16);
 			ct+=64;
 			break;
 
 		case 0x17:
 			LQTVQ_DecColorYUVD(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 32);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 32);
+			LQTVQ_DecodeRead256B(ctx, ct+16);
 			ct+=64;
 			break;
 
 		case 0x18:
 			LQTVQ_DecColorYUVDyuv(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 24);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 24);
+			LQTVQ_DecodeRead128B(ctx, ct+16);
+			LQTVQ_DecodeRead32B(ctx, ct+32);
+			LQTVQ_DecodeRead32B(ctx, ct+36);
 			ct+=64;
 			break;
 
 		case 0x1A:
 			LQTVQ_DecColorYUVDyuv(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 32);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 32);
+			LQTVQ_DecodeRead128B(ctx, ct+16);
+			LQTVQ_DecodeRead64B(ctx, ct+32);
+			LQTVQ_DecodeRead64B(ctx, ct+40);
 			ct+=64;
 			break;
 		case 0x1B:
 			LQTVQ_DecColorYUVDyuv(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 48);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 48);
+			LQTVQ_DecodeRead128B(ctx, ct+16);
+			LQTVQ_DecodeRead128B(ctx, ct+32);
+			LQTVQ_DecodeRead128B(ctx, ct+48);
 			ct+=64;
 			break;
 		case 0x1C:
 			LQTVQ_DecColorYUVDyuv(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 32);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 32);
+			LQTVQ_DecodeRead192B(ctx, ct+16);
+			LQTVQ_DecodeRead32B(ctx, ct+40);
+			LQTVQ_DecodeRead32B(ctx, ct+44);
 			ct+=64;
 			break;
-		case 0x1D:		case 0x1E:
+		case 0x1D:
 			LQTVQ_DecColorYUVDyuv(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, op);
-			LQTVQ_DecodeReadBytes(ctx, ct+16, 48);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 48);
+			LQTVQ_DecodeRead256B(ctx, ct+16);
+			LQTVQ_DecodeRead64B(ctx, ct+16);
+			LQTVQ_DecodeRead64B(ctx, ct+16);
+			ct+=64;
+			break;
+		case 0x1E:
+			LQTVQ_DecColorYUVDyuv(ctx);
+			LQTVQ_FillBlockHeadTag(ctx, ct, op);
+//			LQTVQ_DecodeReadBytes(ctx, ct+16, 48);
+			LQTVQ_DecodeRead192B(ctx, ct+16);
+			LQTVQ_DecodeRead96B(ctx, ct+16);
+			LQTVQ_DecodeRead96B(ctx, ct+16);
 			ct+=64;
 			break;
 		
