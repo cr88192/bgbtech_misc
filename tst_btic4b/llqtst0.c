@@ -103,6 +103,7 @@ BT4A_SmtfState sm_mask;
 #include "lqt_thslice.c"
 
 #include "lqt_blkdec.c"
+#include "lqt_bitread.c"
 #include "lqt_decode.c"
 
 #include "bt1h_targa.c"
