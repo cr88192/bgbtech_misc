@@ -133,7 +133,7 @@ void LQTVQ_FastEncYUV(BT4A_Context *ctx, int cy, int cu, int cv)
 	}
 
 #else
-#if 0
+#if 1
 	mv=0;
 	if(dcy)mv|=0x02;
 	if(dcu)mv|=0x04;
@@ -145,9 +145,9 @@ void LQTVQ_FastEncYUV(BT4A_Context *ctx, int cy, int cu, int cv)
 	if(mv&0x08)LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
 #endif
 
-	LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
-	LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
-	LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+//	LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
+//	LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
+//	LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
 #endif
 
 	ctx->cy+=dcy*ctx->qy;
@@ -168,7 +168,7 @@ void LQTVQ_FastEncYUVD(BT4A_Context *ctx,
 	ddy=((dy-ctx->dy)*ctx->qfdy+128)>>8;
 
 #ifndef LQTVQ_BYTES
-#if 0
+#if 1
 	mv=0;
 	if(dcy)mv|=0x02;
 	if(dcu)mv|=0x04;
@@ -182,10 +182,10 @@ void LQTVQ_FastEncYUVD(BT4A_Context *ctx,
 	if(mv&0x10)LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
 #endif
 
-	LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
-	LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
-	LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
-	LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
+//	LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
+//	LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
+//	LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+//	LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
 
 #else
 	adcy=(dcy<<1)^(dcy>>31);
@@ -242,7 +242,7 @@ void LQTVQ_FastEncYUVDyuv(BT4A_Context *ctx,
 
 #ifndef LQTVQ_BYTES
 
-#if 0
+#if 1
 	mv=0;
 	if(dcy)mv|=0x02;
 	if(dcu)mv|=0x04;
@@ -260,12 +260,12 @@ void LQTVQ_FastEncYUVDyuv(BT4A_Context *ctx,
 	if(mv&0x40)LQTVQ_WriteAdSRiceLL(ctx, ddv, &ctx->rk_duv);
 #endif
 
-	LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
-	LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
-	LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
-	LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
-	LQTVQ_WriteAdSRiceLL(ctx, ddu, &ctx->rk_duv);
-	LQTVQ_WriteAdSRiceLL(ctx, ddv, &ctx->rk_duv);
+//	LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
+//	LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
+//	LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+//	LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
+//	LQTVQ_WriteAdSRiceLL(ctx, ddu, &ctx->rk_duv);
+//	LQTVQ_WriteAdSRiceLL(ctx, ddv, &ctx->rk_duv);
 
 #else
 
