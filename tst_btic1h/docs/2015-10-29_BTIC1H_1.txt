@@ -19,8 +19,6 @@ Embedding in [[BTEMP]] will use 'VS1H'.
 * Possibly allow AVI stream to have a series of 'VS1H' chunks, making it easier to direct-record from robot stream.
 * Alternately, repack blocks from current MB2 buffer.
 
-Currently, BTIC1H will not define use of an Alpha channel, but this may be added as a future extension.
-
 
 == Basic TLV Format ==
 
@@ -914,3 +912,21 @@ For decoding:
 * min=(min SHL 8); max=(max SHL 8)|255;
 * val=(val SHL 8)|ReadByte();
 * Repeat again if high 8 bits of min and max are still equal.
+
+
+== (Optional) MipMaps ==
+
+MipMaps currently may only be used with still images.
+Secondarily, MipMaps may (generally) only be used with images whose dimensions are powers of 2.
+
+Mipmap images will have the main image followed by a series of recursively downsampled images.
+
+The main Image (MipLevel 0) will be represented as normally, and may be followed by an 'AX' lump.
+
+After the AX lump, there will be miplevel lumps.
+These will be represented using FOURCC "MIPx" where x='1'..'9' or 'a'..'f'.
+
+Each miplevel will have its own Image Data and optional AX lump.
+
+Each miplevel will have 1/2 the X and Y resolution as the one preceding it, and is required to be the same format (same colorspace, encoding, etc). 
+Likewise, the presence or absence of 'AX' lumps is all or nothing.

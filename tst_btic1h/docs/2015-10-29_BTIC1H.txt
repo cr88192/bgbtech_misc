@@ -532,6 +532,8 @@ ParmVar(-2)
 ** P=(3A-B)>>1;
 * -2: Use linear prediction.
 ** P=2A-B;
+* When changing from mode 0, the last color will be assigned to B.
+* Absolute color points will set both the current and last color.
 
 FlagID(-1): Enable DeltaYUV, DeltaYUVD, and DeltaYUVDyuv update masks.
 * If enabled, a mask update may precede color-point delta updates.

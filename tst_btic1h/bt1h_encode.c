@@ -3289,6 +3289,7 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 	BTIC1H_Context *etctx;
 	byte *ct, *cte, *ct1;
 	int sz, sz1, csim;
+	int xs1, ys1, qfl1;
 	int slys, slbs, sldbs, sltid;
 	int i, j, k, l, n;
 
@@ -3301,6 +3302,18 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 		n=(ctx->xbsz+1)*(ctx->ybsz+1);
 		ctx->blks=malloc(n*32);
 		ctx->lblks=malloc(n*32);
+		
+#ifdef BT1H_ENABLE_MX
+//		if(qfl&BTIC1H_QFL_USEMIP)
+//			{ ctx->mtibuf=malloc(ctx->xs*ctx->ys*4); }
+#endif
+	}else if(qfl&(BTIC1H_QFL_USEMIP|BTIC1H_QFL_ISMIPLVL))
+	{
+		ctx->xs=xs;
+		ctx->ys=ys;
+		ctx->xbsz=(ctx->xs+3)>>2;
+		ctx->ybsz=(ctx->ys+3)>>2;
+		ctx->nblks=ctx->xbsz*ctx->ybsz;
 	}
 
 	ctx->clrs=clrs;
@@ -3608,7 +3621,8 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 				
 				j=i*slbs*32;
 				BTIC1H_EncodeBlocksCtx(ctx,
-					ctx->blks+j, (qfl&BTIC1H_QFL_PFRAME)?(ctx->lblks+j):NULL,
+					ctx->blks+j,
+					(qfl&BTIC1H_QFL_PFRAME)?(ctx->lblks+j):NULL,
 					n, 32, &k, qfl);
 				ctx->bits_total+=ctx->bs_bits;
 				BTIC1H_Rice_FlushBits(ctx);
@@ -3703,6 +3717,48 @@ int BTIC1H_EncodeCtx(BTIC1H_Context *ctx,
 		dst[5]='X';
 
 		sz=ctx->bs_ct-dst;
+	}
+#endif
+
+#ifdef BT1H_ENABLE_MX
+	if(qfl&BTIC1H_QFL_USEMIP &&
+		((clrs==BTIC1H_PXF_RGBA) ||
+		 (clrs==BTIC1H_PXF_BGRA) ||
+		 (clrs==BTIC1H_PXF_RGBX) ||
+		 (clrs==BTIC1H_PXF_BGRX)))
+	{
+		if(!ctx->mtibuf)
+			{ ctx->mtibuf=malloc(ctx->xs*ctx->ys*4); }
+
+		ct=dst+sz;
+		qfl1=qfl&(~BTIC1H_QFL_USEMIP);
+		qfl1|=BTIC1H_QFL_ISMIPLVL;
+		
+		memcpy(ctx->mtibuf, src, xs*ys*4);
+		BTIC1H_Tex_HalfSample(ctx->mtibuf, xs, ys, clrs);
+		xs1=(xs+1)>>1; ys1=(ys+1)>>1; l=1;
+		while((xs1>1)||(ys1>1))
+		{
+			ct=dst+sz;
+
+			j=BTIC1H_EncodeCtx(ctx,
+				ctx->mtibuf, ct+8, dsz-sz,
+				xs1, ys1, qfl1, clrs);
+			if(j<0)break;
+//			if((sz+j+8)>dsz)break;
+
+			j+=8;
+			ct[0]=0xE4;		ct[1]=j>>16;
+			ct[2]=j>>8;		ct[3]=j;
+			ct[4]='M';		ct[5]='I';
+			ct[6]='P';		ct[7]=(l<10)?('0'+l):('a'+l-10);
+			sz+=j;
+			
+			BTIC1H_Tex_HalfSample(ctx->mtibuf, xs1, ys, clrs);
+			xs1=(xs1+1)>>1; ys1=(ys1+1)>>1; l++;
+
+			if(sz>dsz)break;
+		}
 	}
 #endif
 

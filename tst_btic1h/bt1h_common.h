@@ -34,6 +34,7 @@ THE SOFTWARE.
 // #define BT1H_USECLRPRED		//use color predictors
 
 #define BT1H_ENABLE_AX		//enable alpha extension
+#define BT1H_ENABLE_MX		//enable mipmap extension
 
 #define BT1H_BITSTATS
 
@@ -189,6 +190,8 @@ typedef signed long long s64;
 #define	BTIC1H_QFL_USEGDBDR		(1<<13)		//Use Slice Coding
 
 #define	BTIC1H_QFL_DBGPTUNE		(1<<14)		//Parameter Tuning
+#define	BTIC1H_QFL_USEMIP		(1<<15)		//Use Mipmaps
+#define	BTIC1H_QFL_ISMIPLVL		(1<<16)		//Encoding a mipmap level
 
 #define	BTIC1H_DBFL_CLEARSKIP	(1<< 8)		//I-Frame
 
@@ -283,7 +286,9 @@ byte *bfs_mdlrk;					//bitfs model rk
 byte *ibuf;							//image buffer
 byte *blks;							//blocks buffer
 byte *lblks;						//last-frame blocks buffer
-byte *blksfl;
+byte *blksfl;						//block flags
+
+byte *mtibuf;						//mip temp image buffer
 
 byte cmdwin[256];					//command window
 short cmdidx[256];					//command window index

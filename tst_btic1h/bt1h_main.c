@@ -42,6 +42,7 @@ THE SOFTWARE.
 
 #include "bt1h_blkenc.c"
 #include "bt1h_blkdec.c"
+#include "bt1h_encmisc.c"
 #include "bt1h_encode.c"
 #include "bt1h_decode.c"
 #include "bt1h_targa.c"
@@ -215,7 +216,8 @@ int main(int argc, char *argv[])
 //	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM1_q95.tga", &xs1, &ys1);
 
 	ibuf=BTIC1H_Img_LoadTGA("MLP_FIM3.tga", &xs, &ys);
-	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM3.tga", &xs1, &ys1);
+//	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM3.tga", &xs1, &ys1);
+	ibuf2=BTIC1H_Img_LoadTGA("MLP_FIM3_q75.tga", &xs1, &ys1);
 
 	yibuf=malloc(xs*ys*2);
 
@@ -376,13 +378,15 @@ int main(int argc, char *argv[])
 //	qf=65;
 //	qf=85;
 //	qf=95;
-//	qf=90;
-	qf=75;
+	qf=90;
+//	qf=75;
 
 	qf=qf|BTIC1H_QFL_IFRAME;
 //	qf=qf|BTIC1H_QFL_USERC;
-	qf=qf|BTIC1H_QFL_USESLICE;
-	qf=qf|BTIC1H_QFL_USEGDBDR;
+//	qf=qf|BTIC1H_QFL_USESLICE;
+//	qf=qf|BTIC1H_QFL_USEGDBDR;
+
+	qf=qf|BTIC1H_QFL_USEMIP;
 	
 	xs1=xs>>2; ys1=ys>>2; n=xs1*ys1;
 	blks=malloc(n*32);

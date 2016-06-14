@@ -28,6 +28,11 @@ THE SOFTWARE.
 
 // #include <bgbbtj.h>
 
+#define BTAC_ACMDRV
+
+#ifdef BTAC_ACMDRV
+#include "btjdrv_driveracm.c"
+#endif
 
 // #ifdef BTIC1H_VFWDRV
 #if 1
@@ -852,7 +857,7 @@ BTIC1H_API INT_PTR WINAPI DllMain(
 		LPVOID lpReserved)
 {
 	g_hInst=(HINSTANCE)hModule;
-    return(TRUE);
+	return(TRUE);
 }
 
 BTIC1H_API LRESULT WINAPI DriverProc(
@@ -865,6 +870,7 @@ BTIC1H_API LRESULT WINAPI DriverProc(
 	ICOPEN * icopen;
 	ICINFO *icinfo;
 	BTIC1H_VidCodecCTX *ctx;
+	int lr;
 	
 	ctx=(BTIC1H_VidCodecCTX *)dwDriverId;
 
@@ -879,7 +885,12 @@ BTIC1H_API LRESULT WINAPI DriverProc(
 			uMsg, (void *)lParam1, (void *)lParam2);
 
 		icopen=(ICOPEN *)lParam2;
+#ifdef BTAC_ACMDRV
+		if(icopen && (icopen->fccType!=ICTYPE_VIDEO) &&
+				(icopen->fccType!=ICTYPE_AUDIO))
+#else
 		if(icopen && (icopen->fccType!=ICTYPE_VIDEO))
+#endif
 			{ return(DRVCNF_CANCEL); }
 
 		if(icopen)
@@ -899,14 +910,14 @@ BTIC1H_API LRESULT WINAPI DriverProc(
 
 		BTJPG_DriverInit();
 
-//		ctx = malloc(sizeof(CODEC));
+//		ctx=malloc(sizeof(CODEC));
 		ctx=BTIC1H_VidCodecCTX_New();
 		ctx->viFlags=0;
 
 		if(!ctx)
 		{
 			if(icopen)
-				{ icopen->dwError = ICERR_MEMORY; }
+				{ icopen->dwError=ICERR_MEMORY; }
 			return(0);
 		}
 
@@ -951,10 +962,10 @@ BTIC1H_API LRESULT WINAPI DriverProc(
 
 		if (lParam1 && (lParam2>=sizeof(ICINFO)))
 		{
-			icinfo = (ICINFO *)lParam1;
+			icinfo=(ICINFO *)lParam1;
 
-			icinfo->fccType = ICTYPE_VIDEO;
-			icinfo->fccHandler = BTIC1H_FCC_BTIC;
+			icinfo->fccType=ICTYPE_VIDEO;
+			icinfo->fccHandler=BTIC1H_FCC_BTIC;
 			icinfo->dwFlags =
 				VIDCF_FASTTEMPORALC |
 				VIDCF_FASTTEMPORALD |
@@ -963,11 +974,11 @@ BTIC1H_API LRESULT WINAPI DriverProc(
 				VIDCF_CRUNCH |
 				VIDCF_COMPRESSFRAMES;
 
-			icinfo->dwVersion = 0;
+			icinfo->dwVersion=0;
 #if !defined(ICVERSION)
-#define ICVERSION       0x0104
+#define ICVERSION	   0x0104
 #endif
-			icinfo->dwVersionICM = ICVERSION;
+			icinfo->dwVersionICM=ICVERSION;
 			
 			wcscpy(icinfo->szName, L"BTIC1H"); 
 			wcscpy(icinfo->szDescription, L"BGBTech BTIC1H");
@@ -1083,11 +1094,111 @@ BTIC1H_API LRESULT WINAPI DriverProc(
 			(void *)lParam1, (void *)lParam2);
 		return(ICERR_UNSUPPORTED);
 
-    /* VFWEXT entry point */
-    case ICM_USER+0x0fff :
+	/* VFWEXT entry point */
+	case ICM_USER+0x0fff :
 		btjpg_printf("ICM_USER: %p %p\n",
 			(void *)lParam1, (void *)lParam2);
-        return(ICERR_UNSUPPORTED);
+		return(ICERR_UNSUPPORTED);
+
+#ifdef BTAC_ACMDRV
+	case ACMDM_DRIVER_ABOUT:
+		btjpg_printf("ACMDM_DRIVER_ABOUT: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		return(MMSYSERR_NOTSUPPORTED);
+
+	case ACMDM_DRIVER_DETAILS:
+		btjpg_printf("ACMDM_DRIVER_DETAILS: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_DriverDetails(ctx, (LPACMDRIVERDETAILS)lParam1);
+	return(lr);
+ 
+	case ACMDM_FORMATTAG_DETAILS:
+		btjpg_printf("ACMDM_FORMATTAG_DETAILS: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_FormatTagDetails(ctx,
+			(LPACMFORMATTAGDETAILS)lParam1, (DWORD)lParam2);
+		return(lr);
+ 
+	case ACMDM_FORMAT_DETAILS:
+		btjpg_printf("ACMDM_FORMAT_DETAILS: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_FormatDetails(ctx,
+			(LPACMFORMATDETAILS)lParam1, (DWORD)lParam2);
+		return(lr);
+
+	case ACMDM_FORMAT_SUGGEST:
+		btjpg_printf("ACMDM_FORMAT_SUGGEST: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_FormatSuggest(ctx,
+			(LPACMDRVFORMATSUGGEST)lParam1, (DWORD)lParam2);
+		return(lr);
+
+	case ACMDM_FILTERTAG_DETAILS:
+	case ACMDM_FILTER_DETAILS:
+		btjpg_printf("ACMDM_FILTER_DETAILS: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		return(MMSYSERR_NOTSUPPORTED);
+  
+	case ACMDM_STREAM_OPEN:
+		btjpg_printf("ACMDM_STREAM_OPEN: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_StreamOpen(ctx,
+			(LPACMDRVSTREAMINSTANCE)lParam1);
+		return(lr);
+ 
+	case ACMDM_STREAM_CLOSE:
+		btjpg_printf("ACMDM_STREAM_CLOSE: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_StreamClose(
+			(LPACMDRVSTREAMINSTANCE)lParam1);
+		return(lr);
+
+	case ACMDM_STREAM_SIZE:
+		btjpg_printf("ACMDM_STREAM_SIZE: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_StreamSize(
+			(LPACMDRVSTREAMINSTANCE)lParam1,
+			(LPACMDRVSTREAMSIZE)lParam2);
+		return(lr);
+
+	case ACMDM_STREAM_CONVERT:
+		btjpg_printf("ACMDM_STREAM_CONVERT: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_StreamConvert(
+			(LPACMDRVSTREAMINSTANCE)lParam1,
+			(LPACMDRVSTREAMHEADER)lParam2);
+		return(lr);
+
+	case ACMDM_STREAM_RESET:
+		btjpg_printf("ACMDM_STREAM_RESET: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_StreamReset(
+			(LPACMDRVSTREAMINSTANCE)lParam1,
+			(LPACMDRVSTREAMHEADER)lParam2);
+		return(lr);
+
+	case ACMDM_STREAM_PREPARE:
+		btjpg_printf("ACMDM_STREAM_PREPARE: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_StreamPrepare(
+			(LPACMDRVSTREAMINSTANCE)lParam1,
+			(LPACMDRVSTREAMHEADER)lParam2);
+		return(lr);
+
+	case ACMDM_STREAM_UNPREPARE:
+		btjpg_printf("ACMDM_STREAM_UNPREPARE: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		lr=btacm_StreamPrepare(
+			(LPACMDRVSTREAMINSTANCE)lParam1,
+			(LPACMDRVSTREAMHEADER)lParam2);
+		return(lr);
+
+	case ACMDM_STREAM_UPDATE:
+		btjpg_printf("ACMDM_STREAM_UPDATE: %d %p %p\n", uMsg,
+			(void *)lParam1, (void *)lParam2);
+		return(MMSYSERR_NOTSUPPORTED);
+		
+#endif
 
 	default:
 		btjpg_printf("Default: %d %p %p\n", uMsg,

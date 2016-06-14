@@ -2496,17 +2496,20 @@ int BTIC1H_DecodeWorkSliceCtx(BTIC1H_Context *ctx)
 
 int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 	byte *src, byte *dst, int ssz, int dsz,
-	int *rxy, int *rys, int clrs)
+	int *rxy, int *rys, int clrsfl)
 {
 	BTIC1H_Context *encjob[128];
 	BTIC1H_Context *etctx;
-	byte *cs, *cse, *csi, *csax;
-	byte *cs1, *cs2;
-	int csim, slys, slbs, sltid;
+	byte *cs, *cse, *csi, *csax, *csmtx;
+	byte *cs1, *cs2, *ct;
+	int clrs, clrsfl1, xs0, ys0, xs1, ys1;
+	int csim, slys, slbs, sltid, csbs;
 	int i, j, k, l;
 
 	if(ssz==0)
 		return(0);
+
+	clrs=clrsfl&255;
 
 	if(!ctx->blks)
 	{
@@ -2521,9 +2524,15 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 		memset(ctx->blks, 0, ctx->nblks*32);
 		memset(ctx->lblks, 0, ctx->nblks*32);
 		memset(ctx->blksfl, 0, ctx->nblks);
+	}else if(clrsfl&(BTIC1H_QFL_USEMIP|BTIC1H_QFL_ISMIPLVL))
+	{
+		ctx->xbsz=(ctx->xs+3)>>2;
+		ctx->ybsz=(ctx->ys+3)>>2;
+		ctx->nblks=ctx->xbsz*ctx->ybsz;
 	}
 
-	cs=src; cse=src+ssz; csi=NULL; csax=NULL; csim=0;
+	cs=src; cse=src+ssz; csi=NULL;
+	csax=NULL; csmtx=NULL; csim=0;
 	while(cs<cse)
 	{
 		if(*cs==0xE0)
@@ -2554,6 +2563,10 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 			continue;
 		}else if(*cs==0xE4)
 		{
+			if((cs[4]=='M') && (cs[5]=='I') &&
+					(cs[6]=='P') && (cs[7]=='1'))
+				{ csmtx=cs; }
+
 			i=(cs[1]<<16)|(cs[2]<<8)|cs[3];
 			cs=cs+i;
 			continue;
@@ -2750,6 +2763,43 @@ int BTIC1H_DecodeCtx(BTIC1H_Context *ctx,
 	if(btjpg_drv_defaultCodecDbfl&BTIC1H_DBFL_CLEARSKIP)
 	{
 		memset(ctx->lblks, 0, ctx->nblks*32);
+	}
+	
+	if((clrsfl&BTIC1H_QFL_USEMIP) && csmtx &&
+		((clrs==BTIC1H_PXF_BC1)||
+		 (clrs==BTIC1H_PXF_BC3)||
+		 (clrs==BTIC1H_PXF_BC7)))
+	{
+		xs0=ctx->xs;
+		ys0=ctx->ys;
+		
+		csbs=16;
+		if(clrs==BTIC1H_PXF_BC1)
+			csbs=8;
+		
+		cs=csmtx;
+		clrsfl1=clrsfl&(~BTIC1H_QFL_USEMIP);
+		clrsfl1|=BTIC1H_QFL_ISMIPLVL;
+		
+		xs1=(xs0+1)>>1; ys1=(ys0+1)>>1;
+		ct=dst; ct+=ctx->nblks*csbs;
+		
+		while((xs1>1) || (ys1>2))
+		{
+			i=(cs[1]<<16)|(cs[2]<<8)|cs[3];
+			cs1=cs+i;
+		
+			ctx->xs=xs1; ctx->ys=ys1;
+			BTIC1H_DecodeCtx(ctx, cs+8, ct, i-8, dsz-(ct-dst),
+				NULL, NULL, clrsfl1);
+			
+			cs=cs1;
+			ct+=ctx->nblks*csbs;
+			xs1=(xs1+1)>>1; ys1=(ys1+1)>>1;
+		}
+
+		ctx->xs=xs0;
+		ctx->ys=ys0;
 	}
 
 	return(0);

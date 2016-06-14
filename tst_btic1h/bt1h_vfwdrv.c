@@ -50,8 +50,11 @@ void btjpg_printf(char *str, ...);
 
 #include "bt1h_blkenc.c"
 #include "bt1h_blkdec.c"
+#include "bt1h_encmisc.c"
 #include "bt1h_encode.c"
 #include "bt1h_decode.c"
+
+#include "snd_btac1c.c"
 
 #include "btjdrv_util.c"
 #include "btjdrv_base.c"
