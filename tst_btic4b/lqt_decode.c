@@ -34,6 +34,24 @@ int LQTVQ_DecodeUVLI(BT4A_Context *ctx)
 	}
 }
 
+int LQTVQ_DecReadCountVal(BT4A_Context *ctx)
+{
+	return(LQTVQ_DecodeUVLI(ctx));
+}
+
+int LQTVQ_DecReadGenericUVal(BT4A_Context *ctx)
+{
+	return(LQTVQ_DecodeUVLI(ctx));
+}
+
+int LQTVQ_DecReadGenericVal(BT4A_Context *ctx)
+{
+	int v;
+	v=LQTVQ_DecodeUVLI(ctx);
+	v=(v>>1)^((v<<31)>>31);
+	return(v);
+}
+
 int LQTVQ_DecReadCommand(BT4A_Context *ctx)
 {
 	return(*ctx->cs++);
@@ -174,6 +192,61 @@ void LQTVQ_DecColorYUVDyuv(BT4A_Context *ctx)
 	ctx->du+=ddu*ctx->qduv;
 	ctx->dv+=ddv*ctx->qduv;
 }
+
+force_inline void LQTVQ_DecRead8B(BT4A_Context *ctx, byte *buf)
+{
+	*buf=*ctx->cs++;
+}
+
+force_inline void LQTVQ_DecRead16B(BT4A_Context *ctx, byte *buf)
+{
+	*(u16 *)buf=*(u16 *)ctx->cs;
+	ctx->cs+=2;
+}
+
+force_inline void LQTVQ_DecRead32B(BT4A_Context *ctx, byte *buf)
+{
+	*(u32 *)buf=*(u32 *)ctx->cs;
+	ctx->cs+=4;
+}
+
+force_inline void LQTVQ_DecRead64B(BT4A_Context *ctx, byte *buf)
+{
+	*(u64 *)buf=*(u64 *)ctx->cs;
+	ctx->cs+=8;
+}
+
+force_inline void LQTVQ_DecRead96B(BT4A_Context *ctx, byte *buf)
+{
+	*(u64 *)(buf+0)=*(u64 *)(ctx->cs+0);
+	*(u32 *)(buf+8)=*(u32 *)(ctx->cs+8);
+	ctx->cs+=12;
+}
+
+force_inline void LQTVQ_DecRead128B(BT4A_Context *ctx, byte *buf)
+{
+	*(u64 *)(buf+0)=*(u64 *)(ctx->cs+0);
+	*(u64 *)(buf+8)=*(u64 *)(ctx->cs+8);
+	ctx->cs+=16;
+}
+
+force_inline void LQTVQ_DecRead192B(BT4A_Context *ctx, byte *buf)
+{
+	*(u64 *)(buf+ 0)=*(u64 *)(ctx->cs+ 0);
+	*(u64 *)(buf+ 8)=*(u64 *)(ctx->cs+ 8);
+	*(u64 *)(buf+16)=*(u64 *)(ctx->cs+16);
+	ctx->cs+=24;
+}
+
+force_inline void LQTVQ_DecRead256B(BT4A_Context *ctx, byte *buf)
+{
+	*(u64 *)(buf+ 0)=*(u64 *)(ctx->cs+ 0);
+	*(u64 *)(buf+ 8)=*(u64 *)(ctx->cs+ 8);
+	*(u64 *)(buf+16)=*(u64 *)(ctx->cs+16);
+	*(u64 *)(buf+24)=*(u64 *)(ctx->cs+24);
+	ctx->cs+=32;
+}
+
 #else
 int LQTVQ_DecReadCommand(BT4A_Context *ctx)
 {
@@ -184,7 +257,7 @@ int LQTVQ_DecReadCommand(BT4A_Context *ctx)
 
 int LQTVQ_DecReadMask(BT4A_Context *ctx)
 {
-	int i;
+	int i, j;
 	i=LQTVQ_ReadAdRiceLL(ctx, &(ctx->sm_mask.rk));
 	if(!i)
 		return(ctx->cmask);
@@ -209,6 +282,7 @@ int LQTVQ_DecReadGenericVal(BT4A_Context *ctx)
 
 int LQTVQ_DecReadCountVal(BT4A_Context *ctx)
 	{ return(LQTVQ_ReadAdRiceLL(ctx, &(ctx->rk_cnt))); }
+
 int LQTVQ_DecReadValCy(BT4A_Context *ctx)
 	{ return(LQTVQ_ReadAdSRiceLL(ctx, &(ctx->rk_cy))); }
 int LQTVQ_DecReadValCuv(BT4A_Context *ctx)
@@ -224,12 +298,19 @@ void LQTVQ_DecColorYUV(BT4A_Context *ctx)
 	int m;
 	int i;
 	
-	m=LQTVQ_DecReadMask(ctx);
-	
-	dcy=0;	dcu=0;	dcv=0;
-	if(m&0x02)dcy=LQTVQ_DecReadValCy(ctx);
-	if(m&0x04)dcu=LQTVQ_DecReadValCuv(ctx);
-	if(m&0x08)dcv=LQTVQ_DecReadValCuv(ctx);
+	if(ctx->cmask)
+	{
+		m=LQTVQ_DecReadMask(ctx);	
+		dcy=0;	dcu=0;	dcv=0;
+		if(m&0x02)dcy=LQTVQ_DecReadValCy(ctx);
+		if(m&0x04)dcu=LQTVQ_DecReadValCuv(ctx);
+		if(m&0x08)dcv=LQTVQ_DecReadValCuv(ctx);
+	}else
+	{
+		dcy=LQTVQ_DecReadValCy(ctx);
+		dcu=LQTVQ_DecReadValCuv(ctx);
+		dcv=LQTVQ_DecReadValCuv(ctx);
+	}
 
 	ctx->cy+=dcy*ctx->qy;
 	ctx->cu+=dcu*ctx->quv;
@@ -241,14 +322,23 @@ void LQTVQ_DecColorYUVD(BT4A_Context *ctx)
 	int dcy, dcu, dcv, ddy, ddu, ddv;
 	int i;
 	
-	i=LQTVQ_DecReadMask(ctx);
-	dcy=0;	dcu=0;	dcv=0;
-	ddy=0;	ddu=0;	ddv=0;
+	if(ctx->cmask)
+	{
+		i=LQTVQ_DecReadMask(ctx);
+		dcy=0;	dcu=0;	dcv=0;
+		ddy=0;	ddu=0;	ddv=0;
 
-	if(i&0x02)dcy=LQTVQ_DecReadValCy(ctx);
-	if(i&0x04)dcu=LQTVQ_DecReadValCuv(ctx);
-	if(i&0x08)dcv=LQTVQ_DecReadValCuv(ctx);
-	if(i&0x10)ddy=LQTVQ_DecReadValDy(ctx);
+		if(i&0x02)dcy=LQTVQ_DecReadValCy(ctx);
+		if(i&0x04)dcu=LQTVQ_DecReadValCuv(ctx);
+		if(i&0x08)dcv=LQTVQ_DecReadValCuv(ctx);
+		if(i&0x10)ddy=LQTVQ_DecReadValDy(ctx);
+	}else
+	{
+		dcy=LQTVQ_DecReadValCy(ctx);
+		dcu=LQTVQ_DecReadValCuv(ctx);
+		dcv=LQTVQ_DecReadValCuv(ctx);
+		ddy=LQTVQ_DecReadValDy(ctx);
+	}
 
 	ctx->cy+=dcy*ctx->qy;
 	ctx->cu+=dcu*ctx->quv;
@@ -261,16 +351,27 @@ void LQTVQ_DecColorYUVDyuv(BT4A_Context *ctx)
 	int dcy, dcu, dcv, ddy, ddu, ddv;
 	int i;
 	
-	i=LQTVQ_DecReadMask(ctx);
-	dcy=0;	dcu=0;
-	dcv=0;	ddy=0;
-	ddu=0;	ddv=0;
-	if(i&0x02)dcy=LQTVQ_DecReadValCy(ctx);
-	if(i&0x04)dcu=LQTVQ_DecReadValCuv(ctx);
-	if(i&0x08)dcv=LQTVQ_DecReadValCuv(ctx);
-	if(i&0x10)ddy=LQTVQ_DecReadValDy(ctx);
-	if(i&0x20)ddu=LQTVQ_DecReadValDuv(ctx);
-	if(i&0x40)ddv=LQTVQ_DecReadValDuv(ctx);
+	if(ctx->cmask)
+	{
+		i=LQTVQ_DecReadMask(ctx);
+		dcy=0;	dcu=0;
+		dcv=0;	ddy=0;
+		ddu=0;	ddv=0;
+		if(i&0x02)dcy=LQTVQ_DecReadValCy(ctx);
+		if(i&0x04)dcu=LQTVQ_DecReadValCuv(ctx);
+		if(i&0x08)dcv=LQTVQ_DecReadValCuv(ctx);
+		if(i&0x10)ddy=LQTVQ_DecReadValDy(ctx);
+		if(i&0x20)ddu=LQTVQ_DecReadValDuv(ctx);
+		if(i&0x40)ddv=LQTVQ_DecReadValDuv(ctx);
+	}else
+	{
+		dcy=LQTVQ_DecReadValCy(ctx);
+		dcu=LQTVQ_DecReadValCuv(ctx);
+		dcv=LQTVQ_DecReadValCuv(ctx);
+		ddy=LQTVQ_DecReadValDy(ctx);
+		ddu=LQTVQ_DecReadValDuv(ctx);
+		ddv=LQTVQ_DecReadValDuv(ctx);
+	}
 
 	ctx->cy+=dcy*ctx->qy;
 	ctx->cu+=dcu*ctx->quv;
@@ -297,45 +398,34 @@ force_inline void LQTVQ_DecRead32B(BT4A_Context *ctx, byte *buf)
 
 force_inline void LQTVQ_DecRead64B(BT4A_Context *ctx, byte *buf)
 {
-	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
+	((u64 *)buf)[0]=LQTVQ_Read64Bits(ctx);
 }
 
 force_inline void LQTVQ_DecRead96B(BT4A_Context *ctx, byte *buf)
 {
-	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
+	((u64 *)buf)[0]=LQTVQ_Read64Bits(ctx);
 	((u32 *)buf)[2]=LQTVQ_Read32Bits(ctx);
 }
 
 force_inline void LQTVQ_DecRead128B(BT4A_Context *ctx, byte *buf)
 {
-	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[2]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[3]=LQTVQ_Read32Bits(ctx);
+	((u64 *)buf)[0]=LQTVQ_Read64Bits(ctx);
+	((u64 *)buf)[1]=LQTVQ_Read64Bits(ctx);
 }
 
 force_inline void LQTVQ_DecRead192B(BT4A_Context *ctx, byte *buf)
 {
-	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[2]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[3]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[4]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[5]=LQTVQ_Read32Bits(ctx);
+	((u64 *)buf)[0]=LQTVQ_Read64Bits(ctx);
+	((u64 *)buf)[1]=LQTVQ_Read64Bits(ctx);
+	((u64 *)buf)[2]=LQTVQ_Read64Bits(ctx);
 }
 
 force_inline void LQTVQ_DecRead256B(BT4A_Context *ctx, byte *buf)
 {
-	((u32 *)buf)[0]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[1]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[2]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[3]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[4]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[5]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[6]=LQTVQ_Read32Bits(ctx);
-	((u32 *)buf)[7]=LQTVQ_Read32Bits(ctx);
+	((u64 *)buf)[0]=LQTVQ_Read64Bits(ctx);
+	((u64 *)buf)[1]=LQTVQ_Read64Bits(ctx);
+	((u64 *)buf)[2]=LQTVQ_Read64Bits(ctx);
+	((u64 *)buf)[3]=LQTVQ_Read64Bits(ctx);
 }
 
 #endif
@@ -381,15 +471,25 @@ void LQTVQ_DecodeSetParm(BT4A_Context *ctx, int var, int val)
 
 void LQTVQ_DecodeEnableFeature(BT4A_Context *ctx, int var)
 {
+	if(var==-1)
+	{
+		ctx->cmask=0xFF;
+		return;
+	}
 }
 
 void LQTVQ_DecodeDisableFeature(BT4A_Context *ctx, int var)
 {
+	if(var==-1)
+	{
+		ctx->cmask=0x00;
+		return;
+	}
 }
 
 byte *LQTVQ_DecSetupDecBlockInner(BT4A_Context *ctx, byte *ct, int op)
 {
-	byte *ct;
+//	byte *ct;
 
 	switch(op)
 	{
@@ -423,94 +523,94 @@ byte *LQTVQ_DecSetupDecBlockInner(BT4A_Context *ctx, byte *ct, int op)
 
 	case 0x09:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead8B(ctx, ct+16);
+		LQTVQ_DecRead8B(ctx, ct+16);
 		break;
 	case 0x0A:	case 0x0B:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead16B(ctx, ct+16);
+		LQTVQ_DecRead16B(ctx, ct+16);
 		break;
 	case 0x0C:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead32B(ctx, ct+16);
+		LQTVQ_DecRead32B(ctx, ct+16);
 		break;
 	case 0x0D:	case 0x0E:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead64B(ctx, ct+16);
+		LQTVQ_DecRead64B(ctx, ct+16);
 		break;
 	case 0x0F:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead128B(ctx, ct+16);
+		LQTVQ_DecRead128B(ctx, ct+16);
 		break;
 
 	case 0x13:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead192B(ctx, ct+16);
+		LQTVQ_DecRead192B(ctx, ct+16);
 		break;
 	case 0x14:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead256B(ctx, ct+16);
+		LQTVQ_DecRead256B(ctx, ct+16);
 		break;
 	case 0x15:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead32B(ctx, ct+16);
-		LQTVQ_DecodeRead8B(ctx, ct+20);
-		LQTVQ_DecodeRead8B(ctx, ct+21);
+		LQTVQ_DecRead32B(ctx, ct+16);
+		LQTVQ_DecRead8B(ctx, ct+20);
+		LQTVQ_DecRead8B(ctx, ct+21);
 		break;
 	case 0x16:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead32B(ctx, ct+16);
-		LQTVQ_DecodeRead32B(ctx, ct+20);
-		LQTVQ_DecodeRead32B(ctx, ct+24);
+		LQTVQ_DecRead32B(ctx, ct+16);
+		LQTVQ_DecRead32B(ctx, ct+20);
+		LQTVQ_DecRead32B(ctx, ct+24);
 		break;
 	case 0x17:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead128B(ctx, ct+16);
-		LQTVQ_DecodeRead8B(ctx, ct+32);
-		LQTVQ_DecodeRead8B(ctx, ct+33);
+		LQTVQ_DecRead128B(ctx, ct+16);
+		LQTVQ_DecRead8B(ctx, ct+32);
+		LQTVQ_DecRead8B(ctx, ct+33);
 		break;
 	case 0x18:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead128B(ctx, ct+16);
-		LQTVQ_DecodeRead32B(ctx, ct+32);
-		LQTVQ_DecodeRead32B(ctx, ct+36);
+		LQTVQ_DecRead128B(ctx, ct+16);
+		LQTVQ_DecRead32B(ctx, ct+32);
+		LQTVQ_DecRead32B(ctx, ct+36);
 		break;
 
 	case 0x19:
-		LQTVQ_FillBlockHeadTagL8(ctx, ct, op);
-		LQTVQ_DecodeRead192B(ctx, ct+ 8);
-		LQTVQ_DecodeRead128B(ctx, ct+32);
-		LQTVQ_DecodeRead128B(ctx, ct+48);
+		LQTVQ_FillBlockHeadTag(ctx, ct, op);
+		LQTVQ_DecRead192B(ctx, ct+ 8);
+		LQTVQ_DecRead128B(ctx, ct+32);
+		LQTVQ_DecRead128B(ctx, ct+48);
 		break;
 
 	case 0x1A:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead128B(ctx, ct+16);
-		LQTVQ_DecodeRead64B(ctx, ct+32);
-		LQTVQ_DecodeRead64B(ctx, ct+40);
+		LQTVQ_DecRead128B(ctx, ct+16);
+		LQTVQ_DecRead64B(ctx, ct+32);
+		LQTVQ_DecRead64B(ctx, ct+40);
 		break;
 	case 0x1B:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead128B(ctx, ct+16);
-		LQTVQ_DecodeRead128B(ctx, ct+32);
-		LQTVQ_DecodeRead128B(ctx, ct+48);
+		LQTVQ_DecRead128B(ctx, ct+16);
+		LQTVQ_DecRead128B(ctx, ct+32);
+		LQTVQ_DecRead128B(ctx, ct+48);
 		break;
 	case 0x1C:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead192B(ctx, ct+16);
-		LQTVQ_DecodeRead32B(ctx, ct+40);
-		LQTVQ_DecodeRead32B(ctx, ct+44);
+		LQTVQ_DecRead192B(ctx, ct+16);
+		LQTVQ_DecRead32B(ctx, ct+40);
+		LQTVQ_DecRead32B(ctx, ct+44);
 		break;
 	case 0x1D:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead256B(ctx, ct+16);
-		LQTVQ_DecodeRead64B(ctx, ct+48);
-		LQTVQ_DecodeRead64B(ctx, ct+56);
+		LQTVQ_DecRead256B(ctx, ct+16);
+		LQTVQ_DecRead64B(ctx, ct+48);
+		LQTVQ_DecRead64B(ctx, ct+56);
 		break;
 	case 0x1E:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecodeRead192B(ctx, ct+16);
-		LQTVQ_DecodeRead96B(ctx, ct+40);
-		LQTVQ_DecodeRead96B(ctx, ct+52);
+		LQTVQ_DecRead192B(ctx, ct+16);
+		LQTVQ_DecRead96B(ctx, ct+40);
+		LQTVQ_DecRead96B(ctx, ct+52);
 		break;
 	}
 	return(ct+64);
@@ -521,6 +621,9 @@ int LQTVQ_DecImgBufFastBGRA(BT4A_Context *ctx,
 	byte *blks, byte *lblks,
 	int xs, int ys)
 {
+	byte opb[256];
+	byte oprov;
+
 //	byte blkb[64];
 	byte *cs, *cse;
 	byte *ct, *lcs;
@@ -528,21 +631,41 @@ int LQTVQ_DecImgBufFastBGRA(BT4A_Context *ctx,
 	int op, lop0, lop1, ret;
 	int i, j, k, l, n;
 
+	LQTVQ_SetupContextQf(ctx, 100);
+
+#ifdef LQTVQ_BYTES
+	ctx->cs=cbuf; cse=cbuf+cbsz;
+#else
 	LQTVQ_InitScTables();
 	LQTVQ_InitRice();
-	
-	LQTVQ_SetupContextQf(ctx, 100);
-//	LQTVQ_SetupWriteBits(ctx, cbuf, xs*ys*8);
+	LQTVQ_SetupReadBits(ctx, cbuf, cbsz);
+#endif
 
 	xs1=(xs+7)>>3;
 	ys1=(ys+7)>>3;
 
-	ctx->cs=cbuf; cse=cbuf+cbsz;
-	ct=blks; lcs=lblks;
-	while(((ctx->cs)<cse) && !ret)
+//	ctx->cs=cbuf; cse=cbuf+cbsz;
+
+	memset(opb, 255, 256);
+	oprov=0;
+
+	ct=blks; lcs=lblks; ret=0; lop0=-1; op=-1;
+//	while(((ctx->cs)<cse) && !ret)
+	while(!ret)
 	{
+#if 0
+		op=LQTVQ_DecReadCommand(ctx);
+		if(op!=0x4C)
+		{
+			__asm { int 3 }
+			break;
+		}
+#endif
+
 		lop1=lop0; lop0=op;
 		op=LQTVQ_DecReadCommand(ctx);
+		opb[oprov++]=op;
+		
 		switch(op)
 		{
 		case 0x00:
@@ -600,14 +723,14 @@ int LQTVQ_DecImgBufFastBGRA(BT4A_Context *ctx,
 		case 0x41:
 			n=LQTVQ_DecReadCountVal(ctx);
 			lcs=lblks+(ct-blks);
-			LQTVQ_DecodeCopyBlocks(ct, lcs, n);
+			LQTVQ_DecodeCopyBlocks(ctx, ct, lcs, n);
 			break;
 		case 0x42:
 			n=LQTVQ_DecReadCountVal(ctx);
 			i=LQTVQ_DecReadGenericVal(ctx);
 			j=LQTVQ_DecReadGenericVal(ctx);
 			lcs=lblks+(ct-blks);
-			LQTVQ_DecodeCopyBlocks(ct, lcs+((i*xs1+j)*64), n);
+			LQTVQ_DecodeCopyBlocks(ctx, ct, lcs+((i*xs1+j)*64), n);
 			break;
 		case 0x43:
 			i=LQTVQ_DecReadGenericVal(ctx);
@@ -631,7 +754,9 @@ int LQTVQ_DecImgBufFastBGRA(BT4A_Context *ctx,
 			break;
 
 		default:
-			*(int *)-1=-1;
+//			*(int *)-1=-1;
+			__asm { int 3 }
+			ret=-1;
 			break;
 		}
 	}

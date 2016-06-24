@@ -617,7 +617,7 @@ void LQTVQ_EncBlock0Inner(
 			LQTVQ_EncYBits8x8x3(blkbuf+16, ybuf, ls0, acy);
 		}else
 		{
-			*(u32 *)(blkbuf+ 0)=  0x17;
+			*(u32 *)(blkbuf+ 0)=  0x14;
 			LQTVQ_EncYBits8x8x4(blkbuf+16, ybuf, ls0b, acy);
 		}
 	}

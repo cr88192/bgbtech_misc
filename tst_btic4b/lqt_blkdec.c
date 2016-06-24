@@ -776,7 +776,7 @@ void LQTVQ_DecBlockBGRA(byte *blkbuf, byte *ibuf, int ystr)
 	case 0x13:
 		LQTVQ_DecBlock2BGRA(blkbuf, ibuf, ystr);
 		break;
-	case 0x17:
+	case 0x14:
 		LQTVQ_DecBlock3BGRA(blkbuf, ibuf, ystr);
 		break;
 	case 0x18:

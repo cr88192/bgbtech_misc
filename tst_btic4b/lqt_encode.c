@@ -42,6 +42,11 @@ void LQTVQ_EncEmitCount(BT4A_Context *ctx, int cv)
 	LQTVQ_EncEmitGenericUVal(ctx, (cv<<1)^(cv>>31));
 }
 
+force_inline void LQTVQ_EncEmitCommand(BT4A_Context *ctx, int cmd)
+{
+	*ctx->ct++=cmd;
+}
+
 #else
 
 void LQTVQ_EncEmitGenericUVal(BT4A_Context *ctx, int cv)
@@ -59,16 +64,12 @@ void LQTVQ_EncEmitCount(BT4A_Context *ctx, int cv)
 	LQTVQ_WriteAdRiceLL(ctx, cv, &(ctx->rk_cnt));
 }
 
-#endif
-
 force_inline void LQTVQ_EncEmitCommand(BT4A_Context *ctx, int cmd)
 {
-#ifdef LQTVQ_BYTES
-	*ctx->ct++=cmd;
-#else
 	LQTVQ_WriteSymbolSmtf(ctx, &(ctx->sm_cmd), cmd);
-#endif
 }
+
+#endif
 
 #ifndef LQTVQ_BYTES
 force_inline void LQTVQ_EncEmitMask(BT4A_Context *ctx, int msk, int mmsk)
@@ -133,21 +134,23 @@ void LQTVQ_FastEncYUV(BT4A_Context *ctx, int cy, int cu, int cv)
 	}
 
 #else
-#if 1
-	mv=0;
-	if(dcy)mv|=0x02;
-	if(dcu)mv|=0x04;
-	if(dcv)mv|=0x08;
+	if(ctx->cmask)
+	{
+		mv=0;
+		if(dcy)mv|=0x02;
+		if(dcu)mv|=0x04;
+		if(dcv)mv|=0x08;
 	
-	LQTVQ_EncEmitMask(ctx, mv, 0x0E);
-	if(mv&0x02)LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
-	if(mv&0x04)LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
-	if(mv&0x08)LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
-#endif
-
-//	LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
-//	LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
-//	LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+		LQTVQ_EncEmitMask(ctx, mv, 0x0E);
+		if(mv&0x02)LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
+		if(mv&0x04)LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
+		if(mv&0x08)LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+	}else
+	{
+		LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
+		LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
+		LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+	}
 #endif
 
 	ctx->cy+=dcy*ctx->qy;
@@ -168,25 +171,26 @@ void LQTVQ_FastEncYUVD(BT4A_Context *ctx,
 	ddy=((dy-ctx->dy)*ctx->qfdy+128)>>8;
 
 #ifndef LQTVQ_BYTES
-#if 1
-	mv=0;
-	if(dcy)mv|=0x02;
-	if(dcu)mv|=0x04;
-	if(dcv)mv|=0x08;
-	if(ddy)mv|=0x10;
+	if(ctx->cmask)
+	{
+		mv=0;
+		if(dcy)mv|=0x02;
+		if(dcu)mv|=0x04;
+		if(dcv)mv|=0x08;
+		if(ddy)mv|=0x10;
 
-	LQTVQ_EncEmitMask(ctx, mv, 0x1E);
-	if(mv&0x02)LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
-	if(mv&0x04)LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
-	if(mv&0x08)LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
-	if(mv&0x10)LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
-#endif
-
-//	LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
-//	LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
-//	LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
-//	LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
-
+		LQTVQ_EncEmitMask(ctx, mv, 0x1E);
+		if(mv&0x02)LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
+		if(mv&0x04)LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
+		if(mv&0x08)LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+		if(mv&0x10)LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
+	}else
+	{
+		LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
+		LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
+		LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+		LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
+	}
 #else
 	adcy=(dcy<<1)^(dcy>>31);
 	adcu=(dcu<<1)^(dcu>>31);
@@ -242,31 +246,32 @@ void LQTVQ_FastEncYUVDyuv(BT4A_Context *ctx,
 
 #ifndef LQTVQ_BYTES
 
-#if 1
-	mv=0;
-	if(dcy)mv|=0x02;
-	if(dcu)mv|=0x04;
-	if(dcv)mv|=0x08;
-	if(ddy)mv|=0x10;
-	if(ddu)mv|=0x20;
-	if(ddv)mv|=0x40;
+	if(ctx->cmask)
+	{
+		mv=0;
+		if(dcy)mv|=0x02;
+		if(dcu)mv|=0x04;
+		if(dcv)mv|=0x08;
+		if(ddy)mv|=0x10;
+		if(ddu)mv|=0x20;
+		if(ddv)mv|=0x40;
 
-	LQTVQ_EncEmitMask(ctx, mv, 0x7E);
-	if(mv&0x02)LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
-	if(mv&0x04)LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
-	if(mv&0x08)LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
-	if(mv&0x10)LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
-	if(mv&0x20)LQTVQ_WriteAdSRiceLL(ctx, ddu, &ctx->rk_duv);
-	if(mv&0x40)LQTVQ_WriteAdSRiceLL(ctx, ddv, &ctx->rk_duv);
-#endif
-
-//	LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
-//	LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
-//	LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
-//	LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
-//	LQTVQ_WriteAdSRiceLL(ctx, ddu, &ctx->rk_duv);
-//	LQTVQ_WriteAdSRiceLL(ctx, ddv, &ctx->rk_duv);
-
+		LQTVQ_EncEmitMask(ctx, mv, 0x7E);
+		if(mv&0x02)LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
+		if(mv&0x04)LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
+		if(mv&0x08)LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+		if(mv&0x10)LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
+		if(mv&0x20)LQTVQ_WriteAdSRiceLL(ctx, ddu, &ctx->rk_duv);
+		if(mv&0x40)LQTVQ_WriteAdSRiceLL(ctx, ddv, &ctx->rk_duv);
+	}else
+	{
+		LQTVQ_WriteAdSRiceLL(ctx, dcy, &ctx->rk_cy );
+		LQTVQ_WriteAdSRiceLL(ctx, dcu, &ctx->rk_cuv);
+		LQTVQ_WriteAdSRiceLL(ctx, dcv, &ctx->rk_cuv);
+		LQTVQ_WriteAdSRiceLL(ctx, ddy, &ctx->rk_dy );
+		LQTVQ_WriteAdSRiceLL(ctx, ddu, &ctx->rk_duv);
+		LQTVQ_WriteAdSRiceLL(ctx, ddv, &ctx->rk_duv);
+	}
 #else
 
 	adcy=(dcy<<1)^(dcy>>31);
@@ -284,10 +289,6 @@ void LQTVQ_FastEncYUVDyuv(BT4A_Context *ctx,
 	{
 		mv=(addv<<27)|(addu<<22)|(1<<21)|(addy<<16)|
 			(adcv<<11)|(adcu<<6)|(adcy<<1)|1;
-//		*ctx->ct++=mv;
-//		*ctx->ct++=mv>>8;
-//		*ctx->ct++=mv>>16;
-//		*ctx->ct++=mv>>24;
 		*(u32 *)ctx->ct=mv;
 		ctx->ct+=4;
 	}else
@@ -319,118 +320,122 @@ void LQTVQ_FastEncYUVDyuv(BT4A_Context *ctx,
 	ctx->dv+=ddv*ctx->qduv;
 }
 
+#ifndef LQTVQ_BYTES
+
 force_inline void LQTVQ_EncEmit8B(BT4A_Context *ctx, byte *buf)
 {
-#ifndef LQTVQ_BYTES
 	LQTVQ_Write8BitsNM(ctx, *buf);
-#else
-	*ctx->ct++=*buf;
-#endif
 }
 
 force_inline void LQTVQ_EncEmit16B(BT4A_Context *ctx, byte *buf)
 {
-#ifndef LQTVQ_BYTES
 	LQTVQ_Write16BitsNM(ctx, *(u16 *)buf);
-#else
-	*(u16 *)ctx->ct=*(u16 *)buf;
-	ctx->ct+=2;
-#endif
 }
 
 force_inline void LQTVQ_EncEmit32B(BT4A_Context *ctx, byte *buf)
 {
-#ifndef LQTVQ_BYTES
 	LQTVQ_Write32Bits(ctx, *(u32 *)buf);
-#else
-	*(u32 *)ctx->ct=*(u32 *)buf;
-	ctx->ct+=4;
-#endif
 }
 
 force_inline void LQTVQ_EncEmit64B(BT4A_Context *ctx, byte *buf)
 {
-#ifndef LQTVQ_BYTES
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[0]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[1]);
-#else
-	*(u64 *)ctx->ct=*(u64 *)buf;
-	ctx->ct+=8;
-#endif
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[0]);
 }
 
 force_inline void LQTVQ_EncEmit96B(BT4A_Context *ctx, byte *buf)
 {
-#ifndef LQTVQ_BYTES
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[0]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[1]);
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[0]);
 	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[2]);
-#else
-	*(u64 *)ctx->ct=*(u64 *)buf;
-	*(u32 *)ctx->ct=*(u32 *)buf;
-	ctx->ct+=12;
-#endif
 }
 
 force_inline void LQTVQ_EncEmit128B(BT4A_Context *ctx, byte *buf)
 {
-#ifndef LQTVQ_BYTES
-	((u64 *)ctx->ct)[0]=((u64 *)buf)[0];
-	((u64 *)ctx->ct)[1]=((u64 *)buf)[1];
-	ctx->ct+=16;
-#else
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[0]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[1]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[2]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[3]);
-#endif
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[0]);
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[1]);
 }
 
 force_inline void LQTVQ_EncEmit192B(BT4A_Context *ctx, byte *buf)
 {
-#ifdef LQTVQ_BYTES
-	((u64 *)ctx->ct)[0]=((u64 *)buf)[0];
-	((u64 *)ctx->ct)[1]=((u64 *)buf)[1];
-	((u64 *)ctx->ct)[2]=((u64 *)buf)[2];
-	ctx->ct+=24;
-#else
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[0]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[1]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[2]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[3]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[4]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[5]);
-#endif
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[0]);
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[1]);
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[2]);
 }
 
 force_inline void LQTVQ_EncEmit256B(BT4A_Context *ctx, byte *buf)
 {
-#ifdef LQTVQ_BYTES
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[0]);
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[1]);
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[2]);
+	LQTVQ_Write64Bits(ctx, ((u64 *)buf)[3]);
+}
+
+force_inline byte *LQTVQ_EncFlushBits(BT4A_Context *ctx)
+{
+	return(LQTVQ_EndWriteBits(ctx));
+}
+
+#else
+
+force_inline void LQTVQ_EncEmit8B(BT4A_Context *ctx, byte *buf)
+{
+	*ctx->ct++=*buf;
+}
+
+force_inline void LQTVQ_EncEmit16B(BT4A_Context *ctx, byte *buf)
+{
+	*(u16 *)ctx->ct=*(u16 *)buf;
+	ctx->ct+=2;
+}
+
+force_inline void LQTVQ_EncEmit32B(BT4A_Context *ctx, byte *buf)
+{
+	*(u32 *)ctx->ct=*(u32 *)buf;
+	ctx->ct+=4;
+}
+
+force_inline void LQTVQ_EncEmit64B(BT4A_Context *ctx, byte *buf)
+{
+	*(u64 *)ctx->ct=*(u64 *)buf;
+	ctx->ct+=8;
+}
+
+force_inline void LQTVQ_EncEmit96B(BT4A_Context *ctx, byte *buf)
+{
+	*(u64 *)ctx->ct=*(u64 *)buf;
+	*(u32 *)ctx->ct=*(u32 *)buf;
+	ctx->ct+=12;
+}
+
+force_inline void LQTVQ_EncEmit128B(BT4A_Context *ctx, byte *buf)
+{
+	((u64 *)ctx->ct)[0]=((u64 *)buf)[0];
+	((u64 *)ctx->ct)[1]=((u64 *)buf)[1];
+	ctx->ct+=16;
+}
+
+force_inline void LQTVQ_EncEmit192B(BT4A_Context *ctx, byte *buf)
+{
+	((u64 *)ctx->ct)[0]=((u64 *)buf)[0];
+	((u64 *)ctx->ct)[1]=((u64 *)buf)[1];
+	((u64 *)ctx->ct)[2]=((u64 *)buf)[2];
+	ctx->ct+=24;
+}
+
+force_inline void LQTVQ_EncEmit256B(BT4A_Context *ctx, byte *buf)
+{
 	((u64 *)ctx->ct)[0]=((u64 *)buf)[0];
 	((u64 *)ctx->ct)[1]=((u64 *)buf)[1];
 	((u64 *)ctx->ct)[2]=((u64 *)buf)[2];
 	((u64 *)ctx->ct)[3]=((u64 *)buf)[3];
 	ctx->ct+=32;
-#else
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[0]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[1]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[2]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[3]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[4]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[5]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[6]);
-	LQTVQ_Write32Bits(ctx, ((u32 *)buf)[7]);
-#endif
 }
 
 force_inline byte *LQTVQ_EncFlushBits(BT4A_Context *ctx)
 {
-#ifndef LQTVQ_BYTES
-	return(LQTVQ_EndWriteBits(ctx));
-#else
 	return(ctx->ct);
-#endif
 }
+
+#endif
 
 int LQTVQ_SetupContextQf(BT4A_Context *ctx, int qf)
 {
@@ -483,6 +488,7 @@ int LQTVQ_SetupContextQf(BT4A_Context *ctx, int qf)
 	return(0);
 }
 
+#if 0
 int LQTVQ_EncImgBufFastBGRA(BT4A_Context *ctx,
 	byte *cbuf, byte *ibuf, int xs, int ys, int qf)
 {
@@ -627,7 +633,12 @@ int LQTVQ_EncImgBufFastBGRA(BT4A_Context *ctx,
 	}
 	return(ctx->ct-cbuf);
 }
+#endif
 
+int LQTVQ_EncEmitDbgCmdPfx(BT4A_Context *ctx)
+{
+//	LQTVQ_EncEmitCommand(ctx, 0x4C);	//Debug
+}
 
 int LQTVQ_EncImgBlocks(BT4A_Context *ctx,
 	byte *cbuf, byte *blks, byte *lblks, int xs, int ys, int qf)
@@ -638,17 +649,21 @@ int LQTVQ_EncImgBlocks(BT4A_Context *ctx,
 	int bi;
 	int i, j, k, n;
 	
+	LQTVQ_SetupContextQf(ctx, qf);
+
+#ifdef LQTVQ_BYTES
+	ctx->ct=cbuf;
+#else
 	LQTVQ_InitScTables();
 	LQTVQ_InitRice();
-	
-	LQTVQ_SetupContextQf(ctx, qf);
 	LQTVQ_SetupWriteBits(ctx, cbuf, xs*ys*8);
-	
+#endif
+
 	xs1=(xs+7)>>3;
 	ys1=(ys+7)>>3;
 	n=xs1*ys1;
 	
-//	ctx->ct=cbuf;
+	LQTVQ_EncEmitDbgCmdPfx(ctx);	//Debug
 
 	LQTVQ_EncEmitCommand(ctx, 0x45);
 	LQTVQ_EncEmitGenericUVal(ctx, ctx->qy);
@@ -666,7 +681,10 @@ int LQTVQ_EncImgBlocks(BT4A_Context *ctx,
 		blkb=cs;
 		cs+=64;
 
-		switch(*cs)
+		LQTVQ_EncEmitDbgCmdPfx(ctx);	//Debug
+
+//		switch(*cs)
+		switch(blkb[0])
 		{
 		case 0x00:
 			LQTVQ_EncEmitCommand(ctx, 0x00);
@@ -717,14 +735,14 @@ int LQTVQ_EncImgBlocks(BT4A_Context *ctx,
 				*(u16 *)(blkb+ 8), *(u16 *)(blkb+10));
 			LQTVQ_EncEmit192B(ctx, blkb+16);
 			break;
-
-		case 0x17:
+		case 0x14:
 			LQTVQ_EncEmitCommand(ctx, blkb[0]);
 			LQTVQ_FastEncYUVD(ctx,
 				*(u16 *)(blkb+ 4), *(u16 *)(blkb+ 6),
 				*(u16 *)(blkb+ 8), *(u16 *)(blkb+10));
 			LQTVQ_EncEmit256B(ctx, blkb+16);
 			break;
+
 		case 0x18:
 			LQTVQ_EncEmitCommand(ctx, 0x18);
 			LQTVQ_FastEncYUVDyuv(ctx,
@@ -735,6 +753,7 @@ int LQTVQ_EncImgBlocks(BT4A_Context *ctx,
 			LQTVQ_EncEmit32B(ctx, blkb+36);
 			break;
 		case 0x19:
+			__asm { int 3 }
 			break;
 		case 0x1A:
 			LQTVQ_EncEmitCommand(ctx, 0x1A);
@@ -764,10 +783,14 @@ int LQTVQ_EncImgBlocks(BT4A_Context *ctx,
 			LQTVQ_EncEmit32B(ctx, blkb+44);
 			break;
 		default:
-			*(int *)-1=-1;
+			__asm { int 3 }
+//			*(int *)-1=-1;
 			break;
 		}
 	}
+
+	LQTVQ_EncEmitDbgCmdPfx(ctx);
+	LQTVQ_EncEmitCommand(ctx, 0x40);
 	
 	blkb=LQTVQ_EncFlushBits(ctx);
 	return(blkb-cbuf);

@@ -13,6 +13,7 @@ void LQTVQ_InitRice(void)
 
 	if(lqtvq_initrice)
 		return;
+	lqtvq_initrice=1;
 
 	for(i=0; i<256; i++)
 	{
@@ -55,21 +56,40 @@ void LQTVQ_InitRice(void)
 					{ k1++; j=j>>1; }
 				if(k1>15)k1=15;
 			}
-			
+
+#if 0
 			j=((1<<q)-1)|((i&((1<<k)-1))<<(q+1));
 			if(l<=8)
-				{ lqtvq_decrice8[(k<<8)|j]=i|(l<<16)|(k1<<20); }
+			{
+				lqtvq_decrice8[(k<<8)|(j&255)]=i|(l<<16)|(k1<<20);
+			}
 			else
 				{ lqtvq_decrice8[(k<<8)|(j&255)]=0; }
-			
+#endif
+
 			if((l>=16) || (q>=8))
 			{
-				lqtvq_encrice8[(k<<9)|i]=0;
+				lqtvq_encrice8[(k<<9)|(i&511)]=0;
 				continue;
 			}
 			
 			j=((1<<q)-1)|((i&((1<<k)-1))<<(q+1));
-			lqtvq_encrice8[(k<<9)|i]=j|(l<<16)|(k1<<20);
+			lqtvq_encrice8[(k<<9)|(i&511)]=j|(l<<16)|(k1<<20);
+		}
+
+		for(i=0; i<256; i++)
+		{
+			q=lqtvq_decriceq8[i];
+			l=q+k+1;
+			if(l>8)
+			{
+				lqtvq_decrice8[(k<<8)|i]=0;
+				continue;
+			}
+			k1=lqtvq_decricenk8[(k<<4)|(q&15)];
+			j=(i>>(q+1))&((1<<k)-1);
+			j=j|(q<<k);
+			lqtvq_decrice8[(k<<8)|i]=j|(l<<16)|(k1<<20);
 		}
 	}
 }
@@ -98,9 +118,32 @@ byte *LQTVQ_EndWriteBits(BT4A_Context *ctx)
 	return(ctx->ct);
 }
 
+void LQTVQ_WriteNBits(BT4A_Context *ctx,
+	int bits, int len)
+{
+	u32 bw;
+	int bp;
+	int i;
+	
+	bits&=(1<<len)-1;
+	bp=ctx->bit_pos;
+	bw=ctx->bit_win;
+	bw=bw|(bits<<bp);
+	bp=bp+len;
+
+	i=bp>>3;
+	*(u32 *)ctx->ct=bw;
+	ctx->ct+=i;
+	ctx->bit_win=(bw>>(i<<3));
+	ctx->bit_pos=bp&7;
+}
+
 void LQTVQ_WriteNBitsNM(BT4A_Context *ctx,
 	int bits, int len)
 {
+	LQTVQ_WriteNBits(ctx, bits, len);
+
+#if 0
 	u32 bw;
 	int bp;
 //	int i;
@@ -118,28 +161,27 @@ void LQTVQ_WriteNBitsNM(BT4A_Context *ctx,
 	ctx->ct+=bp>>3;
 	ctx->bit_win=(bw>>(bp&(~7)));
 	ctx->bit_pos=bp&7;
+#endif
 }
 
-void LQTVQ_WriteNBits(BT4A_Context *ctx,
-	int bits, int len)
+#if 0
+void LQTVQ_Write8BitsNM(BT4A_Context *ctx, int bits)
 {
-	u32 bw;
-	int bp;
-	int i;
-	
-	bits&=1<<(len-1);
-	bp=ctx->bit_pos;
-	bw=ctx->bit_win;
-	bw=bw|(bits<<bp);
-	bp=bp+len;
-
-	i=bp>>3;
-	*(u32 *)ctx->ct=bw;
-	ctx->ct+=i;
-	ctx->bit_win=(bw>>(i<<3));
-	ctx->bit_pos=bp&7;
+	LQTVQ_WriteNBits(ctx, bits, 8);
 }
 
+void LQTVQ_Write16BitsNM(BT4A_Context *ctx, int bits)
+{
+	LQTVQ_WriteNBits(ctx, bits, 16);
+}
+
+void LQTVQ_Write24BitsNM(BT4A_Context *ctx, int bits)
+{
+	LQTVQ_WriteNBits(ctx, bits, 24);
+}
+#endif
+
+#if 1
 void LQTVQ_Write8BitsNM(BT4A_Context *ctx, int bits)
 {
 	u32 bw;
@@ -165,11 +207,18 @@ void LQTVQ_Write24BitsNM(BT4A_Context *ctx, int bits)
 	ctx->ct+=3;
 	ctx->bit_win=(bw>>24);
 }
+#endif
 
 void LQTVQ_Write32Bits(BT4A_Context *ctx, u32 bits)
 {
 	LQTVQ_Write16BitsNM(ctx, (u16)bits);
 	LQTVQ_Write16BitsNM(ctx, bits>>16);
+}
+
+void LQTVQ_Write64Bits(BT4A_Context *ctx, u64 bits)
+{
+	LQTVQ_Write32Bits(ctx, (u32)bits);
+	LQTVQ_Write32Bits(ctx, (u32)(bits>>32));
 }
 
 void LQTVQ_WriteAdRiceILL(BT4A_Context *ctx, int val, byte *rk)
@@ -200,7 +249,7 @@ void LQTVQ_WriteAdRiceILL(BT4A_Context *ctx, int val, byte *rk)
 	{
 		if(k>0)k--;
 		*rk=k;
-	}else if(k>1)
+	}else if(i>1)
 	{
 		j=i;
 		while(j>1)
@@ -234,6 +283,7 @@ void LQTVQ_WriteAdRiceSymLL(BT4A_Context *ctx, int val, byte *rk)
 {
 	int i, j, k, l;
 
+#if 1
 	j=lqtvq_encrice8[(*rk<<9)|val];
 	if(j)
 	{
@@ -241,6 +291,7 @@ void LQTVQ_WriteAdRiceSymLL(BT4A_Context *ctx, int val, byte *rk)
 		*rk=(j>>20)&15;
 		return;
 	}
+#endif
 
 	LQTVQ_WriteAdRiceILL(ctx, val, rk);	
 }
@@ -299,7 +350,10 @@ void LQTVQ_WriteSymbolSmtf(BT4A_Context *ctx,
 {
 	int i0, i1, i2, i3;
 	int i;
-	
+
+//	LQTVQ_WriteAdRiceSymLL(ctx, val, &(st->rk));
+
+#if 1
 	i=(byte)((st->idx[val])-(st->rov));
 	if(!i)
 	{
@@ -323,4 +377,5 @@ void LQTVQ_WriteSymbolSmtf(BT4A_Context *ctx,
 	st->rov--;
 
 	LQTVQ_WriteAdRiceSymLL(ctx, i, &(st->rk));
+#endif
 }

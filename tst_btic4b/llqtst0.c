@@ -422,7 +422,7 @@ int main()
 {
 	BT4A_Context tctx;
 	BT4A_Context *ctx;
-	byte *tbuf0, *tbuf1, *tbuf2;
+	byte *tbuf0, *tbuf1, *tbuf2, *cbuf;
 	double dt, mpxf;
 	int t0, t1, t2, t3, t0e;
 	int xs, ys, nf, sz;
@@ -436,6 +436,7 @@ int main()
 //	tbuf0=malloc(xs*ys*4);
 	tbuf1=malloc(xs*ys*8);
 	tbuf2=malloc(xs*ys*8);
+	cbuf=malloc(xs*ys*8);
 	
 	for(i=0; i<512; i++)
 	{
@@ -456,7 +457,9 @@ int main()
 	mpxf=(xs*ys)/1000000.0;
 	
 	ctx=&tctx;
-	
+
+#if 0
+	printf("Encode Test:\n");
 	t0=clock(); t1=t0; t0e=t0+(10*CLOCKS_PER_SEC);
 	nf=0; sz=0;
 	while(t1<t0e)
@@ -464,16 +467,16 @@ int main()
 		memset(ctx, 0, sizeof(BT4A_Context));
 		ctx->blks=tbuf2;
 
-#if 0
+#if 1
 		LQTVQ_SetupContextQf(ctx, 75);
 		LQTVQ_EncImageBGRA(ctx, tbuf2, tbuf0, xs, ys);
-		sz=LQTVQ_EncImgBlocks(ctx, tbuf1, tbuf2, NULL, xs, ys, 75);
+		sz=LQTVQ_EncImgBlocks(ctx, cbuf, tbuf2, NULL, xs, ys, 75);
 #endif
 
 //		sz=LQTVQ_EncImgBufFastBGRA(ctx, tbuf1, tbuf0, xs, ys, 75);
 
-		sz=LQTVQ_EncImageThreadsBGRA(ctx,
-			tbuf1, xs*ys*8, tbuf0, xs, ys, 75);
+//		sz=LQTVQ_EncImageThreadsBGRA(ctx,
+//			tbuf1, xs*ys*8, tbuf0, xs, ys, 75);
 
 //		LQTVQ_EncImageThreadsBGRA(ctx, tbuf1, tbuf0, xs, ys);
 	
@@ -488,11 +491,47 @@ int main()
 			nf/dt, mpxf*(nf/dt), ((sz+512)>>10), (sz*8.0)/(xs*ys));
 	}
 	printf("\n");
+#endif
 
-#if 0
+#if 1
 	memset(ctx, 0, sizeof(BT4A_Context));
+	ctx->blks=tbuf2;
 
-	LQTVQ_DecImgBufFastBGRA(ctx, tbuf1, sz,
+	LQTVQ_SetupContextQf(ctx, 75);
+	LQTVQ_EncImageBGRA(ctx, tbuf2, tbuf0, xs, ys);
+	sz=LQTVQ_EncImgBlocks(ctx, cbuf, tbuf2, NULL, xs, ys, 75);
+
+	printf("sz=%dKiB (%.2fbpp)\n", ((sz+512)>>10), (sz*8.0)/(xs*ys));
+#endif
+
+#if 1
+	printf("Decode Test:\n");
+	t0=clock(); t1=t0; t0e=t0+(10*CLOCKS_PER_SEC);
+	nf=0; sz=0;
+	while(t1<t0e)
+	{
+		memset(ctx, 0, sizeof(BT4A_Context));
+		ctx->blks=tbuf2;
+
+		LQTVQ_DecImgBufFastBGRA(ctx, cbuf, sz,
+			tbuf2, NULL, xs, ys);
+		LQTVQ_DecImageBGRA(tbuf2, tbuf1, xs, ys);
+
+		nf++;
+		t1=clock();
+		t2=t1-t0;
+		dt=t2/((double)CLOCKS_PER_SEC);
+		printf("%d %.2fs %.2ffps %.2fMpix/s\r", nf, dt,
+			nf/dt, mpxf*(nf/dt));
+	}
+	printf("\n");
+#endif
+
+#if 1
+	memset(ctx, 0, sizeof(BT4A_Context));
+	memset(tbuf2, 0, xs*ys*8);
+
+	LQTVQ_DecImgBufFastBGRA(ctx, cbuf, sz,
 		tbuf2, NULL, xs, ys);
 	LQTVQ_DecImageBGRA(tbuf2, tbuf1, xs, ys);
 //	cmp_rmse(tbuf0, tbuf1, xs, ys);
