@@ -1,12 +1,45 @@
 BTIC4B is meant as a reasonably high-speed codec design. Quality/bitrate is a somewhat lower priority than making it fast. Its primary use-case is real-time encoding of 4K video sequences.
 
-Colorspace:
-* LDR 8, YUV values are between 0 and 255, representing a normalized colorspace.
-* LDR 10/12, YUV values are between 0 and 1023 or 4095, representing a normalized colorspace.
+Value Ranges:
+* LDR 8, Y values are between 0 and 255.
+** U and V values are in the range of +/- 255.
+* LDR 10/12, Y values are between 0 and 1023 or 4095.
+** U and V values are in the range of +/- 1023 or 4095.
 * HDR 16, YUV values encode 16-bit color points representing half-float values.
-** Values may be encoded directly (unsigned) or with offset+inversion (signed).
-*** Y'=(Y^(((Y&lt;&lt;16)&gt;&gt;31)&(~32768)))+32768;
-*** (Change) Interpret values as signed. Negative side is stored in ones' complement form.
+** HDR16 values may be either signed or unsigned.
+*** Values are signed, with negatives stored in ones' complement form.
+*** Values will be clamped to 16-bit range inside blocks.
+
+The primary colorspace used with this codec will be GDbDr, where:
+* LDR8-Only:
+** Y=G
+** U=((B-G)>>1)+128
+** V=((R-G)>>1)+128
+* LDR and HDR:
+** Y=G
+** U=B-G
+** V=R-G
+
+Endpoints will be stored in Center/Diff form:
+* Center=(Min+Max)/2
+* Diff=Max-Min
+* This is done for all components.
+
+Interpolation:
+* 2 bit:
+** 0=Min
+** 1=2/3*Min+1/3Max
+** 2=1/3*Min+2/3Max
+** 3=Max
+* 3 bit:
+** 0=Min
+** 1=6/7*Min+1/7Max
+** 2=5/7*Min+2/7Max
+** 3=4/7*Min+3/7Max
+** 4=3/7*Min+4/7Max
+** 5=2/7*Min+5/7Max
+** 6=1/7*Min+6/7Max
+** 7=Max
 
 
 == Canonical Meta-Block ==
@@ -20,23 +53,25 @@ The metablocks may be 384 or 512 bits in the current form.
 
  Bytes 0-15: Color Vector
     0: BlockType:BYTE
-    4: Cy:U16
-    6: Cu:U16
-    8: Cv:U16
-   10: Dy:U16
-   12: Du:U16
-   14: Dv:U16
+    2: Ca2:BYTE (Center Alpha, 8-bit)
+    3: Da2:BYTE (Diff Alpha, 8-bit)
+    4: Cy:S16 (Center Y, 16-bit)
+    6: Cu:S16 (Center U, 16-bit)
+    8: Cv:S16 (Center V, 16-bit)
+   10: Dy:S16 (Diff Y, 16-bit)
+   12: Du:S16 (Diff U, 16-bit)
+   14: Dv:S16 (Diff V, 16-bit)
  Bytes 16-47: YUV Data (384 bit block)
  Bytes 48-63: YUV Data (512 bit block)
 
  Bytes 0-15: Color Vector (LDR8-Only Blocks)
     0: BlockType:BYTE
-    2: Cy:BYTE
-    3: Cu:BYTE
-    4: Cv:BYTE
-    5: Dy:BYTE
-    6: Du:BYTE
-    7: Dv:BYTE
+    2: Cy:BYTE (Center Y, 8-bit)
+    3: Cu:BYTE (Center U, 8-bit)
+    4: Cv:BYTE (Center V, 8-bit)
+    5: Dy:BYTE (Diff Y, 8-bit)
+    6: Du:BYTE (Diff U, 8-bit)
+    7: Dv:BYTE (Diff V, 8-bit)
 
  8x8x3+4x4x2 (4:2:0, 384 bit)
  Bytes 16-39: Y Data (8x8x3 bpp)
@@ -100,6 +135,8 @@ Block Type (Hex):
 
 Pixel data will be laid out with the top-left corner in the high-order bits. However, the pixel data will itself be laid out in little-endian order, and words organized to appear as a larger value.
 
+If read from the LSB, the pixels will seem to be in right-to-left bottom-to-top order.
+
 Single axis blocks will generally interpolate only along Y, assuming U and V to be flat. Blocks with Y and UV will interpolate each axis independently.
 
 YUV data will be packed end-to-end in blocks if less than the normal amount of bits is used. Ex: 4.10 will have the UV data start at byte 32 rather than 40.
@@ -108,6 +145,18 @@ YUV data will be packed end-to-end in blocks if less than the normal amount of b
 == Alpha Channel ==
 
 If an alpha channel is used, then the metablock format will be 512 bits, but only 384 bits may be used for the pixel data. The remaining 128 bits will be used for the alpha channel.
+
+In the main header, Ca2/Da2 will allow a few special cases:
+* Ca2=0..254, Da2!=0:
+** Alpha block is interpreted as 8x8x2bpp
+* Ca2=0..255, Da2=0:
+** Block is a single uniform opacity.
+** 0=Transparent, 255=Opaque
+* Ca2=255, Da2=1
+** Alpha block will have its own header.
+
+The Ca2/Da2 fields will map linearly to alpha values between 0 and 1.
+
 
  0: Ca
  2: Da
@@ -157,11 +206,13 @@ Even/Odd+Odd/Even:
 * Odd/Even will choose between the low and high prediction.
  
 
-== Bytestream Serialization ==
+== Bytestream Serialization (Partial Drop) ==
 
 A bytestream serialization may be used which may be more compact than the raw blocks.
 
 A byte-based representation may be used here for performance reasons (entropy coding is better for bitrate, but is slower).
+
+Partial Drop: Will primarily use bitstream.
 
 
 Will support a byte-stream serialization:
@@ -251,6 +302,14 @@ Masks will be encoded with a variant of SMTF:
 * LSB of the mask symbol's value indicates whether the selected mask should replace the currently active mask.
 ** 0: The mask is only used for the current color vector.
 ** 1: The mask replaces the currently active mask.
+
+Masks will be optional, and will default to being disabled.
+* If the mask is disabled, all then delta components always will be coded.
+** This will depend on the type of color vector used by the block.
+** YUV: Encodes delta Cy, Cu, and Cv
+** YUVD: Encodes delta Cy, Cu, Cv, and Dy
+** YUVDyuv: Encodes delta Cy, Cu, Cv, Dy, Du, and Dv
+* Enabling feature -1 will enable masks.
 
 Rk:
 * RkCy: Center Y

@@ -3,12 +3,12 @@
  * 
  * Bytes 0-15: Color Vector
  *    0: Tag
- *    4: Cy:U16
- *    6: Cu:U16
- *    8: Cv:U16
- *   10: Dy:U16
- *   12: Du:U16
- *   14: Dv:U16
+ *    4: Cy:S16
+ *    6: Cu:S16
+ *    8: Cv:S16
+ *   10: Dy:S16
+ *   12: Du:S16
+ *   14: Dv:S16
  * Bytes 16-39: Y Data (3 bpp)
  * Bytes 40-43: U Dava (2 bpp)
  * Bytes 44-47: V Dava (2 bpp)
@@ -46,27 +46,37 @@ force_inline int lqtvq_clamp65535(int x)
 	return((x<0)?0:((x>65535)?65535:x));
 }
 
+force_inline int lqtvq_clamp32767S(int x)
+{
+	return((x<(-32767))?(-32767):((x>32767)?32767:x));
+}
+
 void LQTVQ_SplitIbufBGRA(byte *ibuf, int ystr,
-	int *ybuf, int *ubuf, int *vbuf,
+	int *ybuf, int *ubuf, int *vbuf, int *abuf,
 	int *mcyuv, int *ncyuv)
 {
 	byte *cs0, *cs1;
 	int *cty0, *cty1, *ctu, *ctv;
+	int *cta0, *cta1;
 	int i0, i1, i2, i3;
 	int cr0, cr1, cr2, cr3;
 	int cg0, cg1, cg2, cg3;
 	int cb0, cb1, cb2, cb3;
 	int cy0, cy1, cy2, cy3;
+	int ca0, ca1, ca2, ca3;
 	int mcy, mcu, mcv, ncy, ncu, ncv;
+	int mca, nca;
 	int cr, cg, cb;
 	int cy, cu, cv;
 	
 	int i, j, k;
 	
-	mcy=255; mcu=255; mcv=255;
-	ncy=  0; ncu=  0; ncv=  0;
+	mcy=255; mcu= 255; mcv= 255;
+	ncy=  0; ncu=-255; ncv=-255;
+	mca=255; nca=-255;
 	ctu=ubuf;	ctv=vbuf;
 	cty0=ybuf;	cty1=ybuf+8;
+	cta0=abuf;	cta1=abuf+8;
 	for(i=0; i<4; i++)
 	{
 		cs0=ibuf+(i*2+0)*ystr;
@@ -79,6 +89,8 @@ void LQTVQ_SplitIbufBGRA(byte *ibuf, int ystr,
 			cr1=(byte)(i1>>16);	cg1=(byte)(i1>> 8);	cb1=(byte)(i1    );
 			cr2=(byte)(i2>>16);	cg2=(byte)(i2>> 8);	cb2=(byte)(i2    );
 			cr3=(byte)(i3>>16);	cg3=(byte)(i3>> 8);	cb3=(byte)(i3    );
+			ca0=(byte)(i0>>24);	ca1=(byte)(i1>>24);
+			ca2=(byte)(i2>>24);	ca3=(byte)(i3>>24);
 			cs0+=8;		cs1+=8;
 
 			cg=cg0;
@@ -87,13 +99,21 @@ void LQTVQ_SplitIbufBGRA(byte *ibuf, int ystr,
 
 			cy0=cg0;	cy1=cg1;
 			cy2=cg2;	cy3=cg3;
-			cu=((cb-cg)>>1)+128;
-			cv=((cr-cg)>>1)+128;
+//			cu=((cb-cg)>>1)+128;
+//			cv=((cr-cg)>>1)+128;
+			cu=cb-cg;
+			cv=cr-cg;
 
 			cty0[0]=cy0; 	cty0[1]=cy1;
 			cty1[0]=cy2; 	cty1[1]=cy3;
 			*ctu++=cu;		*ctv++=cv;
 			cty0+=2;		cty1+=2;
+
+#if 1
+			cta0[0]=ca0; 	cta0[1]=ca1;
+			cta1[0]=ca2; 	cta1[1]=ca3;
+			cta0+=2;		cta1+=2;
+#endif
 
 #if 1
 			if(cy0<mcy)mcy=cy0;
@@ -108,6 +128,17 @@ void LQTVQ_SplitIbufBGRA(byte *ibuf, int ystr,
 			if(cu>ncu)ncu=cu;
 			if(cv<mcv)mcv=cv;
 			if(cv>ncv)ncv=cv;
+#endif
+
+#if 1
+			if(ca0<mca)mca=ca0;
+			if(ca0>nca)nca=ca0;
+			if(ca3<mca)mca=ca3;
+			if(ca3>nca)nca=ca3;
+			if(ca1<mca)mca=ca1;
+			if(ca1>nca)nca=ca1;
+			if(ca2<mca)mca=ca2;
+			if(ca2>nca)nca=ca2;
 #endif
 
 #if 0
@@ -128,12 +159,13 @@ void LQTVQ_SplitIbufBGRA(byte *ibuf, int ystr,
 			ncv=lqtvq_fmax(ncv, cv);
 #endif
 		}
-		cty0+=8;
-		cty1+=8;
+		cty0+=8;	cty1+=8;
+		cta0+=8;	cta1+=8;
 	}
 	
 	mcyuv[0]=mcy;	mcyuv[1]=mcu;	mcyuv[2]=mcv;
 	ncyuv[0]=ncy;	ncyuv[1]=ncu;	ncyuv[2]=ncv;
+	mcyuv[3]=mca;	ncyuv[3]=nca;
 }
 
 void LQTVQ_SplitIbufRGB30(byte *ibuf, int ystr,
@@ -153,8 +185,8 @@ void LQTVQ_SplitIbufRGB30(byte *ibuf, int ystr,
 	
 	int i, j, k;
 	
-	mcy=255; mcu=255; mcv=255;
-	ncy=  0; ncu=  0; ncv=  0;
+	mcy=1023; mcu= 1023; mcv= 1023;
+	ncy=   0; ncu=-1023; ncv=-1023;
 	ctu=ubuf;	ctv=vbuf;
 	cty0=ybuf;	cty1=ybuf+8;
 	for(i=0; i<4; i++)
@@ -179,14 +211,16 @@ void LQTVQ_SplitIbufRGB30(byte *ibuf, int ystr,
 			cy0=cg0;	cy1=cg1;
 			cy2=cg2;	cy3=cg3;
 
-			cu=((cb-cg)>>1)+512;
-			cv=((cr-cg)>>1)+512;
+//			cu=((cb-cg)>>1)+512;
+//			cv=((cr-cg)>>1)+512;
+			cu=cb-cg;
+			cv=cr-cg;
 
 			cty0[0]=cy0; 	cty0[1]=cy1;
 			cty1[0]=cy2; 	cty1[1]=cy3;
 			*ctu++=cu;		*ctv++=cv;
 			cty0+=2;		cty1+=2;
-			
+
 			mcy=lqtvq_fmin(mcy, cy0);
 			mcy=lqtvq_fmin(mcy, cy3);
 			mcy=lqtvq_fmin(mcy, cy1);
@@ -211,7 +245,7 @@ void LQTVQ_SplitIbufRGB30(byte *ibuf, int ystr,
 	ncyuv[0]=ncy;	ncyuv[1]=ncu;	ncyuv[2]=ncv;
 }
 
-void LQTVQ_SplitIbufRGBA48(byte *ibuf, int ystr,
+void LQTVQ_SplitIbufRGB48(byte *ibuf, int ystr,
 	int *ybuf, int *ubuf, int *vbuf,
 	int *mcyuv, int *ncyuv)
 {
@@ -228,8 +262,8 @@ void LQTVQ_SplitIbufRGBA48(byte *ibuf, int ystr,
 	
 	int i, j, k;
 	
-	mcy=255; mcu=255; mcv=255;
-	ncy=  0; ncu=  0; ncv=  0;
+	mcy= 32767; mcu= 32767; mcv= 32767;
+	ncy=-32767; ncu=-32767; ncv=-32767;
 	ctu=ubuf;	ctv=vbuf;
 	cty0=ybuf;	cty1=ybuf+8;
 	for(i=0; i<4; i++)
@@ -251,8 +285,10 @@ void LQTVQ_SplitIbufRGBA48(byte *ibuf, int ystr,
 			cy0=cg0;	cy1=cg1;
 			cy2=cg2;	cy3=cg3;
 
-			cu=((cb-cg)>>1)+32768;
-			cv=((cr-cg)>>1)+32768;
+//			cu=((cb-cg)>>1)+32768;
+//			cv=((cr-cg)>>1)+32768;
+			cu=cb-cg;
+			cv=cr-cg;
 
 			cty0[0]=cy0; 	cty0[1]=cy1;
 			cty1[0]=cy2; 	cty1[1]=cy3;
@@ -302,6 +338,241 @@ void LQTVQ_InitScTables()
 	}
 }
 
+#if 1
+
+#if 1
+force_inline int LQTVQ_SAT1(int x)
+{
+	static const int tab[8]=
+		{0,0,0,0,1,1,1,1};
+	return(tab[x+3]);
+//	return((x<0)?0:((x>1)?1:x));
+}
+#else
+#define LQTVQ_SAT1(x)	(x)
+#endif
+
+// #define LQTVQ_BIAS1		8191
+// #define LQTVQ_BIAS1		16383
+#define LQTVQ_BIAS1			65535
+// #define LQTVQ_BIAS1			131071
+// #define LQTVQ_BIAS1			262143
+// #define LQTVQ_BIAS1			((1<<20)-1)
+
+force_inline void LQTVQ_EncUVBits4x4x1(
+	byte *oblk, int *ubuf, int lsu, int acu)
+{
+	static const int lc2=8388608+LQTVQ_BIAS1;
+	static const int lc3=8388608-LQTVQ_BIAS1;
+	u32 i2;
+
+	i2=        LQTVQ_SAT1(((ubuf[15]-acu)*lsu+lc2)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[14]-acu)*lsu+lc3)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[13]-acu)*lsu+lc2)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[12]-acu)*lsu+lc3)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[11]-acu)*lsu+lc3)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[10]-acu)*lsu+lc2)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 9]-acu)*lsu+lc3)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 8]-acu)*lsu+lc2)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 7]-acu)*lsu+lc2)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 6]-acu)*lsu+lc3)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 5]-acu)*lsu+lc2)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 4]-acu)*lsu+lc3)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 3]-acu)*lsu+lc3)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 2]-acu)*lsu+lc2)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 1]-acu)*lsu+lc3)>>23);
+	i2=(i2<<1)|LQTVQ_SAT1(((ubuf[ 0]-acu)*lsu+lc2)>>23);
+	*(u16 *)oblk=i2;
+}
+
+force_inline void LQTVQ_EncYBits2x2x1(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+LQTVQ_BIAS1;
+	static const int lc1=8388608-LQTVQ_BIAS1;
+	int y0, y1, y2, y3;
+	u32 i0, i1;
+	int i;
+
+	y0=(ybuf[ 0]+ybuf[ 2]+ybuf[16]+ybuf[18])>>2;
+	y1=(ybuf[ 4]+ybuf[ 6]+ybuf[20]+ybuf[22])>>2;
+	y2=(ybuf[32]+ybuf[34]+ybuf[48]+ybuf[50])>>2;
+	y3=(ybuf[36]+ybuf[38]+ybuf[52]+ybuf[54])>>2;
+
+	i0=        LQTVQ_SAT1(((y3-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((y2-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((y1-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((y0-acy)*lsy+lc1)>>23);
+	*(byte *)oblk=i0;
+}
+
+
+force_inline void LQTVQ_EncYBits4x2x1(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+LQTVQ_BIAS1;
+	static const int lc1=8388608-LQTVQ_BIAS1;
+	u32 i0, i1;
+	int i;
+
+	i0=        LQTVQ_SAT1(((ybuf[38]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[36]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[34]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[32]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 6]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 4]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 2]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 0]-acy)*lsy+lc0)>>23);
+	*(byte *)oblk=i0;
+}
+
+force_inline void LQTVQ_EncYBits2x4x1(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+LQTVQ_BIAS1;
+	static const int lc1=8388608-LQTVQ_BIAS1;
+	u32 i0, i1;
+	int i;
+
+	i0=        LQTVQ_SAT1(((ybuf[52]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[48]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[36]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[32]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[20]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[16]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 4]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 0]-acy)*lsy+lc1)>>23);
+	*(byte *)oblk=i0;
+}
+
+force_inline void LQTVQ_EncYBits4x4x1(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+LQTVQ_BIAS1;
+	static const int lc1=8388608-LQTVQ_BIAS1;
+	u32 i0, i1;
+	int i;
+
+	i0=        LQTVQ_SAT1(((ybuf[54]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[52]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[50]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[48]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[38]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[36]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[34]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[32]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[22]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[20]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[18]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[16]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 6]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 4]-acy)*lsy+lc0)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 2]-acy)*lsy+lc1)>>23);
+	i0=(i0<<1)|LQTVQ_SAT1(((ybuf[ 0]-acy)*lsy+lc0)>>23);
+	*(u16 *)oblk=i0;
+}
+
+force_inline void LQTVQ_EncYBits4x8x1(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+LQTVQ_BIAS1;
+	static const int lc1=8388608-LQTVQ_BIAS1;
+	int *csy;
+	u32 i0, i1;
+	int i;
+
+	csy=ybuf;
+	for(i=0; i<2; i++)
+	{
+		i0=        LQTVQ_SAT1(((csy[30]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[28]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[26]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[24]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[22]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[20]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[18]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[16]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[14]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[12]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[10]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 8]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 6]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 4]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 2]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 0]-acy)*lsy+lc0)>>23);
+		*(u16 *)(oblk+i*2)=i0;
+		csy+=32;
+	}
+}
+
+force_inline void LQTVQ_EncYBits8x4x1(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+LQTVQ_BIAS1;
+	static const int lc1=8388608-LQTVQ_BIAS1;
+	int *csy;
+	u32 i0, i1;
+	int i;
+
+	csy=ybuf;
+	for(i=0; i<2; i++)
+	{
+		i0=        LQTVQ_SAT1(((csy[23]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[22]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[21]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[20]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[19]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[18]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[17]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[16]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 7]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 6]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 5]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 4]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 3]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 2]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 1]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 0]-acy)*lsy+lc0)>>23);
+		*(u16 *)(oblk+i*2)=i0;
+		csy+=32;
+	}
+}
+
+force_inline void LQTVQ_EncYBits8x8x1(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+LQTVQ_BIAS1;
+	static const int lc1=8388608-LQTVQ_BIAS1;
+	int *csy;
+	u32 i0, i1;
+	int i;
+
+	csy=ybuf;
+	for(i=0; i<4; i++)
+	{
+		i0=        LQTVQ_SAT1(((csy[15]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[14]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[13]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[12]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[11]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[10]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 9]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 8]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 7]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 6]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 5]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 4]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 3]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 2]-acy)*lsy+lc0)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 1]-acy)*lsy+lc1)>>23);
+		i0=(i0<<1)|LQTVQ_SAT1(((csy[ 0]-acy)*lsy+lc0)>>23);
+		*(u16 *)(oblk+i*2)=i0;
+		csy+=16;
+	}
+}
+#endif
+
+#if 1
 force_inline void LQTVQ_EncUVBits4x4x2(
 	byte *oblk, int *ubuf, int lsu, int acu)
 {
@@ -309,22 +580,22 @@ force_inline void LQTVQ_EncUVBits4x4x2(
 	static const int lc3=8388608-4095;
 	u32 i2;
 
-	i2=        (((ubuf[ 0]-acu)*lsu+lc2)>>22);
-	i2=(i2<<2)|(((ubuf[ 1]-acu)*lsu+lc3)>>22);
-	i2=(i2<<2)|(((ubuf[ 2]-acu)*lsu+lc2)>>22);
-	i2=(i2<<2)|(((ubuf[ 3]-acu)*lsu+lc3)>>22);
-	i2=(i2<<2)|(((ubuf[ 4]-acu)*lsu+lc3)>>22);
-	i2=(i2<<2)|(((ubuf[ 5]-acu)*lsu+lc2)>>22);
-	i2=(i2<<2)|(((ubuf[ 6]-acu)*lsu+lc3)>>22);
-	i2=(i2<<2)|(((ubuf[ 7]-acu)*lsu+lc2)>>22);
-	i2=(i2<<2)|(((ubuf[ 8]-acu)*lsu+lc2)>>22);
-	i2=(i2<<2)|(((ubuf[ 9]-acu)*lsu+lc3)>>22);
-	i2=(i2<<2)|(((ubuf[10]-acu)*lsu+lc2)>>22);
-	i2=(i2<<2)|(((ubuf[11]-acu)*lsu+lc3)>>22);
-	i2=(i2<<2)|(((ubuf[12]-acu)*lsu+lc3)>>22);
-	i2=(i2<<2)|(((ubuf[13]-acu)*lsu+lc2)>>22);
+	i2=        (((ubuf[15]-acu)*lsu+lc2)>>22);
 	i2=(i2<<2)|(((ubuf[14]-acu)*lsu+lc3)>>22);
-	i2=(i2<<2)|(((ubuf[15]-acu)*lsu+lc2)>>22);
+	i2=(i2<<2)|(((ubuf[13]-acu)*lsu+lc2)>>22);
+	i2=(i2<<2)|(((ubuf[12]-acu)*lsu+lc3)>>22);
+	i2=(i2<<2)|(((ubuf[11]-acu)*lsu+lc3)>>22);
+	i2=(i2<<2)|(((ubuf[10]-acu)*lsu+lc2)>>22);
+	i2=(i2<<2)|(((ubuf[ 9]-acu)*lsu+lc3)>>22);
+	i2=(i2<<2)|(((ubuf[ 8]-acu)*lsu+lc2)>>22);
+	i2=(i2<<2)|(((ubuf[ 7]-acu)*lsu+lc2)>>22);
+	i2=(i2<<2)|(((ubuf[ 6]-acu)*lsu+lc3)>>22);
+	i2=(i2<<2)|(((ubuf[ 5]-acu)*lsu+lc2)>>22);
+	i2=(i2<<2)|(((ubuf[ 4]-acu)*lsu+lc3)>>22);
+	i2=(i2<<2)|(((ubuf[ 3]-acu)*lsu+lc3)>>22);
+	i2=(i2<<2)|(((ubuf[ 2]-acu)*lsu+lc2)>>22);
+	i2=(i2<<2)|(((ubuf[ 1]-acu)*lsu+lc3)>>22);
+	i2=(i2<<2)|(((ubuf[ 0]-acu)*lsu+lc2)>>22);
 	*(u32 *)oblk=i2;
 }
 
@@ -342,11 +613,51 @@ force_inline void LQTVQ_EncYBits2x2x2(
 	y2=(ybuf[32]+ybuf[34]+ybuf[48]+ybuf[50])>>2;
 	y3=(ybuf[36]+ybuf[38]+ybuf[52]+ybuf[54])>>2;
 
-	i0=        (((y0-acy)*lsy+lc0)>>22);
-	i0=(i0<<2)|(((y1-acy)*lsy+lc1)>>22);
+	i0=        (((y3-acy)*lsy+lc0)>>22);
 	i0=(i0<<2)|(((y2-acy)*lsy+lc1)>>22);
-	i0=(i0<<2)|(((y3-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((y1-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((y0-acy)*lsy+lc1)>>22);
 	*(u32 *)oblk=i0;
+}
+
+
+force_inline void LQTVQ_EncYBits4x2x2(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+4095;
+	static const int lc1=8388608-4095;
+	u32 i0, i1;
+	int i;
+
+	i0=        (((ybuf[38]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[36]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[34]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[32]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[ 6]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[ 4]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[ 2]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[ 0]-acy)*lsy+lc0)>>22);
+
+	*(u16 *)oblk=i0;
+}
+
+force_inline void LQTVQ_EncYBits2x4x2(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+4095;
+	static const int lc1=8388608-4095;
+	u32 i0, i1;
+	int i;
+
+	i0=        (((ybuf[52]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[48]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[36]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[32]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[20]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[16]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[ 4]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[ 0]-acy)*lsy+lc1)>>22);
+	*(u16 *)oblk=i0;
 }
 
 force_inline void LQTVQ_EncYBits4x4x2(
@@ -357,22 +668,22 @@ force_inline void LQTVQ_EncYBits4x4x2(
 	u32 i0, i1;
 	int i;
 
-	i0=        (((ybuf[ 0]-acy)*lsy+lc0)>>22);
-	i0=(i0<<2)|(((ybuf[ 2]-acy)*lsy+lc1)>>22);
-	i0=(i0<<2)|(((ybuf[ 4]-acy)*lsy+lc0)>>22);
-	i0=(i0<<2)|(((ybuf[ 6]-acy)*lsy+lc1)>>22);
-	i0=(i0<<2)|(((ybuf[16]-acy)*lsy+lc0)>>22);
-	i0=(i0<<2)|(((ybuf[18]-acy)*lsy+lc1)>>22);
-	i0=(i0<<2)|(((ybuf[20]-acy)*lsy+lc0)>>22);
-	i0=(i0<<2)|(((ybuf[22]-acy)*lsy+lc1)>>22);
-	i0=(i0<<2)|(((ybuf[32]-acy)*lsy+lc1)>>22);
-	i0=(i0<<2)|(((ybuf[34]-acy)*lsy+lc0)>>22);
-	i0=(i0<<2)|(((ybuf[36]-acy)*lsy+lc1)>>22);
-	i0=(i0<<2)|(((ybuf[38]-acy)*lsy+lc0)>>22);
-	i0=(i0<<2)|(((ybuf[48]-acy)*lsy+lc1)>>22);
-	i0=(i0<<2)|(((ybuf[50]-acy)*lsy+lc0)>>22);
+	i0=        (((ybuf[54]-acy)*lsy+lc0)>>22);
 	i0=(i0<<2)|(((ybuf[52]-acy)*lsy+lc1)>>22);
-	i0=(i0<<2)|(((ybuf[54]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[50]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[48]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[38]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[36]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[34]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[32]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[22]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[20]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[18]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[16]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[ 6]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[ 4]-acy)*lsy+lc0)>>22);
+	i0=(i0<<2)|(((ybuf[ 2]-acy)*lsy+lc1)>>22);
+	i0=(i0<<2)|(((ybuf[ 0]-acy)*lsy+lc0)>>22);
 	*(u32 *)oblk=i0;
 }
 
@@ -388,23 +699,56 @@ force_inline void LQTVQ_EncYBits4x8x2(
 	csy=ybuf;
 	for(i=0; i<2; i++)
 	{
-		i0=        (((csy[ 0]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[ 2]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[ 4]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[ 6]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[ 8]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[10]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[12]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[14]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[16]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[18]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[20]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[22]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[24]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[26]-acy)*lsy+lc0)>>22);
+		i0=        (((csy[30]-acy)*lsy+lc0)>>22);
 		i0=(i0<<2)|(((csy[28]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[30]-acy)*lsy+lc0)>>22);
-		*(u32 *)(oblk+(1-i)*4)=i0;
+		i0=(i0<<2)|(((csy[26]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[24]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[22]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[20]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[18]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[16]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[14]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[12]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[10]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[ 8]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 6]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 4]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[ 2]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 0]-acy)*lsy+lc0)>>22);
+		*(u32 *)(oblk+i*4)=i0;
+		csy+=32;
+	}
+}
+
+force_inline void LQTVQ_EncYBits8x4x2(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+4095;
+	static const int lc1=8388608-4095;
+	int *csy;
+	u32 i0, i1;
+	int i;
+
+	csy=ybuf;
+	for(i=0; i<2; i++)
+	{
+		i0=        (((csy[23]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[22]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[21]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[20]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[19]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[18]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[17]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[16]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 7]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 6]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[ 5]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 4]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[ 3]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 2]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[ 1]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 0]-acy)*lsy+lc0)>>22);
+		*(u32 *)(oblk+i*4)=i0;
 		csy+=32;
 	}
 }
@@ -421,24 +765,23 @@ force_inline void LQTVQ_EncYBits8x8x2(
 	csy=ybuf;
 	for(i=0; i<4; i++)
 	{
-//		csy=ybuf+i*16;
-		i0=        (((csy[ 0]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[ 1]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[ 2]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[ 3]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[ 4]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[ 5]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[ 6]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[ 7]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[ 8]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[ 9]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[10]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[11]-acy)*lsy+lc0)>>22);
-		i0=(i0<<2)|(((csy[12]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[13]-acy)*lsy+lc0)>>22);
+		i0=        (((csy[15]-acy)*lsy+lc0)>>22);
 		i0=(i0<<2)|(((csy[14]-acy)*lsy+lc1)>>22);
-		i0=(i0<<2)|(((csy[15]-acy)*lsy+lc0)>>22);
-		*(u32 *)(oblk+(3-i)*4)=i0;
+		i0=(i0<<2)|(((csy[13]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[12]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[11]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[10]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 9]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[ 8]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 7]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 6]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[ 5]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 4]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[ 3]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 2]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|(((csy[ 1]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|(((csy[ 0]-acy)*lsy+lc0)>>22);
+		*(u32 *)(oblk+i*4)=i0;
 		csy+=16;
 	}
 }
@@ -455,28 +798,30 @@ force_inline void LQTVQ_EncYBits8x8x3(
 	csy=ybuf; csye=ybuf+64;
 //	for(i=0; i<4; i++)
 //	while(csy<csye)
-	for(i=3; i>=0; i--)
+//	for(i=3; i>=0; i--)
+	for(i=0; i<4; i++)
 	{
-		csy=ybuf+i*16;
-		i0=        (((csy[ 0]-acy)*lsy+lc0)>>21);
-		i0=(i0<<3)|(((csy[ 1]-acy)*lsy+lc1)>>21);
-		i0=(i0<<3)|(((csy[ 2]-acy)*lsy+lc0)>>21);
-		i0=(i0<<3)|(((csy[ 3]-acy)*lsy+lc1)>>21);
-		i0=(i0<<3)|(((csy[ 4]-acy)*lsy+lc0)>>21);
-		i0=(i0<<3)|(((csy[ 5]-acy)*lsy+lc1)>>21);
-		i0=(i0<<3)|(((csy[ 6]-acy)*lsy+lc0)>>21);
-		i0=(i0<<3)|(((csy[ 7]-acy)*lsy+lc1)>>21);
-		i1=        (((csy[ 8]-acy)*lsy+lc1)>>21);
-		i1=(i1<<3)|(((csy[ 9]-acy)*lsy+lc0)>>21);
-		i1=(i1<<3)|(((csy[10]-acy)*lsy+lc1)>>21);
-		i1=(i1<<3)|(((csy[11]-acy)*lsy+lc0)>>21);
-		i1=(i1<<3)|(((csy[12]-acy)*lsy+lc1)>>21);
-		i1=(i1<<3)|(((csy[13]-acy)*lsy+lc0)>>21);
-		i1=(i1<<3)|(((csy[14]-acy)*lsy+lc1)>>21);
-		i1=(i1<<3)|(((csy[15]-acy)*lsy+lc0)>>21);
-		*(u32 *)(oblk+(3-i)*6+0)=i1;
-		*(u32 *)(oblk+(3-i)*6+3)=i0;
-//		csy+=16;
+//		csy=ybuf+i*16;
+
+		i1=        (((csy[15]-acy)*lsy+lc1)>>21);
+		i1=(i1<<3)|(((csy[14]-acy)*lsy+lc0)>>21);
+		i1=(i1<<3)|(((csy[13]-acy)*lsy+lc1)>>21);
+		i1=(i1<<3)|(((csy[12]-acy)*lsy+lc0)>>21);
+		i1=(i1<<3)|(((csy[11]-acy)*lsy+lc1)>>21);
+		i1=(i1<<3)|(((csy[10]-acy)*lsy+lc0)>>21);
+		i1=(i1<<3)|(((csy[ 9]-acy)*lsy+lc1)>>21);
+		i1=(i1<<3)|(((csy[ 8]-acy)*lsy+lc0)>>21);
+		i0=        (((csy[ 7]-acy)*lsy+lc0)>>21);
+		i0=(i0<<3)|(((csy[ 6]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|(((csy[ 5]-acy)*lsy+lc0)>>21);
+		i0=(i0<<3)|(((csy[ 4]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|(((csy[ 3]-acy)*lsy+lc0)>>21);
+		i0=(i0<<3)|(((csy[ 2]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|(((csy[ 1]-acy)*lsy+lc0)>>21);
+		i0=(i0<<3)|(((csy[ 0]-acy)*lsy+lc1)>>21);
+		*(u32 *)(oblk+i*6+0)=i0;
+		*(u32 *)(oblk+i*6+3)=i1;
+		csy+=16;
 	}
 }
 
@@ -493,27 +838,28 @@ force_inline void LQTVQ_EncYBits8x8x4(
 	for(i=0; i<4; i++)
 //	while(csy<csye)
 	{
-		i0=        (((csy[ 0]-acy)*lsy+lc0)>>20);
-		i0=(i0<<4)|(((csy[ 1]-acy)*lsy+lc1)>>20);
-		i0=(i0<<4)|(((csy[ 2]-acy)*lsy+lc0)>>20);
-		i0=(i0<<4)|(((csy[ 3]-acy)*lsy+lc1)>>20);
-		i0=(i0<<4)|(((csy[ 4]-acy)*lsy+lc0)>>20);
-		i0=(i0<<4)|(((csy[ 5]-acy)*lsy+lc1)>>20);
-		i0=(i0<<4)|(((csy[ 6]-acy)*lsy+lc0)>>20);
-		i0=(i0<<4)|(((csy[ 7]-acy)*lsy+lc1)>>20);
-		i1=        (((csy[ 8]-acy)*lsy+lc1)>>20);
-		i1=(i1<<4)|(((csy[ 9]-acy)*lsy+lc0)>>20);
-		i1=(i1<<4)|(((csy[10]-acy)*lsy+lc1)>>20);
-		i1=(i1<<4)|(((csy[11]-acy)*lsy+lc0)>>20);
-		i1=(i1<<4)|(((csy[12]-acy)*lsy+lc1)>>20);
-		i1=(i1<<4)|(((csy[13]-acy)*lsy+lc0)>>20);
-		i1=(i1<<4)|(((csy[14]-acy)*lsy+lc1)>>20);
-		i1=(i1<<4)|(((csy[15]-acy)*lsy+lc0)>>20);
-		*(u32 *)(oblk+(3-i)*8+4)=i0;
-		*(u32 *)(oblk+(3-i)*8+0)=i1;
+		i1=        (((csy[15]-acy)*lsy+lc1)>>20);
+		i1=(i1<<4)|(((csy[14]-acy)*lsy+lc0)>>20);
+		i1=(i1<<4)|(((csy[13]-acy)*lsy+lc1)>>20);
+		i1=(i1<<4)|(((csy[12]-acy)*lsy+lc0)>>20);
+		i1=(i1<<4)|(((csy[11]-acy)*lsy+lc1)>>20);
+		i1=(i1<<4)|(((csy[10]-acy)*lsy+lc0)>>20);
+		i1=(i1<<4)|(((csy[ 9]-acy)*lsy+lc1)>>20);
+		i1=(i1<<4)|(((csy[ 8]-acy)*lsy+lc0)>>20);
+		i0=        (((csy[ 7]-acy)*lsy+lc0)>>20);
+		i0=(i0<<4)|(((csy[ 6]-acy)*lsy+lc1)>>20);
+		i0=(i0<<4)|(((csy[ 5]-acy)*lsy+lc0)>>20);
+		i0=(i0<<4)|(((csy[ 4]-acy)*lsy+lc1)>>20);
+		i0=(i0<<4)|(((csy[ 3]-acy)*lsy+lc0)>>20);
+		i0=(i0<<4)|(((csy[ 2]-acy)*lsy+lc1)>>20);
+		i0=(i0<<4)|(((csy[ 1]-acy)*lsy+lc0)>>20);
+		i0=(i0<<4)|(((csy[ 0]-acy)*lsy+lc1)>>20);
+		*(u32 *)(oblk+i*8+0)=i0;
+		*(u32 *)(oblk+i*8+4)=i1;
 		csy+=16;
 	}
 }
+#endif
 
 void LQTVQ_EncBlock0Inner(
 	BT4A_Context *ctx,
@@ -522,11 +868,18 @@ void LQTVQ_EncBlock0Inner(
 	int *mcyuv, int *ncyuv)
 {
 //	int *csy;
+	int aby[16];
+	int amcy[4], ancy[4];
+	int mbyl, nbyl, mbyr, nbyr, mby, nby;
+	int mbyu, nbyu, mbyd, nbyd;
+	int dbyh, dbyv, dcy1, dcy2, dbyhvp;
+	int dey, dpey, dcenexp;
 	int mcy, mcu, mcv, ncy, ncu, ncv;
 	int acy, acu, acv, dcy, dcu, dcv;
 	int ls0, ls0b, ls1, ls2, lc0, lc1, lc2, lc3;
+	int l0, l1, l2, l3;
 	int i0, i1, i2, i3;
-	int i;
+	int i, j, k, l;
 	
 	mcy=mcyuv[0];	mcu=mcyuv[1];	mcv=mcyuv[2];
 	ncy=ncyuv[0];	ncu=ncyuv[1];	ncv=ncyuv[2];
@@ -541,14 +894,98 @@ void LQTVQ_EncBlock0Inner(
 	dcu=ncu-mcu;
 	dcv=ncv-mcv;
 
-//	*(u32 *)(blkbuf+ 0)=  0x0B;
+	dcenexp=0;
 
-	*(u16 *)(blkbuf+ 4)=acy;
-	*(u16 *)(blkbuf+ 6)=acu;
-	*(u16 *)(blkbuf+ 8)=acv;
-	*(u16 *)(blkbuf+10)=dcy;
-	*(u16 *)(blkbuf+12)=dcu;
-	*(u16 *)(blkbuf+14)=dcv;
+#if 1
+	dey=0;
+	for(i=0; i<2; i++)
+		for(j=0; j<2; j++)
+	{
+		k=i*4*8+j*4;
+		l0=(ybuf[k+ 0]+ybuf[k+ 1]+ybuf[k+ 8]+ybuf[k+ 9])>>2;
+		l1=(ybuf[k+ 2]+ybuf[k+ 3]+ybuf[k+10]+ybuf[k+11])>>2;
+		l2=(ybuf[k+16]+ybuf[k+17]+ybuf[k+24]+ybuf[k+25])>>2;
+		l3=(ybuf[k+18]+ybuf[k+19]+ybuf[k+26]+ybuf[k+27])>>2;
+		
+		mby=l0; nby=l0;
+		if(l3<mby) { mby=l3; }
+		if(l3>nby) { nby=l3; }
+		if(l1<mby) { mby=l1; }
+		if(l1>nby) { nby=l1; }
+		if(l2<mby) { mby=l2; }
+		if(l2>nby) { nby=l2; }
+
+#if 1
+		lc0=l0-acy;	lc1=l1-acy;
+		lc2=l2-acy;	lc3=l3-acy;
+		dey+=lc0*lc0;	dey+=lc1*lc1;
+		dey+=lc2*lc2;	dey+=lc3*lc3;
+#endif
+
+		k=i*2+j;
+		amcy[k]=mby;
+		ancy[k]=nby;
+	}
+
+#if 1
+	if(dcy>8)
+	{
+		dpey=(dcy>>2)*(dcy>>2)*16;
+//		dpey=(dcy>>1)*(dcy>>1)*16;
+//		dpey=(dcy>>1)*(dcy>>2)*16;
+		dcenexp=dey>dpey;
+//		dey=dey/64;
+//		dey=dey/(dcy>>1);
+//		dcenexp=dey>(dcy>>1);
+	}
+#endif
+	
+
+	mbyl=amcy[0];	nbyl=ancy[0];
+	mbyr=amcy[1];	nbyr=ancy[1];
+	if(amcy[2]<mbyl) { mbyl=amcy[2]; }
+	if(ancy[2]>nbyl) { nbyl=ancy[2]; }
+	if(amcy[3]<mbyr) { mbyr=amcy[3]; }
+	if(ancy[3]>nbyr) { nbyr=ancy[3]; }
+
+	mbyu=amcy[0];	nbyu=ancy[0];
+	mbyd=amcy[2];	nbyd=ancy[2];
+	if(amcy[1]<mbyu) { mbyu=amcy[1]; }
+	if(ancy[1]>nbyu) { nbyu=ancy[1]; }
+	if(amcy[3]<mbyd) { mbyd=amcy[3]; }
+	if(ancy[3]>nbyd) { nbyd=ancy[3]; }
+
+	dbyh=nbyu-mbyu;	dbyv=nbyl-mbyl;
+	j=nbyd-mbyd;	k=nbyr-mbyr;
+	if(j>dbyh)dbyh=j;
+	if(k>dbyv)dbyv=k;
+
+	dcy1=(dcy*3)>>2;
+//	dcy1=(dcy*7)>>3;
+	dbyhvp=(dbyh<dcy1)|(dbyv<dcy1);
+	dcy2=(dcy*5)>>3;
+#endif
+
+//	*(u32 *)(blkbuf+ 0)=  0x0B;
+//	dcenexp=1;
+
+	if(dcenexp)
+	{
+//		k=1;
+		dcy=(dcy*3)>>2;
+		dcu=(dcu*3)>>2;
+		dcv=(dcv*3)>>2;
+//		dcy=(dcy*7)>>3;
+//		dcu=(dcu*7)>>3;
+//		dcv=(dcv*7)>>3;
+	}
+
+	*(s16 *)(blkbuf+ 4)=acy;
+	*(s16 *)(blkbuf+ 6)=acu;
+	*(s16 *)(blkbuf+ 8)=acv;
+	*(s16 *)(blkbuf+10)=dcy;
+	*(s16 *)(blkbuf+12)=dcu;
+	*(s16 *)(blkbuf+14)=dcv;
 
 	if(((ncy-acy)|(ncu-acu)|(ncv-acv))>>8)
 	{
@@ -583,54 +1020,251 @@ void LQTVQ_EncBlock0Inner(
 	{
 		if(dcy<ctx->qdy_8x8x2)
 		{
-			*(u32 *)(blkbuf+ 0)=  0x18;
+			*(u32 *)(blkbuf+ 0)=  0x18|0x00FF0000;
 			LQTVQ_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
 			LQTVQ_EncUVBits4x4x2(blkbuf+32, ubuf, ls1, acu);
 			LQTVQ_EncUVBits4x4x2(blkbuf+36, vbuf, ls2, acv);
-		}else
+			return;
+		}
+		
+		if(1)
 		{
-			*(u32 *)(blkbuf+ 0)=  0x1C;
+			*(u32 *)(blkbuf+ 0)=  0x1C|0x00FF0000;
 			LQTVQ_EncYBits8x8x3(blkbuf+16, ybuf, ls0, acy);
 			LQTVQ_EncUVBits4x4x2(blkbuf+40, ubuf, ls1, acu);
 			LQTVQ_EncUVBits4x4x2(blkbuf+44, vbuf, ls2, acv);
+			return;
 		}
 	}else
 	{
 		if(dcy<ctx->qdy_flat)
 		{
-			*(u32 *)(blkbuf+ 0)=  0x00;
-		}else if(dcy<ctx->qdy_2x2x2)
+			*(u32 *)(blkbuf+ 0)=  0x00|0x00FF0000;
+			return;
+		}
+		
+		if(dcy<ctx->qdy_2x2x2)
 		{
-			*(u32 *)(blkbuf+ 0)=  0x09;
+			if(dcenexp)
+//			if(0)
+			{
+				*(u32 *)(blkbuf+ 0)=  0x01|0x00FF0000;
+				LQTVQ_EncYBits2x2x1(blkbuf+16, ybuf, ls0, acy);
+				return;
+			}
+		
+			*(u32 *)(blkbuf+ 0)=  0x09|0x00FF0000;
 			LQTVQ_EncYBits2x2x2(blkbuf+16, ybuf, ls0, acy);
-		}else if(dcy<ctx->qdy_4x4x2)
+			return;
+		}
+		
+		if(dbyhvp && (dcy1<=ctx->qdy_2x2x2))
 		{
-			*(u32 *)(blkbuf+ 0)=  0x0C;
+			if(dbyv<=dbyh)
+			{
+				if(dcenexp)
+//				if(0)
+				{
+					*(u32 *)(blkbuf+ 0)=  0x02|0x00FF0000;
+					LQTVQ_EncYBits4x2x1(blkbuf+16, ybuf, ls0, acy);
+					return;
+				}
+
+				*(u32 *)(blkbuf+ 0)=  0x0A|0x00FF0000;
+				LQTVQ_EncYBits4x2x2(blkbuf+16, ybuf, ls0, acy);
+			}else
+			{
+				if(dcenexp)
+//				if(0)
+				{
+					*(u32 *)(blkbuf+ 0)=  0x03|0x00FF0000;
+					LQTVQ_EncYBits2x4x1(blkbuf+16, ybuf, ls0, acy);
+					return;
+				}
+
+				*(u32 *)(blkbuf+ 0)=  0x0B|0x00FF0000;
+				LQTVQ_EncYBits2x4x2(blkbuf+16, ybuf, ls0, acy);
+			}
+			return;
+		}
+
+		if(dcy<ctx->qdy_4x4x2)
+		{
+			if(dcenexp)
+//			if(0)
+			{
+				*(u32 *)(blkbuf+ 0)=  0x04|0x00FF0000;
+				LQTVQ_EncYBits4x4x1(blkbuf+16, ybuf, ls0, acy);
+				return;
+			}
+
+			*(u32 *)(blkbuf+ 0)=  0x0C|0x00FF0000;
 			LQTVQ_EncYBits4x4x2(blkbuf+16, ybuf, ls0, acy);
-		}else if(dcy<ctx->qdy_8x8x2)
+			return;
+		}
+
+#if 1
+		if(dbyhvp && (dcy2<=ctx->qdy_4x4x2))
 		{
-			*(u32 *)(blkbuf+ 0)=  0x0F;
+			if(dbyv<=dbyh)
+			{
+				if(dcenexp)
+//				if(0)
+				{
+					*(u32 *)(blkbuf+ 0)=  0x05|0x00FF0000;
+					LQTVQ_EncYBits8x4x1(blkbuf+16, ybuf, ls0, acy);
+					return;
+				}
+
+				*(u32 *)(blkbuf+ 0)=  0x0D|0x00FF0000;
+				LQTVQ_EncYBits8x4x2(blkbuf+16, ybuf, ls0, acy);
+			}else
+			{
+				if(dcenexp)
+//				if(0)
+				{
+					*(u32 *)(blkbuf+ 0)=  0x06|0x00FF0000;
+					LQTVQ_EncYBits4x8x1(blkbuf+16, ybuf, ls0, acy);
+					return;
+				}
+
+				*(u32 *)(blkbuf+ 0)=  0x0E|0x00FF0000;
+				LQTVQ_EncYBits4x8x2(blkbuf+16, ybuf, ls0, acy);
+			}
+			return;
+		}
+#endif
+
+		if(dcy<ctx->qdy_8x8x2)
+		{
+			if(dcenexp)
+//			if(0)
+			{
+				*(u32 *)(blkbuf+ 0)=  0x07|0x00FF0000;
+				LQTVQ_EncYBits8x8x1(blkbuf+16, ybuf, ls0, acy);
+				return;
+			}
+
+			*(u32 *)(blkbuf+ 0)=  0x0F|0x00FF0000;
 			LQTVQ_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
-		}else if(dcy<ctx->qdy_8x8x3)
+			return;
+		}
+
+		if(dcenexp)
+//		if(0)
 		{
-			*(u32 *)(blkbuf+ 0)=  0x13;
+			*(u32 *)(blkbuf+ 0)=  0x0F|0x00FF0000;
+			LQTVQ_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
+			return;
+		}
+
+#if 1
+		if(dcy<ctx->qdy_8x8x3)
+		{
+			*(u32 *)(blkbuf+ 0)=  0x13|0x00FF0000;
 			LQTVQ_EncYBits8x8x3(blkbuf+16, ybuf, ls0, acy);
-		}else
+			return;
+		}
+#endif
+		
+		if(1)
 		{
-			*(u32 *)(blkbuf+ 0)=  0x14;
+			*(u32 *)(blkbuf+ 0)=  0x14|0x00FF0000;
 			LQTVQ_EncYBits8x8x4(blkbuf+16, ybuf, ls0b, acy);
+			return;
 		}
 	}
+}
+
+void LQTVQ_EncBlockAInner(
+	BT4A_Context *ctx,
+	byte *blkbuf, int *abuf, int mca, int nca)
+{
+	int aca, dca;
+	int ls0;
+
+	if(mca==255)
+		return;
+	
+	if((mca==nca) && (mca>=0) && (mca<=255))
+	{
+		blkbuf[1]=0;
+		blkbuf[2]=mca;
+		blkbuf[3]=0;
+		return;
+	}
+
+	aca=(mca+nca)>>1;
+	dca=mca-nca;
+
+	if(dca<ctx->qdy_flat)
+	{
+		if((aca>=0) && (aca<=255))
+		{
+			blkbuf[1]=0;
+			blkbuf[2]=aca;
+			blkbuf[3]=0;
+			return;
+		}
+		blkbuf[1]=8;	blkbuf[2]=0;	blkbuf[3]=1;
+		*(u16 *)(blkbuf+48+0)=aca;
+		*(u16 *)(blkbuf+48+2)=0;
+		return;
+	}
+
+
+	blkbuf[1]=8;
+	blkbuf[2]=0;
+	blkbuf[3]=1;
+	*(u16 *)(blkbuf+48+0)=aca;
+	*(u16 *)(blkbuf+48+2)=0;
+
+	if((nca-aca)>>8)
+		{ ls0=8388608/(nca-aca+1); }
+	else
+		{ ls0=lqtvq_fsctab[nca-aca]; }
+
+	if(dca<ctx->qdy_2x2x2)
+	{
+		blkbuf[1]=4;
+		LQTVQ_EncYBits2x2x2(blkbuf+16, abuf, ls0, aca);
+		return;
+	}
+	
+	if(dca<ctx->qdy_4x4x2)
+	{
+		blkbuf[1]=5;
+		LQTVQ_EncYBits4x4x2(blkbuf+16, abuf, ls0, aca);
+		return;
+	}
+
+	blkbuf[1]=0x0C;
+	blkbuf[2]=aca;
+	blkbuf[3]=dca;
+	LQTVQ_EncYBits8x8x2(blkbuf+48, abuf, ls0, aca);
+	return;
+
+#if 0
+	if(dca<ctx->qdy_8x8x2)
+	{
+		*(u32 *)(blkbuf+ 0)=  0x0F|0x00FF0000;
+		LQTVQ_EncYBits8x8x2(blkbuf+16, abuf, ls0, acy);
+		return;
+	}
+#endif
 }
 
 void LQTVQ_EncBlockBGRA(BT4A_Context *ctx,
 	byte *blkbuf, byte *ibuf, int ystr)
 {
-	int ybuf[64], ubuf[16], vbuf[16];
+	int ybuf[64], ubuf[16], vbuf[16], abuf[64];
 	int mcyuv[4], ncyuv[4];
 	
-	LQTVQ_SplitIbufBGRA(ibuf, ystr, ybuf, ubuf, vbuf, mcyuv, ncyuv);
+	LQTVQ_SplitIbufBGRA(ibuf, ystr,
+		ybuf, ubuf, vbuf, abuf,
+		mcyuv, ncyuv);
 	LQTVQ_EncBlock0Inner(ctx, blkbuf, ybuf, ubuf, vbuf, mcyuv, ncyuv);
+	LQTVQ_EncBlockAInner(ctx, blkbuf, abuf, mcyuv[3], ncyuv[3]);
 }
 
 void LQTVQ_EncImageBGRA(BT4A_Context *ctx,

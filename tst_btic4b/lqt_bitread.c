@@ -121,6 +121,11 @@ int LQTVQ_Read24BitsNM(BT4A_Context *ctx)
 	return(bits);
 }
 
+int LQTVQ_Read8Bits(BT4A_Context *ctx)
+{
+	return((byte)LQTVQ_Read8BitsNM(ctx));
+}
+
 int LQTVQ_Read16Bits(BT4A_Context *ctx)
 {
 	return((u16)LQTVQ_Read16BitsNM(ctx));
@@ -197,6 +202,7 @@ int LQTVQ_PeekNBitsNM(BT4A_Context *ctx, int len)
 	return(bits);
 }
 
+//force_inline
 int LQTVQ_Peek8Bits(BT4A_Context *ctx)
 {
 	u32 bw;
@@ -243,7 +249,9 @@ int LQTVQ_ReadAdRiceILL(BT4A_Context *ctx, byte *rk)
 	if(q>=8)
 	{
 		v=LQTVQ_ReadNBits(ctx, 5+(q-8)*3);
-		*rk=k+3+(q-8);
+		k=k+3+(q-8);
+		if(k>15)k=15;
+		*rk=k;
 		return(v);
 	}
 #endif
@@ -251,7 +259,7 @@ int LQTVQ_ReadAdRiceILL(BT4A_Context *ctx, byte *rk)
 	b=LQTVQ_ReadNBits(ctx, k);
 	v=(q<<k)|b;
 
-#if 1
+#if 0
 	if(!q)
 	{
 		if(k>0)k--;
@@ -266,7 +274,7 @@ int LQTVQ_ReadAdRiceILL(BT4A_Context *ctx, byte *rk)
 	}
 #endif
 
-//	*rk=lqtvq_decricenk8[(k<<4)|q];
+	*rk=lqtvq_decricenk8[(k<<4)|q];
 	return(v);
 }
 
@@ -281,10 +289,11 @@ int LQTVQ_ReadAdRiceLL(BT4A_Context *ctx, byte *rk)
 	
 	if(j)
 	{
-		i=(u16)j;
+//		i=(u16)j;
 		LQTVQ_SkipNBits(ctx, (j>>16)&15);
 		*rk=(j>>20)&15;
-		return(i);
+//		return(i);
+		return((u16)j);
 	}
 #endif
 
@@ -319,14 +328,14 @@ int LQTVQ_DecodeSymbolIndexSmtf(BT4A_Context *ctx,
 		i0=(byte)(st->rov+i);		i1=(byte)(st->rov+i-1);
 		i2=st->tab[i0];		i3=st->tab[i1];
 		st->tab[i0]=i3;		st->tab[i1]=i2;
-		st->idx[i2]=i1;		st->idx[i3]=i0;
+//		st->idx[i2]=i1;		st->idx[i3]=i0;
 		return(i2);
 	}
 
 	i0=(byte)(st->rov+i);	i1=(byte)(st->rov-1);
 	i2=st->tab[i0];		i3=st->tab[i1];
 	st->tab[i0]=i3;		st->tab[i1]=i2;
-	st->idx[i2]=i1;		st->idx[i3]=i0;
+//	st->idx[i2]=i1;		st->idx[i3]=i0;
 	st->rov--;
 	return(i2);
 }
@@ -338,11 +347,13 @@ int LQTVQ_ReadSymbolSmtf(BT4A_Context *ctx,
 	int i0, i1, i2, i3;
 	int i;
 
+#ifdef LQTVQ_DBG_NOSMTF
 	i=LQTVQ_ReadAdRiceLL(ctx, &(st->rk));
-
-//	return(i);
+	return(i);
+#endif
 
 #if 1
+	i=LQTVQ_ReadAdRiceLL(ctx, &(st->rk));
 	if(!i)
 	{
 		i0=(byte)(st->rov+i);
@@ -355,14 +366,14 @@ int LQTVQ_ReadSymbolSmtf(BT4A_Context *ctx,
 		i0=(byte)(st->rov+i);		i1=(byte)(st->rov+i-1);
 		i2=st->tab[i0];		i3=st->tab[i1];
 		st->tab[i0]=i3;		st->tab[i1]=i2;
-		st->idx[i2]=i1;		st->idx[i3]=i0;
+//		st->idx[i2]=i1;		st->idx[i3]=i0;
 		return(i2);
 	}
 
 	i0=(byte)(st->rov+i);	i1=(byte)(st->rov-1);
 	i2=st->tab[i0];		i3=st->tab[i1];
 	st->tab[i0]=i3;		st->tab[i1]=i2;
-	st->idx[i2]=i1;		st->idx[i3]=i0;
+//	st->idx[i2]=i1;		st->idx[i3]=i0;
 	st->rov--;
 	return(i2);
 #endif

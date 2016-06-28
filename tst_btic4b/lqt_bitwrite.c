@@ -1,3 +1,5 @@
+// #define LQTVQ_DBG_NOSMTF
+
 static int lqtvq_encrice8[16*512];		//0-15=bits, 16-19=len, 20-23='Rk
 
 static int lqtvq_decrice8[16*256];		//0-15=sym, 16-19=len, 20-23='Rk
@@ -351,7 +353,10 @@ void LQTVQ_WriteSymbolSmtf(BT4A_Context *ctx,
 	int i0, i1, i2, i3;
 	int i;
 
-//	LQTVQ_WriteAdRiceSymLL(ctx, val, &(st->rk));
+#ifdef LQTVQ_DBG_NOSMTF
+	LQTVQ_WriteAdRiceSymLL(ctx, val, &(st->rk));
+	return;
+#endif
 
 #if 1
 	i=(byte)((st->idx[val])-(st->rov));

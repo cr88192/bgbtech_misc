@@ -244,7 +244,8 @@ int BTIC1H_Img_StoreTGA(FILE *fd, byte *buf, int w, int h)
 	head.y_origin=0;
 	head.width=w;
 	head.height=h;
-	head.bpp=24;
+//	head.bpp=24;
+	head.bpp=32;
 	head.attributes=0;
 
 	fputc(head.id_length, fd);
@@ -279,6 +280,7 @@ int BTIC1H_Img_StoreTGA(FILE *fd, byte *buf, int w, int h)
 		fputc(s[2], fd);
 		fputc(s[1], fd);
 		fputc(s[0], fd);
+		fputc(s[3], fd);
 		s+=4;
 	}
 

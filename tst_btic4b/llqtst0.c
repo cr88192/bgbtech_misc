@@ -59,6 +59,21 @@ typedef unsigned int uint;
 #define M_TAU 6.283185307179586476925286766559
 #endif
 
+#define LQTVQ_TWOCC(a, b)			((a)|((b)<<8))
+#define LQTVQ_FOURCC(a, b, c, d)	((a)|((b)<<8)|((c)<<16)|((d)<<24))
+
+#define LQTVQ_TCC_I0		LQTVQ_TWOCC('I', '0')
+#define LQTVQ_TCC_I1		LQTVQ_TWOCC('I', '1')
+#define LQTVQ_TCC_I2		LQTVQ_TWOCC('I', '2')
+#define LQTVQ_TCC_I3		LQTVQ_TWOCC('I', '3')
+
+#define LQTVQ_TCC_AX		LQTVQ_TWOCC('A', 'X')
+#define LQTVQ_TCC_HX		LQTVQ_TWOCC('H', 'X')
+
+#define LQTVQ_FCC_BT4B		LQTVQ_FOURCC('B', 'T', '4', 'B')
+
+#define BT4A_QFL_PFRAME		0x0100
+
 typedef struct {
 byte tab[256];
 byte idx[256];
@@ -70,6 +85,9 @@ typedef struct {
 byte *ct, *cs;
 u32 bit_win;
 int bit_pos;
+
+int xs, ys;
+int xsb, ysb, nblk, blksz;
 
 byte *blks;
 byte *lblks;
@@ -348,11 +366,30 @@ void cmp_rmse(byte *ibuf0, byte *ibuf1, int xs, int ys)
 
 void cmp_blkrmse(byte *ibuf0, byte *ibuf1, byte *blks, int xs, int ys)
 {
+	static int btcost[32]={
+	  1,   4,   8,   8,  16,  32,  32,  64,
+	 -1,   8,  16,  16,  32,  64,  64, 128,
+	 -1,  -1,  -1, 192, 256,  48,  96, 144,
+	192, 448, 256, 384, 256, 384, 384, 640};
+	static char *btname[32]={
+	  "Flat", "2x2x1", "4x2x1", "2x4x1",
+	 "4x4x1", "8x4x1", "4x8x1", "8x8x1",
+	  "R-08", "2x2x2", "4x2x2", "2x4x2", 
+	 "4x4x2", "8x4x2", "4x8x2", "8x8x2",
+	  "R-10",  "R-11",  "R-12", "8x8x3",
+	 "8x8x4",			"Y4x4x2+UV2x2x2",
+	 "Y4x4x2+UV4x4x2",	"Y8x8x2+UV2x2x2",
+	 "Y8x8x2+UV4x4x2",	"Y8x8x3+UV8x8x2",
+	 "Y8x8x2+UV4x8x2",  "Y8x8x2+UV8x8x2",
+	 "Y8x8x3+UV4x4x2",	"Y8x8x4+UV4x4x4",
+	 "Y8x8x3+UV4x8x3",	"Y8x8x4+UV8x8x3"};
+
 	double btte[64];
+	double bttea[64];
 	int btn[64];
 	byte *cs0, *cs1;
-	double er, eg, eb, e;
-	int dr, dg, db;
+	double er, eg, eb, ea, e;
+	int dr, dg, db, da;
 	int xs1, ys1, ystr;
 	int i, j, k, l, n;
 	
@@ -363,6 +400,7 @@ void cmp_blkrmse(byte *ibuf0, byte *ibuf1, byte *blks, int xs, int ys)
 	for(i=0; i<64; i++)
 	{
 		btte[i]=0;
+		bttea[i]=0;
 		btn[i]=0;
 	}
 	
@@ -372,22 +410,25 @@ void cmp_blkrmse(byte *ibuf0, byte *ibuf1, byte *blks, int xs, int ys)
 		cs0=ibuf0+i*8*ystr+j*8*4;
 		cs1=ibuf1+i*8*ystr+j*8*4;
 		
-		er=0; eg=0; eb=0;
+		er=0; eg=0; eb=0; ea=0;
 		for(k=0; k<8; k++)
 			for(l=0; l<8; l++)
 		{
 			dr=cs0[k*ystr+l*4+0]-cs1[k*ystr+l*4+0];
 			dg=cs0[k*ystr+l*4+1]-cs1[k*ystr+l*4+1];
 			db=cs0[k*ystr+l*4+2]-cs1[k*ystr+l*4+2];
+			da=cs0[k*ystr+l*4+3]-cs1[k*ystr+l*4+3];
 			er=er+dr*dr;
 			eg=eg+dg*dg;
 			eb=eb+db*db;
+			ea=ea+da*da;
 		}
 		e=(er+eg+eb)/(3*64);
 
 		k=i*xs1+j;
 		l=blks[k*64+0];
 		btte[l]+=e;
+		bttea[l]+=ea/64;
 		btn[l]++;
 	}
 
@@ -396,26 +437,108 @@ void cmp_blkrmse(byte *ibuf0, byte *ibuf1, byte *blks, int xs, int ys)
 		if(!btn[i])
 			continue;
 
-		printf("RMSE: %02X: n=%d avge=%.3f\n",
-			i, btn[i], sqrt(btte[i]/btn[i]));
+		j=sqrt(btte[i]/btn[i])*100;
+		k=sqrt(bttea[i]/btn[i])*10;
+		printf("B-RMSE: %02X: n=%6d avge=%2d.%02d ae=%2d.%01d,"
+			" Tc=%6d (%14s)\n",
+			i, btn[i], j/100, j%100, k/10, k%10,
+			(btn[i]*btcost[i]+7)/8, btname[i]);
 	}
 
-	n=xs*ys; er=0; eg=0; eb=0;
+	n=xs*ys; er=0; eg=0; eb=0; ea=0;
 	for(i=0; i<n; i++)
 	{
 		dr=ibuf0[i*4+0]-ibuf1[i*4+0];
 		dg=ibuf0[i*4+1]-ibuf1[i*4+1];
 		db=ibuf0[i*4+2]-ibuf1[i*4+2];
+		da=ibuf0[i*4+3]-ibuf1[i*4+3];
 		er=er+dr*dr;
 		eg=eg+dg*dg;
 		eb=eb+db*db;
+		ea=ea+da*da;
 	}
 	
-	printf("RMSE: r=%.3f g=%.3f b=%.3f avg=%.3f\n",
+	printf("RMSE: r=%.2f g=%.2f b=%.2f a=%.2f avg=%.3f\n",
 		sqrt(er/n),
 		sqrt(eg/n),
 		sqrt(eb/n),
+		sqrt(ea/n),
 		sqrt((er+eg+eb)/(3*n)));
+}
+
+int dump_bmp(char *name, int xs, int ys, int fcc, byte *ibuf, int isz)
+{
+	byte *tbuf;
+	FILE *fd;
+	int sz;
+
+	fd=fopen(name, "wb");
+	if(!fd)
+	{
+		printf("Fail Open %s\n", name);
+		return(-1);
+	}
+
+	tbuf=malloc(isz+256);
+	sz=flatten_bmp(tbuf, xs, ys, fcc, ibuf, isz);
+	fwrite(tbuf, 1, sz, fd);
+	free(tbuf);
+	fclose(fd);
+	return(0);
+}
+
+int flatten_bmp(byte *obuf,
+	int xs, int ys, int fcc,
+	byte *ibuf, int isz)
+{
+	byte hbuf[256];
+	int sz1, sz2, sz3, dpm;
+	
+	sz1=54+isz;
+	sz2=54;
+	sz3=40;
+	dpm=2880;
+	
+	hbuf[0x00]='B';		hbuf[0x01]='M';
+	hbuf[0x02]=sz1;		hbuf[0x03]=sz1>>8;
+	hbuf[0x04]=sz1>>16;	hbuf[0x05]=sz1>>24;
+	hbuf[0x06]=0;		hbuf[0x07]=0;
+	hbuf[0x08]=0;		hbuf[0x09]=0;
+	hbuf[0x0A]=sz2;		hbuf[0x0B]=sz2>>8;
+	hbuf[0x0C]=sz2>>16;	hbuf[0x0D]=sz2>>24;
+
+	hbuf[0x0E]=sz3;		hbuf[0x0F]=sz3>>8;
+	hbuf[0x10]=sz3>>16;	hbuf[0x11]=sz3>>24;
+	hbuf[0x12]=xs;		hbuf[0x13]=xs>>8;
+	hbuf[0x14]=xs>>16;	hbuf[0x15]=xs>>24;
+	hbuf[0x16]=ys;		hbuf[0x17]=ys>>8;
+	hbuf[0x18]=ys>>16;	hbuf[0x19]=ys>>24;
+
+	hbuf[0x1A]=1;		hbuf[0x1B]=0;
+	hbuf[0x1C]=32;		hbuf[0x1D]=0;
+	hbuf[0x1E]=fcc;		hbuf[0x1F]=fcc>>8;
+	hbuf[0x20]=fcc>>16;	hbuf[0x21]=fcc>>24;
+	hbuf[0x22]=isz;		hbuf[0x23]=isz>>8;
+	hbuf[0x24]=isz>>16;	hbuf[0x25]=isz>>24;
+	hbuf[0x26]=dpm;		hbuf[0x27]=dpm>>8;
+	hbuf[0x28]=dpm>>16;	hbuf[0x29]=dpm>>24;
+	hbuf[0x2A]=dpm;		hbuf[0x2B]=dpm>>8;
+	hbuf[0x2C]=dpm>>16;	hbuf[0x2D]=dpm>>24;
+
+	hbuf[0x2E]=0;		hbuf[0x2F]=0;
+	hbuf[0x30]=0;		hbuf[0x31]=0;
+
+	hbuf[0x32]=0;		hbuf[0x33]=0;
+	hbuf[0x34]=0;		hbuf[0x35]=0;
+	
+	memcpy(obuf, hbuf, sz2);
+	memcpy(obuf+sz2, ibuf, isz);
+	return(sz2+isz);
+	
+//	fwrite(hbuf, 1, sz2, fd);
+//	fwrite(ibuf, 1, isz, fd);
+//	fclose(fd);
+//	return(0);
 }
 
 int main()
@@ -436,7 +559,8 @@ int main()
 //	tbuf0=malloc(xs*ys*4);
 	tbuf1=malloc(xs*ys*8);
 	tbuf2=malloc(xs*ys*8);
-	cbuf=malloc(xs*ys*8);
+//	cbuf=malloc(xs*ys*8);
+	cbuf=malloc(1<<24);
 	
 	for(i=0; i<512; i++)
 	{
@@ -468,7 +592,8 @@ int main()
 		ctx->blks=tbuf2;
 
 #if 1
-		LQTVQ_SetupContextQf(ctx, 75);
+//		LQTVQ_SetupContextQf(ctx, 75);
+		LQTVQ_SetupContextQf(ctx, 60);
 		LQTVQ_EncImageBGRA(ctx, tbuf2, tbuf0, xs, ys);
 		sz=LQTVQ_EncImgBlocks(ctx, cbuf, tbuf2, NULL, xs, ys, 75);
 #endif
@@ -495,27 +620,37 @@ int main()
 
 #if 1
 	memset(ctx, 0, sizeof(BT4A_Context));
-	ctx->blks=tbuf2;
+//	ctx->blks=tbuf2;
 
-	LQTVQ_SetupContextQf(ctx, 75);
-	LQTVQ_EncImageBGRA(ctx, tbuf2, tbuf0, xs, ys);
-	sz=LQTVQ_EncImgBlocks(ctx, cbuf, tbuf2, NULL, xs, ys, 75);
+	sz=LQTVQ_EncodeImgBufferCtx(ctx, cbuf, 1<<24, tbuf0, xs, ys, 60, 0);
+
+//	LQTVQ_SetupContextQf(ctx, 75);
+//	LQTVQ_SetupContextQf(ctx, 40);
+//	LQTVQ_EncImageBGRA(ctx, tbuf2, tbuf0, xs, ys);
+//	sz=LQTVQ_EncImgBlocks(ctx, cbuf, tbuf2, NULL, xs, ys, 40);
+
+	dump_bmp("bt4at0_bt4b.bmp", xs, ys,
+		LQTVQ_FCC_BT4B, cbuf, sz);
 
 	printf("sz=%dKiB (%.2fbpp)\n", ((sz+512)>>10), (sz*8.0)/(xs*ys));
 #endif
 
 #if 1
+	memset(ctx, 0, sizeof(BT4A_Context));
+
 	printf("Decode Test:\n");
 	t0=clock(); t1=t0; t0e=t0+(10*CLOCKS_PER_SEC);
-	nf=0; sz=0;
+	nf=0;
 	while(t1<t0e)
 	{
-		memset(ctx, 0, sizeof(BT4A_Context));
-		ctx->blks=tbuf2;
+//		memset(ctx, 0, sizeof(BT4A_Context));
+//		ctx->blks=tbuf2;
 
-		LQTVQ_DecImgBufFastBGRA(ctx, cbuf, sz,
-			tbuf2, NULL, xs, ys);
-		LQTVQ_DecImageBGRA(tbuf2, tbuf1, xs, ys);
+//		LQTVQ_DecImgBlocks(ctx, cbuf, sz,
+//			tbuf2, NULL, xs, ys);
+//		LQTVQ_DecImageBGRA(tbuf2, tbuf1, xs, ys);
+
+		LQTVQ_DecodeImgBufferCtx(ctx, cbuf, sz, tbuf1, xs, ys, 0);
 
 		nf++;
 		t1=clock();
@@ -529,13 +664,17 @@ int main()
 
 #if 1
 	memset(ctx, 0, sizeof(BT4A_Context));
+	memset(tbuf1, 0, xs*ys*8);
 	memset(tbuf2, 0, xs*ys*8);
 
-	LQTVQ_DecImgBufFastBGRA(ctx, cbuf, sz,
-		tbuf2, NULL, xs, ys);
-	LQTVQ_DecImageBGRA(tbuf2, tbuf1, xs, ys);
+	LQTVQ_DecodeImgBufferCtx(ctx, cbuf, sz, tbuf1, xs, ys, 0);
+	cmp_blkrmse(tbuf0, tbuf1, ctx->blks, xs, ys);
+
+//	LQTVQ_DecImgBlocks(ctx, cbuf, sz,
+//		tbuf2, NULL, xs, ys);
+//	LQTVQ_DecImageBGRA(tbuf2, tbuf1, xs, ys);
 //	cmp_rmse(tbuf0, tbuf1, xs, ys);
-	cmp_blkrmse(tbuf0, tbuf1, tbuf2, xs, ys);
+//	cmp_blkrmse(tbuf0, tbuf1, tbuf2, xs, ys);
 	BTIC1H_Img_SaveTGA("bt4at0.tga", tbuf1, xs, ys);
 #endif
 
