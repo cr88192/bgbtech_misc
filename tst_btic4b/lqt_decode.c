@@ -332,18 +332,28 @@ void LQTVQ_DecColorYUVD(BT4A_Context *ctx)
 		if(i&0x04)dcu=LQTVQ_DecReadValCuv(ctx);
 		if(i&0x08)dcv=LQTVQ_DecReadValCuv(ctx);
 		if(i&0x10)ddy=LQTVQ_DecReadValDy(ctx);
+		
+		if(!(i&0x80))
+//		if(0)
+		{
+			if(i&0x20)ddu=LQTVQ_DecReadValDuv(ctx);
+			if(i&0x40)ddv=LQTVQ_DecReadValDuv(ctx);
+		}
 	}else
 	{
 		dcy=LQTVQ_DecReadValCy(ctx);
 		dcu=LQTVQ_DecReadValCuv(ctx);
 		dcv=LQTVQ_DecReadValCuv(ctx);
 		ddy=LQTVQ_DecReadValDy(ctx);
+		ddu=0;		ddv=0;
 	}
 
 	ctx->cy+=dcy*ctx->qy;
 	ctx->cu+=dcu*ctx->quv;
 	ctx->cv+=dcv*ctx->quv;
 	ctx->dy+=ddy*ctx->qdy;
+	ctx->du+=ddu*ctx->qduv;
+	ctx->dv+=ddv*ctx->qduv;
 }
 
 void LQTVQ_DecColorYUVDyuv(BT4A_Context *ctx)
@@ -482,6 +492,9 @@ void LQTVQ_FillBlockHeadTag(BT4A_Context *ctx, byte *blk, int tag)
 //	*(u16 *)(blk+ 0)=tag;
 //	*(u16 *)(blk+ 2)=0x00FF;
 
+	if(ctx->cmask && !(ctx->cmask&0x80))
+		tag|=0x40;
+
 	*(u32 *)(blk+ 0)=tag|0x00FF0000;
 
 //	*(u16 *)(blk+ 4)=lqtvq_clamp65535(ctx->cy);
@@ -501,6 +514,9 @@ void LQTVQ_FillBlockHeadTag(BT4A_Context *ctx, byte *blk, int tag)
 
 void LQTVQ_FillBlockHeadL8(BT4A_Context *ctx, byte *blk, int tag)
 {
+	if(ctx->cmask && !(ctx->cmask&0x80))
+		tag|=0x40;
+
 	*(u16 *)(blk+ 0)=tag;
 	*(blk+2)=lqtvq_clamp255(ctx->cy);
 //	*(blk+3)=lqtvq_clamp255(ctx->cu);
@@ -511,8 +527,10 @@ void LQTVQ_FillBlockHeadL8(BT4A_Context *ctx, byte *blk, int tag)
 
 	*(blk+3)=lqtvq_clamp255((ctx->cu>>1)+128);
 	*(blk+4)=lqtvq_clamp255((ctx->cv>>1)+128);
-	*(blk+6)=lqtvq_clamp255(ctx->du>>1);
-	*(blk+7)=lqtvq_clamp255(ctx->dv>>1);
+//	*(blk+6)=lqtvq_clamp255(ctx->du>>1);
+//	*(blk+7)=lqtvq_clamp255(ctx->dv>>1);
+	*(blk+6)=lqtvq_clamp255((ctx->du>>1)+128);
+	*(blk+7)=lqtvq_clamp255((ctx->dv>>1)+128);
 }
 
 
@@ -541,7 +559,21 @@ void LQTVQ_DecodeReadBytes(BT4A_Context *ctx, byte *blk, int len)
 void LQTVQ_DecodeCopyBlocks(BT4A_Context *ctx,
 	byte *dblks, byte *sblks, int cnt)
 {
-	memcpy(dblks, sblks, cnt*ctx->blksz);
+	byte *cs, *ct;
+	int i;
+	
+	cs=sblks; ct=dblks;
+	for(i=0; i<cnt; i++)
+	{
+		ct[1]=cs[1];
+		ct[2]=cs[2];
+		ct[3]=cs[3];
+		memcpy(ct, cs, ctx->blksz);
+		ct[0]|=0x20;
+		ct+=ctx->blksz; cs+=ctx->blksz;
+	}
+
+//	memcpy(dblks, sblks, cnt*ctx->blksz);
 }
 
 void LQTVQ_DecodeCopyAlphaBlocks(BT4A_Context *ctx,
@@ -563,6 +595,8 @@ void LQTVQ_DecodeCopyAlphaBlocks(BT4A_Context *ctx,
 
 void LQTVQ_DecodeSetParm(BT4A_Context *ctx, int var, int val)
 {
+	if(var==-2)
+		{ ctx->pred=val; }
 }
 
 void LQTVQ_DecodeEnableFeature(BT4A_Context *ctx, int var)
@@ -616,6 +650,11 @@ byte *LQTVQ_DecSetupDecBlockInner(BT4A_Context *ctx, byte *ct, int op)
 		LQTVQ_DecRead64B(ctx, ct+16);
 		break;
 
+	case 0x08:
+		LQTVQ_FillBlockHeadTag(ctx, ct, op);
+		*(ct+16)=LQTVQ_ReadNBits(ctx, 4);
+		break;
+
 	case 0x09:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
 		LQTVQ_DecRead8B(ctx, ct+16);
@@ -637,19 +676,23 @@ byte *LQTVQ_DecSetupDecBlockInner(BT4A_Context *ctx, byte *ct, int op)
 		LQTVQ_DecRead128B(ctx, ct+16);
 		break;
 	case 0x10:
+		LQTVQ_FillBlockHeadTag(ctx, ct, op);
+		LQTVQ_DecRead192B(ctx, ct+16);
+		break;
+	case 0x11:
+		LQTVQ_FillBlockHeadTag(ctx, ct, op);
+		LQTVQ_DecRead256B(ctx, ct+16);
+		break;
+
+	case 0x13:
 		LQTVQ_FillBlockHeadL8(ctx, ct, op);
 		LQTVQ_DecRead128B(ctx, ct+ 8);
 		LQTVQ_DecRead32B(ctx, ct+24);
 		LQTVQ_DecRead32B(ctx, ct+28);
 		break;
-
-	case 0x13:
-		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecRead192B(ctx, ct+16);
-		break;
 	case 0x14:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
-		LQTVQ_DecRead256B(ctx, ct+16);
+		LQTVQ_DecRead16B(ctx, ct+16);
 		break;
 	case 0x15:
 		LQTVQ_FillBlockHeadTag(ctx, ct, op);
@@ -717,6 +760,128 @@ byte *LQTVQ_DecSetupDecBlockInner(BT4A_Context *ctx, byte *ct, int op)
 	return(ct+ctx->blksz);
 }
 
+void LQTVQ_DecGetBlkPredClrs(BT4A_Context *ctx,
+	byte *blk, int *rcyuvd)
+{
+	switch(blk[0]&0x3F)
+	{
+	case 0x00:	case 0x01:	case 0x02:	case 0x03:
+	case 0x04:	case 0x05:	case 0x06:	case 0x07:
+	case 0x08:	case 0x09:	case 0x0A:	case 0x0B:
+	case 0x0C:	case 0x0D:	case 0x0E:	case 0x0F:
+	case 0x10:	case 0x11:	case 0x12:	case 0x14:
+	case 0x15:	case 0x16:	case 0x17:	case 0x18:
+	case 0x1A:	case 0x1B:	case 0x1C:	case 0x1D:
+	case 0x1E:	case 0x1F:
+		rcyuvd[0]=*(s16 *)(blk+ 4);
+		rcyuvd[1]=*(s16 *)(blk+ 6);
+		rcyuvd[2]=*(s16 *)(blk+ 8);
+		rcyuvd[3]=*(s16 *)(blk+10);
+		rcyuvd[4]=*(s16 *)(blk+12);
+		rcyuvd[5]=*(s16 *)(blk+14);
+		break;
+	case 0x13:	case 0x19:
+		rcyuvd[0]=blk[2];
+		rcyuvd[1]=(blk[3]-128)<<1;
+		rcyuvd[2]=(blk[4]-128)<<1;
+		rcyuvd[3]=blk[5];
+		rcyuvd[4]=(blk[6]-128)<<1;
+		rcyuvd[5]=(blk[7]-128)<<1;
+		break;
+	default:
+		rcyuvd[0]=ctx->cy;	rcyuvd[1]=ctx->cu;
+		rcyuvd[2]=ctx->cv;	rcyuvd[3]=ctx->dy;
+		rcyuvd[4]=ctx->du;	rcyuvd[5]=ctx->dv;
+		break;
+	}
+}
+
+int LQTVQ_Pred_Paeth(int a, int b, int c)
+{
+	int p, pa, pb, pc;
+
+	p=a+b-c;
+	pa=(p>a)?(p-a):(a-p);
+	pb=(p>b)?(p-b):(b-p);
+	pc=(p>c)?(p-c):(c-p);
+
+	p=(pa<=pb)?((pa<=pc)?a:c):((pb<=pc)?b:c);
+	return(p);
+}
+
+void LQTVQ_DecUpdateCtxPred(BT4A_Context *ctx,
+	byte *pba, byte *pbb, byte *pbc, byte pred)
+{
+	int pyuva[6], pyuvb[6], pyuvc[6], pyuvd[6];
+	
+	LQTVQ_DecGetBlkPredClrs(ctx, pba, pyuva);
+	LQTVQ_DecGetBlkPredClrs(ctx, pbb, pyuvb);
+	LQTVQ_DecGetBlkPredClrs(ctx, pbc, pyuvc);
+	
+	switch(pred)
+	{
+	case 0:
+		break;
+	case 1:
+		ctx->cy=LQTVQ_Pred_Paeth(pyuvc[0], pyuvb[0], pyuva[0]);
+		ctx->cu=LQTVQ_Pred_Paeth(pyuvc[1], pyuvb[1], pyuva[1]);
+		ctx->cv=LQTVQ_Pred_Paeth(pyuvc[2], pyuvb[2], pyuva[2]);
+		ctx->dy=LQTVQ_Pred_Paeth(pyuvc[3], pyuvb[3], pyuva[3]);
+		ctx->du=LQTVQ_Pred_Paeth(pyuvc[4], pyuvb[4], pyuva[4]);
+		ctx->dv=LQTVQ_Pred_Paeth(pyuvc[5], pyuvb[5], pyuva[5]);
+		break;
+	default:
+		break;
+	}
+}
+
+void LQTVQ_DecUpdateCtxPredV(BT4A_Context *ctx,
+	byte *pba, byte *pbb, byte *pbc, byte pred,
+	int *rpyc)
+{
+	int pyuva[6], pyuvb[6], pyuvc[6], pyuvd[6];
+	
+	LQTVQ_DecGetBlkPredClrs(ctx, pba, pyuva);
+	LQTVQ_DecGetBlkPredClrs(ctx, pbb, pyuvb);
+	LQTVQ_DecGetBlkPredClrs(ctx, pbc, pyuvc);
+	
+	switch(pred)
+	{
+	case 0:
+		break;
+	case 1:
+		rpyc[0]=LQTVQ_Pred_Paeth(pyuvc[0], pyuvb[0], pyuva[0]);
+		rpyc[1]=LQTVQ_Pred_Paeth(pyuvc[1], pyuvb[1], pyuva[1]);
+		rpyc[2]=LQTVQ_Pred_Paeth(pyuvc[2], pyuvb[2], pyuva[2]);
+		rpyc[3]=LQTVQ_Pred_Paeth(pyuvc[3], pyuvb[3], pyuva[3]);
+		rpyc[4]=LQTVQ_Pred_Paeth(pyuvc[4], pyuvb[4], pyuva[4]);
+		rpyc[5]=LQTVQ_Pred_Paeth(pyuvc[5], pyuvb[5], pyuva[5]);
+		break;
+	default:
+		break;
+	}
+}
+
+force_inline void LQTVQ_DecUpdatePred(BT4A_Context *ctx,
+	byte *ct, byte *blks)
+{
+	byte *ctpa, *ctpb, *ctpc;
+	int xs1;
+
+	if(!ctx->pred)
+		return;
+
+	xs1=ctx->xsb;
+	ctpa=ct-(xs1+1)*ctx->blksz;
+	if(ctpa>=blks)
+	{
+		ctpb=ct-xs1*ctx->blksz;
+		ctpc=ct-ctx->blksz;
+		LQTVQ_DecUpdateCtxPred(ctx,
+			ctpa, ctpb, ctpc, ctx->pred);
+	}
+}
+
 int LQTVQ_DecImgBlocks(BT4A_Context *ctx,
 	byte *cbuf, int cbsz,
 	byte *blks, byte *lblks,
@@ -768,10 +933,11 @@ int LQTVQ_DecImgBlocks(BT4A_Context *ctx,
 		lop1=lop0; lop0=op;
 		op=LQTVQ_DecReadCommand(ctx);
 		opb[oprov++]=op;
-		
+				
 		switch(op)
 		{
 		case 0x00:
+			LQTVQ_DecUpdatePred(ctx, ct, blks);
 			LQTVQ_DecColorYUV(ctx);
 			LQTVQ_FillBlockHeadTag(ctx, ct, 0);
 			ct=ct+ctx->blksz;
@@ -786,19 +952,23 @@ int LQTVQ_DecImgBlocks(BT4A_Context *ctx,
 		case 0x0A:	case 0x0B:
 		case 0x0C:	case 0x0D:
 		case 0x0E:	case 0x0F:
-		case 0x13:
-		case 0x14:
+		case 0x10:	case 0x11:
+//		case 0x13:
+//		case 0x14:
+			LQTVQ_DecUpdatePred(ctx, ct, blks);
 			LQTVQ_DecColorYUVD(ctx);
 			ct=LQTVQ_DecSetupDecBlockInner(ctx, ct, op);
 			break;
 
-		case 0x10:
-		case 0x15:
-		case 0x16:		case 0x17:
-		case 0x18:		case 0x19:
-		case 0x1A:		case 0x1B:
-		case 0x1C:		case 0x1D:
-		case 0x1E:
+//		case 0x10:
+		case 0x13:
+		case 0x14:	case 0x15:
+		case 0x16:	case 0x17:
+		case 0x18:	case 0x19:
+		case 0x1A:	case 0x1B:
+		case 0x1C:	case 0x1D:
+		case 0x1E:	case 0x1F:
+			LQTVQ_DecUpdatePred(ctx, ct, blks);
 			LQTVQ_DecColorYUVDyuv(ctx);
 			ct=LQTVQ_DecSetupDecBlockInner(ctx, ct, op);
 			break;
@@ -807,25 +977,23 @@ int LQTVQ_DecImgBlocks(BT4A_Context *ctx,
 			n=LQTVQ_DecReadCountVal(ctx);
 			for(i=0; i<n; i++)
 			{
+				LQTVQ_DecUpdatePred(ctx, ct, blks);
 				ct=LQTVQ_DecSetupDecBlockInner(ctx, ct, op&0x1F);
 			}
 			break;
 
 		case 0x21:	case 0x22:	case 0x23:
 		case 0x24:	case 0x25:	case 0x26:	case 0x27:
-		case 0x29:
-		case 0x2A:	case 0x2B:
+		case 0x28:	case 0x29:	case 0x2A:	case 0x2B:
 		case 0x2C:	case 0x2D:	case 0x2E:	case 0x2F:
-		case 0x30:
-		case 0x33:
-		case 0x34:	case 0x35:
-		case 0x36:	case 0x37:
+		case 0x30:	case 0x31:	case 0x32:	case 0x33:
+		case 0x34:	case 0x35:	case 0x36:	case 0x37:
 		case 0x38:	case 0x39:	case 0x3A:	case 0x3B:
-		case 0x3C:	case 0x3D:
-		case 0x3E:
+		case 0x3C:	case 0x3D:	case 0x3E:	case 0x3F:
 			n=LQTVQ_DecReadCountVal(ctx);
 			for(i=0; i<n; i++)
 			{
+				LQTVQ_DecUpdatePred(ctx, ct, blks);
 				ct=LQTVQ_DecSetupDecBlockInner(ctx, ct, op&0x1F);
 			}
 			break;
@@ -872,6 +1040,7 @@ int LQTVQ_DecImgBlocks(BT4A_Context *ctx,
 			n=LQTVQ_DecReadCountVal(ctx);
 			for(i=0; i<n; i++)
 			{
+				LQTVQ_DecUpdatePred(ctx, ct, blks);
 				LQTVQ_DecColorYUV(ctx);
 				LQTVQ_FillBlockHeadTag(ctx, ct, 0);
 				ct=ct+ctx->blksz;

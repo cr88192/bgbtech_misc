@@ -101,6 +101,8 @@ void LQTVQ_SetupWriteBits(BT4A_Context *ctx, byte *buf, int sz)
 	ctx->ct=buf;
 	ctx->bit_win=0;
 	ctx->bit_pos=0;
+	
+//	ctx->stat_bits=0;
 }
 
 byte *LQTVQ_EndWriteBits(BT4A_Context *ctx)
@@ -138,14 +140,16 @@ void LQTVQ_WriteNBits(BT4A_Context *ctx,
 	ctx->ct+=i;
 	ctx->bit_win=(bw>>(i<<3));
 	ctx->bit_pos=bp&7;
+	
+	ctx->stat_bits+=len;
 }
 
 void LQTVQ_WriteNBitsNM(BT4A_Context *ctx,
 	int bits, int len)
 {
-	LQTVQ_WriteNBits(ctx, bits, len);
+//	LQTVQ_WriteNBits(ctx, bits, len);
 
-#if 0
+#if 1
 	u32 bw;
 	int bp;
 //	int i;
@@ -163,6 +167,8 @@ void LQTVQ_WriteNBitsNM(BT4A_Context *ctx,
 	ctx->ct+=bp>>3;
 	ctx->bit_win=(bw>>(bp&(~7)));
 	ctx->bit_pos=bp&7;
+	
+	ctx->stat_bits+=len;
 #endif
 }
 
@@ -190,6 +196,7 @@ void LQTVQ_Write8BitsNM(BT4A_Context *ctx, int bits)
 	bw=ctx->bit_win|(bits<<ctx->bit_pos);
 	*ctx->ct++=bw;
 	ctx->bit_win=(bw>>8);
+	ctx->stat_bits+=8;
 }
 
 void LQTVQ_Write16BitsNM(BT4A_Context *ctx, int bits)
@@ -199,6 +206,8 @@ void LQTVQ_Write16BitsNM(BT4A_Context *ctx, int bits)
 	*(u32 *)ctx->ct=bw;
 	ctx->ct+=2;
 	ctx->bit_win=(bw>>16);
+
+	ctx->stat_bits+=16;
 }
 
 void LQTVQ_Write24BitsNM(BT4A_Context *ctx, int bits)
@@ -208,6 +217,8 @@ void LQTVQ_Write24BitsNM(BT4A_Context *ctx, int bits)
 	*(u32 *)ctx->ct=bw;
 	ctx->ct+=3;
 	ctx->bit_win=(bw>>24);
+
+	ctx->stat_bits+=24;
 }
 #endif
 
@@ -303,6 +314,16 @@ void LQTVQ_WriteAdSRiceLL(BT4A_Context *ctx, int val, byte *rk)
 	LQTVQ_WriteAdRiceLL(ctx, (val<<1)^(val>>31), rk);
 }
 
+void LQTVQ_WriteAdSRiceLLb(
+	BT4A_Context *ctx, int val, byte *rk, int *rst)
+{
+	int i0, i1;
+	i0=ctx->stat_bits;
+	LQTVQ_WriteAdRiceLL(ctx, (val<<1)^(val>>31), rk);
+	i1=ctx->stat_bits;
+	*rst+=i1-i0;
+}
+
 void LQTVQ_ResetSmtfDefault(BT4A_Context *ctx, BT4A_SmtfState *st)
 {
 	int i;
@@ -326,7 +347,8 @@ int LQTVQ_EmitIndexSymbolSmtf(BT4A_Context *ctx,
 {
 	int i0, i1, i2, i3;
 	int i;
-	
+
+#if 0
 	i=(byte)((st->idx[val])-(st->rov));
 	if(!i)
 		{ return(i); }
@@ -345,9 +367,22 @@ int LQTVQ_EmitIndexSymbolSmtf(BT4A_Context *ctx,
 	st->idx[i2]=i1;		st->idx[i3]=i0;
 	st->rov--;
 	return(i);
+#endif
+
+#if 1
+	i=st->idx[val];
+	i0=i;
+//	i1=i>>1;
+//	i1=(i*3)>>2;
+	i1=(i*7)>>3;
+	i2=st->tab[i0];		i3=st->tab[i1];
+	st->tab[i0]=i3;		st->tab[i1]=i2;
+	st->idx[i2]=i1;		st->idx[i3]=i0;
+	return(i);
+#endif
 }
 
-void LQTVQ_WriteSymbolSmtf(BT4A_Context *ctx,
+void LQTVQ_WriteSymbolSmtfI(BT4A_Context *ctx,
 	BT4A_SmtfState *st, int val)
 {
 	int i0, i1, i2, i3;
@@ -358,7 +393,7 @@ void LQTVQ_WriteSymbolSmtf(BT4A_Context *ctx,
 	return;
 #endif
 
-#if 1
+#if 0
 	i=(byte)((st->idx[val])-(st->rov));
 	if(!i)
 	{
@@ -383,4 +418,31 @@ void LQTVQ_WriteSymbolSmtf(BT4A_Context *ctx,
 
 	LQTVQ_WriteAdRiceSymLL(ctx, i, &(st->rk));
 #endif
+
+#if 1
+	i=st->idx[val];
+	i0=i;
+//	i1=i>>1;
+//	i1=(i*3)>>2;
+	i1=(i*7)>>3;
+	i2=st->tab[i0];		i3=st->tab[i1];
+	st->tab[i0]=i3;		st->tab[i1]=i2;
+	st->idx[i2]=i1;		st->idx[i3]=i0;
+	LQTVQ_WriteAdRiceSymLL(ctx, i, &(st->rk));
+#endif
+
 }
+
+#if 1
+void LQTVQ_WriteSymbolSmtf(BT4A_Context *ctx,
+	BT4A_SmtfState *st, int val)
+{
+	int i0, i1;
+
+	i0=ctx->stat_bits;
+	LQTVQ_WriteSymbolSmtfI(ctx, st, val);
+	i1=ctx->stat_bits;
+	st->bits+=i1-i0;
+	st->cnt++;
+}
+#endif

@@ -79,6 +79,8 @@ byte tab[256];
 byte idx[256];
 byte rov;
 byte rk;
+int cnt;
+int bits;
 }BT4A_SmtfState;
 
 typedef struct {
@@ -88,6 +90,7 @@ int bit_pos;
 
 int xs, ys;
 int xsb, ysb, nblk, blksz;
+int qfl;
 
 byte *blks;
 byte *lblks;
@@ -102,14 +105,27 @@ int qdy_4x4x2;
 int qdy_8x8x2;
 int qdy_8x8x3;
 int qduv_flat;
+int qduv_2x2;
+int qdce_sc;
 
 byte rk_cy, rk_cuv;
 byte rk_dy, rk_duv;
 byte rk_cnt, rk_misc;
-byte cmask;
+byte cmask;				//current mask
+byte imask;				//ideal mask
+byte pred;				//predictor
 
 BT4A_SmtfState sm_cmd;
 BT4A_SmtfState sm_mask;
+
+int stat_bits;
+// int stat_tbits;
+int stat_yuvbits;
+int stat_yuvcnt;
+int stat_yuvcbits[8];
+int stat_pixbits;
+
+int yuv_cz[8];
 
 }BT4A_Context;
 
@@ -367,26 +383,40 @@ void cmp_rmse(byte *ibuf0, byte *ibuf1, int xs, int ys)
 void cmp_blkrmse(byte *ibuf0, byte *ibuf1, byte *blks, int xs, int ys)
 {
 	static int btcost[32]={
-	  1,   4,   8,   8,  16,  32,  32,  64,
-	 -1,   8,  16,  16,  32,  64,  64, 128,
-	 -1,  -1,  -1, 192, 256,  48,  96, 144,
-	192, 448, 256, 384, 256, 384, 384, 640};
+	  1,   4,   8,   8,  16,  32,  32,  64,		//00-07
+	 -1,   8,  16,  16,  32,  64,  64, 128,		//08-0F
+	192, 256,  -1, 192,  16,  48,  96, 144,		//10-17
+	192, 448, 256, 384, 256, 384, 384, 640};	//18-1F
 	static char *btname[32]={
-	  "Flat", "2x2x1", "4x2x1", "2x4x1",
-	 "4x4x1", "8x4x1", "4x8x1", "8x8x1",
-	  "R-08", "2x2x2", "4x2x2", "2x4x2", 
-	 "4x4x2", "8x4x2", "4x8x2", "8x8x2",
-	  "R-10",  "R-11",  "R-12", "8x8x3",
-	 "8x8x4",			"Y4x4x2+UV2x2x2",
-	 "Y4x4x2+UV4x4x2",	"Y8x8x2+UV2x2x2",
-	 "Y8x8x2+UV4x4x2",	"Y8x8x3+UV8x8x2",
-	 "Y8x8x2+UV4x8x2",  "Y8x8x2+UV8x8x2",
-	 "Y8x8x3+UV4x4x2",	"Y8x8x4+UV4x4x4",
-	 "Y8x8x3+UV4x8x3",	"Y8x8x4+UV8x8x3"};
+	  "Flat", "2x2x1", "4x2x1", "2x4x1",	//00-03
+	 "4x4x1", "8x4x1", "4x8x1", "8x8x1",	//04-07
+	  "R-08", "2x2x2", "4x2x2", "2x4x2", 	//08-0B
+	 "4x4x2", "8x4x2", "4x8x2", "8x8x2",	//0C-0F
+	 "8x8x3",			"8x8x4",			//10/11
+	 "R-12",			"Y8x8x2+UV4x4x2",	//12/13
+	 "Y2x2x2+UV2x2x1", 	"Y4x4x2+UV2x2x2",	//14/15
+	 "Y4x4x2+UV4x4x2",	"Y8x8x2+UV2x2x2",	//16/1F
+	 "Y8x8x2+UV4x4x2",	"Y8x8x3+UV8x8x2",	//18/1F
+	 "Y8x8x2+UV4x8x2",  "Y8x8x2+UV8x8x2",	//1A/1F
+	 "Y8x8x3+UV4x4x2",	"Y8x8x4+UV4x4x4",	//1C/1F
+	 "Y8x8x3+UV4x8x3",	"Y8x8x4+UV8x8x3"};	//1E/1F
+
+	static int abtcost[16]={
+	  1,   4,  16,  64,   8,  32,  48,  64,		//00-07
+	  1,  -1,  64,  64, 128, 128, 192, 256};	//18-1F
+	static char *abtname[16]={
+	  "Flat", "2x2x1", "4x4x1", "8x8x1",	//00-03
+	 "2x2x2", "4x4x2", "4x4x3", "4x8x2",	//04-07
+	 "Flat2", "RSV09", "4x8x2", "8x4x2", 	//08-0B
+	 "8x8x2", "8x8x2", "8x8x3", "8x8x4"};	//0C-0F
 
 	double btte[64];
 	double bttea[64];
 	int btn[64];
+
+	double abtte[64];
+	int abtn[64];
+
 	byte *cs0, *cs1;
 	double er, eg, eb, ea, e;
 	int dr, dg, db, da;
@@ -402,6 +432,9 @@ void cmp_blkrmse(byte *ibuf0, byte *ibuf1, byte *blks, int xs, int ys)
 		btte[i]=0;
 		bttea[i]=0;
 		btn[i]=0;
+
+		abtte[i]=0;
+		abtn[i]=0;
 	}
 	
 	for(i=0; i<ys1; i++)
@@ -430,6 +463,10 @@ void cmp_blkrmse(byte *ibuf0, byte *ibuf1, byte *blks, int xs, int ys)
 		btte[l]+=e;
 		bttea[l]+=ea/64;
 		btn[l]++;
+
+		l=blks[k*64+1];
+		abtte[l]+=ea/64;
+		abtn[l]++;
 	}
 
 	for(i=0; i<64; i++)
@@ -439,10 +476,22 @@ void cmp_blkrmse(byte *ibuf0, byte *ibuf1, byte *blks, int xs, int ys)
 
 		j=sqrt(btte[i]/btn[i])*100;
 		k=sqrt(bttea[i]/btn[i])*10;
-		printf("B-RMSE: %02X: n=%6d avge=%2d.%02d ae=%2d.%01d,"
-			" Tc=%6d (%14s)\n",
+		printf("B-RMSE: %02X: n=%6d avge=%3d.%02d ae=%3d.%01d,"
+			" Tc=%6d (%-14s)\n",
 			i, btn[i], j/100, j%100, k/10, k%10,
 			(btn[i]*btcost[i]+7)/8, btname[i]);
+	}
+
+	for(i=0; i<64; i++)
+	{
+		if(!abtn[i])
+			continue;
+
+		j=sqrt(abtte[i]/abtn[i])*100;
+		printf("AB-RMSE: %02X: n=%6d ae=%3d.%01d,"
+			" Tc=%6d (%-14s)\n",
+			i, abtn[i], j/100, j%100,
+			(abtn[i]*abtcost[i]+7)/8, abtname[i]);
 	}
 
 	n=xs*ys; er=0; eg=0; eb=0; ea=0;
@@ -554,7 +603,8 @@ int main()
 //	xs=3840;
 //	ys=2160;
 
-	tbuf0=BTIC1H_Img_LoadTGA("DSC00602_1.tga", &xs, &ys);
+//	tbuf0=BTIC1H_Img_LoadTGA("DSC00602_1.tga", &xs, &ys);
+	tbuf0=BTIC1H_Img_LoadTGA("yazil0_1.tga", &xs, &ys);
 	
 //	tbuf0=malloc(xs*ys*4);
 	tbuf1=malloc(xs*ys*8);
@@ -622,12 +672,17 @@ int main()
 	memset(ctx, 0, sizeof(BT4A_Context));
 //	ctx->blks=tbuf2;
 
-	sz=LQTVQ_EncodeImgBufferCtx(ctx, cbuf, 1<<24, tbuf0, xs, ys, 60, 0);
+//	sz=LQTVQ_EncodeImgBufferCtx(ctx, cbuf, 1<<24, tbuf0, xs, ys, 40, 0);
+//	sz=LQTVQ_EncodeImgBufferCtx(ctx, cbuf, 1<<24, tbuf0, xs, ys, 60, 0);
+	sz=LQTVQ_EncodeImgBufferCtx(ctx, cbuf, 1<<24, tbuf0, xs, ys, 75, 0);
+//	sz=LQTVQ_EncodeImgBufferCtx(ctx, cbuf, 1<<24, tbuf0, xs, ys, 85, 0);
 
 //	LQTVQ_SetupContextQf(ctx, 75);
 //	LQTVQ_SetupContextQf(ctx, 40);
 //	LQTVQ_EncImageBGRA(ctx, tbuf2, tbuf0, xs, ys);
 //	sz=LQTVQ_EncImgBlocks(ctx, cbuf, tbuf2, NULL, xs, ys, 40);
+
+	LQTVQ_DumpStatsCtx(ctx);
 
 	dump_bmp("bt4at0_bt4b.bmp", xs, ys,
 		LQTVQ_FCC_BT4B, cbuf, sz);

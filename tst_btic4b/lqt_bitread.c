@@ -136,6 +136,7 @@ int LQTVQ_Read24Bits(BT4A_Context *ctx)
 	return(LQTVQ_Read24BitsNM(ctx)&16777215);
 }
 
+#if 1
 u32 LQTVQ_Read32Bits(BT4A_Context *ctx)
 {
 	u32 bits, bw1, m;
@@ -148,6 +149,7 @@ u32 LQTVQ_Read32Bits(BT4A_Context *ctx)
 	bits|=(bw1<<(32-ctx->bit_pos))&m;
 	return(bits);
 }
+#endif
 
 #if 0
 u32 LQTVQ_Read32Bits(BT4A_Context *ctx)
@@ -316,6 +318,18 @@ int LQTVQ_DecodeSymbolIndexSmtf(BT4A_Context *ctx,
 {
 	int i0, i1, i2, i3;
 
+#if 1
+	i0=i;
+//	i1=i>>1;
+//	i1=(i*3)>>2;
+	i1=(i*7)>>3;
+	i2=st->tab[i0];		i3=st->tab[i1];
+	st->tab[i0]=i3;		st->tab[i1]=i2;
+//	st->idx[i2]=i1;		st->idx[i3]=i0;
+	return(i2);
+#endif
+
+#if 0
 	if(!i)
 	{
 		i0=(byte)(st->rov+i);
@@ -338,6 +352,7 @@ int LQTVQ_DecodeSymbolIndexSmtf(BT4A_Context *ctx,
 //	st->idx[i2]=i1;		st->idx[i3]=i0;
 	st->rov--;
 	return(i2);
+#endif
 }
 #endif
 
@@ -352,7 +367,7 @@ int LQTVQ_ReadSymbolSmtf(BT4A_Context *ctx,
 	return(i);
 #endif
 
-#if 1
+#if 0
 	i=LQTVQ_ReadAdRiceLL(ctx, &(st->rk));
 	if(!i)
 	{
@@ -375,6 +390,18 @@ int LQTVQ_ReadSymbolSmtf(BT4A_Context *ctx,
 	st->tab[i0]=i3;		st->tab[i1]=i2;
 //	st->idx[i2]=i1;		st->idx[i3]=i0;
 	st->rov--;
+	return(i2);
+#endif
+
+#if 1
+	i=LQTVQ_ReadAdRiceLL(ctx, &(st->rk));
+	i0=i;
+//	i1=i>>1;
+//	i1=(i*3)>>2;
+	i1=(i*7)>>3;
+	i2=st->tab[i0];		i3=st->tab[i1];
+	st->tab[i0]=i3;		st->tab[i1]=i2;
+//	st->idx[i2]=i1;		st->idx[i3]=i0;
 	return(i2);
 #endif
 }

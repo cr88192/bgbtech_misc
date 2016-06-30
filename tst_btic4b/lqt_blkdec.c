@@ -26,9 +26,6 @@ void LQTVQ_DecBlock0BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	mcu=acu-(dcu>>1); ncu=mcu+dcu;
 	mcv=acv-(dcv>>1); ncv=mcv+dcv;
 
-//	mcu=128;	ncu=128;
-//	mcv=128;	ncv=128;
-
 	ytab[0]=mcy;
 	ytab[1]=(14*mcy+ 2*ncy)>>4;
 	ytab[2]=(11*mcy+ 5*ncy)>>4;
@@ -57,9 +54,6 @@ void LQTVQ_DecBlock0BGRA(byte *blkbuf, byte *ibuf, int ystr)
 		ct1=ibuf+(i*2+1)*ystr;
 		pxy0=*(u32 *)(blkbuf+16+i*6+0);
 		pxy1=*(u32 *)(blkbuf+16+i*6+3);
-
-//		pxy0=*(u32 *)(blkbuf+16+(3-i)*6+3);
-//		pxy1=*(u32 *)(blkbuf+16+(3-i)*6+0);
 		
 		for(j=0; j<4; j++)
 		{
@@ -73,17 +67,6 @@ void LQTVQ_DecBlock0BGRA(byte *blkbuf, byte *ibuf, int ystr)
 			cu=utab[(pxu>>k)&3];
 			cv=vtab[(pxv>>k)&3];
 
-//			k=(3-j)*6;
-//			cy0=ytab[(pxy0>>(k+3))&7];
-//			cy1=ytab[(pxy0>>(k+0))&7];
-//			cy2=ytab[(pxy1>>(k+3))&7];
-//			cy3=ytab[(pxy1>>(k+0))&7];
-//			k=30-((i*4+j)*2);
-//			cu=utab[(pxu>>k)&3];
-//			cv=vtab[(pxv>>k)&3];
-			
-//			cu1=(cu-128)<<1;
-//			cv1=(cv-128)<<1;
 			cu1=cu;		cv1=cv;
 
 			cg0=cy0; cb0=cg0+cu1; cr0=cg0+cv1;
@@ -275,13 +258,16 @@ void LQTVQ_DecBlock1BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	mcu=acu-(dcu>>1); ncu=mcu+dcu;
 	mcv=acv-(dcv>>1); ncv=mcv+dcv;
 
-//	mcu=128;	ncu=128;
-//	mcv=128;	ncv=128;
-
-//	cu1=(acu-128)<<1;	cv1=(acv-128)<<1;
-	cu1=acu;	cv1=acv;
-	cg0=mcy; cb0=cg0+cu1; cr0=cg0+cv1;
-	cg3=ncy; cb3=cg3+cu1; cr3=cg3+cv1;
+	if(blkbuf[0]&0x40)
+	{
+		cg0=mcy; cb0=cg0+mcu; cr0=cg0+mcv;
+		cg3=ncy; cb3=cg3+ncu; cr3=cg3+ncv;
+	}else
+	{
+		cu1=acu;	cv1=acv;
+		cg0=mcy; cb0=cg0+cu1; cr0=cg0+cv1;
+		cg3=ncy; cb3=cg3+cu1; cr3=cg3+cv1;
+	}
 
 	if((cr0|cg0|cb0)>>8)
 	{
@@ -309,7 +295,7 @@ void LQTVQ_DecBlock1BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	rgbtab[2]=0xFF000000|(cr2<<16)|(cg2<<8)|cb2;
 	rgbtab[3]=0xFF000000|(cr3<<16)|(cg3<<8)|cb3;
 
-	switch(blkbuf[0])
+	switch(blkbuf[0]&0x1F)
 	{
 	case 0x09:
 		pxy0=blkbuf[16];
@@ -317,9 +303,6 @@ void LQTVQ_DecBlock1BGRA(byte *blkbuf, byte *ibuf, int ystr)
 		{
 			pxu=rgbtab[(pxy0>>(i*4+0))&3];
 			pxv=rgbtab[(pxy0>>(i*4+2))&3];
-//			j=1-i;
-//			pxu=rgbtab[(pxy0>>(j*4+2))&3];
-//			pxv=rgbtab[(pxy0>>(j*4+0))&3];
 			ct0=ibuf+(i*4+0)*ystr;	ct1=ibuf+(i*4+1)*ystr;
 			ct2=ibuf+(i*4+2)*ystr;	ct3=ibuf+(i*4+3)*ystr;
 			lqtvq_fillu32_8x1_2x1((u32 *)ct0, pxu, pxv);
@@ -337,12 +320,6 @@ void LQTVQ_DecBlock1BGRA(byte *blkbuf, byte *ibuf, int ystr)
 			px2=rgbtab[(pxy0>>(i*8+4))&3];
 			px3=rgbtab[(pxy0>>(i*8+6))&3];
 
-//			j=1-i;
-//			px0=rgbtab[(pxy0>>(j*8+6))&3];
-//			px1=rgbtab[(pxy0>>(j*8+4))&3];
-//			px2=rgbtab[(pxy0>>(j*8+2))&3];
-//			px3=rgbtab[(pxy0>>(j*8+0))&3];
-
 			ct0=ibuf+(i*4+0)*ystr;	ct1=ibuf+(i*4+1)*ystr;
 			ct2=ibuf+(i*4+2)*ystr;	ct3=ibuf+(i*4+3)*ystr;
 			lqtvq_fillu32_8x1_4x1((u32 *)ct0, px0, px1, px2, px3);
@@ -358,9 +335,6 @@ void LQTVQ_DecBlock1BGRA(byte *blkbuf, byte *ibuf, int ystr)
 			pxu=rgbtab[(pxy0>>(i*4+0))&3];
 			pxv=rgbtab[(pxy0>>(i*4+2))&3];
 
-//			j=3-i;
-//			pxu=rgbtab[(pxy0>>(j*4+2))&3];
-//			pxv=rgbtab[(pxy0>>(j*4+0))&3];
 			ct0=ibuf+(i*2+0)*ystr;	ct1=ibuf+(i*2+1)*ystr;
 			lqtvq_fillu32_8x1_2x1((u32 *)ct0, pxu, pxv);
 			lqtvq_fillu32_8x1_2x1((u32 *)ct1, pxu, pxv);
@@ -375,11 +349,6 @@ void LQTVQ_DecBlock1BGRA(byte *blkbuf, byte *ibuf, int ystr)
 			px2=rgbtab[(pxy0>>(i*8+4))&3];
 			px3=rgbtab[(pxy0>>(i*8+6))&3];
 
-//			j=3-i;
-//			px0=rgbtab[(pxy0>>(j*8+6))&3];
-//			px1=rgbtab[(pxy0>>(j*8+4))&3];
-//			px2=rgbtab[(pxy0>>(j*8+2))&3];
-//			px3=rgbtab[(pxy0>>(j*8+0))&3];
 			ct0=ibuf+(i*2+0)*ystr;	ct1=ibuf+(i*2+1)*ystr;
 			lqtvq_fillu32_8x1_4x1((u32 *)ct0, px0, px1, px2, px3);
 			lqtvq_fillu32_8x1_4x1((u32 *)ct1, px0, px1, px2, px3);
@@ -397,16 +366,6 @@ void LQTVQ_DecBlock1BGRA(byte *blkbuf, byte *ibuf, int ystr)
 			px5=rgbtab[(pxy0>>10)&3];	px4=rgbtab[(pxy0>> 8)&3];
 			px3=rgbtab[(pxy0>> 6)&3];	px2=rgbtab[(pxy0>> 4)&3];
 			px1=rgbtab[(pxy0>> 2)&3];	px0=rgbtab[(pxy0>> 0)&3];
-
-//			pxy0=*(u32 *)(blkbuf+16+(1-i)*4);
-//			px0=rgbtab[(pxy0>>30)&3];	px1=rgbtab[(pxy0>>28)&3];
-//			px2=rgbtab[(pxy0>>26)&3];	px3=rgbtab[(pxy0>>24)&3];
-//			px4=rgbtab[(pxy0>>22)&3];	px5=rgbtab[(pxy0>>20)&3];
-//			px6=rgbtab[(pxy0>>18)&3];	px7=rgbtab[(pxy0>>16)&3];
-//			px8=rgbtab[(pxy0>>14)&3];	px9=rgbtab[(pxy0>>12)&3];
-//			pxA=rgbtab[(pxy0>>10)&3];	pxB=rgbtab[(pxy0>> 8)&3];
-//			pxC=rgbtab[(pxy0>> 6)&3];	pxD=rgbtab[(pxy0>> 4)&3];
-//			pxE=rgbtab[(pxy0>> 2)&3];	pxF=rgbtab[(pxy0>> 0)&3];
 
 			ct0=ibuf+(i*4+0)*ystr;	ct1=ibuf+(i*4+1)*ystr;
 			ct2=ibuf+(i*4+2)*ystr;	ct3=ibuf+(i*4+3)*ystr;
@@ -434,16 +393,6 @@ void LQTVQ_DecBlock1BGRA(byte *blkbuf, byte *ibuf, int ystr)
 			px3=rgbtab[(pxy0>> 6)&3];	px2=rgbtab[(pxy0>> 4)&3];
 			px1=rgbtab[(pxy0>> 2)&3];	px0=rgbtab[(pxy0>> 0)&3];
 
-//			pxy0=*(u32 *)(blkbuf+16+(1-i)*4);
-//			px0=rgbtab[(pxy0>>30)&3];	px1=rgbtab[(pxy0>>28)&3];
-//			px2=rgbtab[(pxy0>>26)&3];	px3=rgbtab[(pxy0>>24)&3];
-//			px4=rgbtab[(pxy0>>22)&3];	px5=rgbtab[(pxy0>>20)&3];
-//			px6=rgbtab[(pxy0>>18)&3];	px7=rgbtab[(pxy0>>16)&3];
-//			px8=rgbtab[(pxy0>>14)&3];	px9=rgbtab[(pxy0>>12)&3];
-//			pxA=rgbtab[(pxy0>>10)&3];	pxB=rgbtab[(pxy0>> 8)&3];
-//			pxC=rgbtab[(pxy0>> 6)&3];	pxD=rgbtab[(pxy0>> 4)&3];
-//			pxE=rgbtab[(pxy0>> 2)&3];	pxF=rgbtab[(pxy0>> 0)&3];
-
 			ct0=ibuf+(i*4+0)*ystr;	ct1=ibuf+(i*4+1)*ystr;
 			ct2=ibuf+(i*4+2)*ystr;	ct3=ibuf+(i*4+3)*ystr;
 
@@ -465,16 +414,6 @@ void LQTVQ_DecBlock1BGRA(byte *blkbuf, byte *ibuf, int ystr)
 			px5=rgbtab[(pxy0>>10)&3];	px4=rgbtab[(pxy0>> 8)&3];
 			px3=rgbtab[(pxy0>> 6)&3];	px2=rgbtab[(pxy0>> 4)&3];
 			px1=rgbtab[(pxy0>> 2)&3];	px0=rgbtab[(pxy0>> 0)&3];
-
-//			pxy0=*(u32 *)(blkbuf+16+(3-i)*4);
-//			px0=rgbtab[(pxy0>>30)&3];	px1=rgbtab[(pxy0>>28)&3];
-//			px2=rgbtab[(pxy0>>26)&3];	px3=rgbtab[(pxy0>>24)&3];
-//			px4=rgbtab[(pxy0>>22)&3];	px5=rgbtab[(pxy0>>20)&3];
-//			px6=rgbtab[(pxy0>>18)&3];	px7=rgbtab[(pxy0>>16)&3];
-//			px8=rgbtab[(pxy0>>14)&3];	px9=rgbtab[(pxy0>>12)&3];
-//			pxA=rgbtab[(pxy0>>10)&3];	pxB=rgbtab[(pxy0>> 8)&3];
-//			pxC=rgbtab[(pxy0>> 6)&3];	pxD=rgbtab[(pxy0>> 4)&3];
-//			pxE=rgbtab[(pxy0>> 2)&3];	pxF=rgbtab[(pxy0>> 0)&3];
 			ct0=ibuf+(i*2+0)*ystr;	ct1=ibuf+(i*2+1)*ystr;
 
 			lqtvq_fillu32_8x1_8x1((u32 *)ct0,
@@ -521,9 +460,16 @@ void LQTVQ_DecBlock2BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	mcv=acv-(dcv>>1); ncv=mcv+dcv;
 
 //	cu1=(acu-128)<<1;	cv1=(acv-128)<<1;
-	cu1=acu;	cv1=acv;
-	cg0=mcy; cb0=cg0+cu1; cr0=cg0+cv1;
-	cg7=ncy; cb7=cg7+cu1; cr7=cg7+cv1;
+	if(blkbuf[0]&0x40)
+	{
+		cg0=mcy; cb0=cg0+mcu; cr0=cg0+mcv;
+		cg3=ncy; cb3=cg3+ncu; cr3=cg3+ncv;
+	}else
+	{
+		cu1=acu;	cv1=acv;
+		cg0=mcy; cb0=cg0+cu1; cr0=cg0+cv1;
+		cg7=ncy; cb7=cg7+cu1; cr7=cg7+cv1;
+	}
 
 	if((cr0|cg0|cb0)>>8)
 	{
@@ -567,17 +513,6 @@ void LQTVQ_DecBlock2BGRA(byte *blkbuf, byte *ibuf, int ystr)
 		px5=rgbtab[(pxy1>>15)&7];	px4=rgbtab[(pxy1>>12)&7];
 		px3=rgbtab[(pxy1>> 9)&7];	px2=rgbtab[(pxy1>> 6)&7];
 		px1=rgbtab[(pxy1>> 3)&7];	px0=rgbtab[(pxy1>> 0)&7];
-
-//		pxy0=*(u32 *)(blkbuf+16+(3-i)*6+3);
-//		pxy1=*(u32 *)(blkbuf+16+(3-i)*6+0);
-//		px0=rgbtab[(pxy0>>21)&7];	px1=rgbtab[(pxy0>>18)&7];
-//		px2=rgbtab[(pxy0>>15)&7];	px3=rgbtab[(pxy0>>12)&7];
-//		px4=rgbtab[(pxy0>> 9)&7];	px5=rgbtab[(pxy0>> 6)&7];
-//		px6=rgbtab[(pxy0>> 3)&7];	px7=rgbtab[(pxy0>> 0)&7];
-//		px8=rgbtab[(pxy1>>21)&7];	px9=rgbtab[(pxy1>>18)&7];
-//		pxA=rgbtab[(pxy1>>15)&7];	pxB=rgbtab[(pxy1>>12)&7];
-//		pxC=rgbtab[(pxy1>> 9)&7];	pxD=rgbtab[(pxy1>> 6)&7];
-//		pxE=rgbtab[(pxy1>> 3)&7];	pxF=rgbtab[(pxy1>> 0)&7];
 		ct0=ibuf+(i*2+0)*ystr;	ct1=ibuf+(i*2+1)*ystr;
 
 		lqtvq_fillu32_8x1_8x1((u32 *)ct0,
@@ -622,10 +557,16 @@ void LQTVQ_DecBlock3BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	mcu=acu-(dcu>>1); ncu=mcu+dcu;
 	mcv=acv-(dcv>>1); ncv=mcv+dcv;
 
-//	cu1=(acu-128)<<1;	cv1=(acv-128)<<1;
-	cu1=acu;	cv1=acv;
-	cg0=mcy; cb0=cg0+cu1; cr0=cg0+cv1;
-	cgF=ncy; cbF=cgF+cu1; crF=cgF+cv1;
+	if(blkbuf[0]&0x40)
+	{
+		cg0=mcy; cb0=cg0+mcu; cr0=cg0+mcv;
+		cg3=ncy; cb3=cg3+ncu; cr3=cg3+ncv;
+	}else
+	{
+		cu1=acu;	cv1=acv;
+		cg0=mcy; cb0=cg0+cu1; cr0=cg0+cv1;
+		cgF=ncy; cbF=cgF+cu1; crF=cgF+cv1;
+	}
 
 	if((cr0|cg0|cb0)>>8)
 	{
@@ -685,17 +626,6 @@ void LQTVQ_DecBlock3BGRA(byte *blkbuf, byte *ibuf, int ystr)
 		px5=rgbtab[(pxy1>>20)&15];	px4=rgbtab[(pxy1>>16)&15];
 		px3=rgbtab[(pxy1>>12)&15];	px2=rgbtab[(pxy1>> 8)&15];
 		px1=rgbtab[(pxy1>> 4)&15];	px0=rgbtab[(pxy1>> 0)&15];
-
-//		pxy0=*(u32 *)(blkbuf+16+(3-i)*8+4);
-//		pxy1=*(u32 *)(blkbuf+16+(3-i)*8+0);
-//		px0=rgbtab[(pxy0>>28)&15];	px1=rgbtab[(pxy0>>24)&15];
-//		px2=rgbtab[(pxy0>>20)&15];	px3=rgbtab[(pxy0>>16)&15];
-//		px4=rgbtab[(pxy0>>12)&15];	px5=rgbtab[(pxy0>> 8)&15];
-//		px6=rgbtab[(pxy0>> 4)&15];	px7=rgbtab[(pxy0>> 0)&15];
-//		px8=rgbtab[(pxy1>>28)&15];	px9=rgbtab[(pxy1>>24)&15];
-//		pxA=rgbtab[(pxy1>>20)&15];	pxB=rgbtab[(pxy1>>16)&15];
-//		pxC=rgbtab[(pxy1>>12)&15];	pxD=rgbtab[(pxy1>> 8)&15];
-//		pxE=rgbtab[(pxy1>> 4)&15];	pxF=rgbtab[(pxy1>> 0)&15];
 		ct0=ibuf+(i*2+0)*ystr;	ct1=ibuf+(i*2+1)*ystr;
 
 		lqtvq_fillu32_8x1_8x1((u32 *)ct0,
@@ -705,11 +635,11 @@ void LQTVQ_DecBlock3BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	}
 }
 
-/* 8x8x2 */
+/* Y8x8x2+UV */
 void LQTVQ_DecBlock4BGRA(byte *blkbuf, byte *ibuf, int ystr)
 {
 	int ytab[4], utab[4], vtab[4];
-	byte *ct0, *ct1;
+	byte *ct0, *ct1, *ct2, *ct3;
 	int acy, acu, acv, dcy, dcu, dcv;
 	int mcy, mcu, mcv, ncy, ncu, ncv;
 
@@ -718,10 +648,11 @@ void LQTVQ_DecBlock4BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	int cb0, cb1, cb2, cb3;
 	int cy0, cy1, cy2, cy3;
 	int cy, cu, cv, cu0, cv0, cu1, cv1, cu2, cv2, cu3, cv3;
-
-	u32 pxy0, pxy1, pxu, pxv;
+	u32 pxy, pxu, pxv, pxy0, pxy1, pxu0, pxv0, pxu1, pxv1;
+	int bt;
 	int i, j, k;
 	
+	bt=blkbuf[0]&0x1F;
 	acy=*(s16 *)(blkbuf+ 4);
 	acu=*(s16 *)(blkbuf+ 6);
 	acv=*(s16 *)(blkbuf+ 8);
@@ -748,7 +679,7 @@ void LQTVQ_DecBlock4BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	vtab[2]=( 5*mcv+11*ncv)>>4;
 	vtab[3]=ncv;
 	
-	if(blkbuf[0]==0x18)
+	if(bt==0x18)
 	{
 		pxu=*(u32 *)(blkbuf+32);
 		pxv=*(u32 *)(blkbuf+36);
@@ -764,10 +695,16 @@ void LQTVQ_DecBlock4BGRA(byte *blkbuf, byte *ibuf, int ystr)
 			{
 //				k=(3-j)*4;
 				k=j*4;
-				cy0=ytab[(pxy0>>(k+18))&3];
-				cy1=ytab[(pxy0>>(k+16))&3];
-				cy2=ytab[(pxy0>>(k+ 2))&3];
-				cy3=ytab[(pxy0>>(k+ 0))&3];
+//				cy0=ytab[(pxy0>>(k+18))&3];
+//				cy1=ytab[(pxy0>>(k+16))&3];
+//				cy2=ytab[(pxy0>>(k+ 2))&3];
+//				cy3=ytab[(pxy0>>(k+ 0))&3];
+
+				cy3=ytab[(pxy0>>(k+18))&3];
+				cy2=ytab[(pxy0>>(k+16))&3];
+				cy1=ytab[(pxy0>>(k+ 2))&3];
+				cy0=ytab[(pxy0>>(k+ 0))&3];
+
 //				k=30-((i*4+j)*2);
 				k=(i*4+j)*2;
 				cu=utab[(pxu>>k)&3];
@@ -818,7 +755,7 @@ void LQTVQ_DecBlock4BGRA(byte *blkbuf, byte *ibuf, int ystr)
 		return;
 	}
 
-	if(blkbuf[0]==0x1A)
+	if(bt==0x1A)
 	{
 		for(i=0; i<4; i++)
 		{
@@ -894,6 +831,257 @@ void LQTVQ_DecBlock4BGRA(byte *blkbuf, byte *ibuf, int ystr)
 		}
 		return;
 	}
+
+	if(bt==0x1B)
+	{
+		for(i=0; i<4; i++)
+		{
+			ct0=ibuf+(i*2+0)*ystr;
+			ct1=ibuf+(i*2+1)*ystr;
+			pxy0=*(u32 *)(blkbuf+16+i*4+0);
+			pxu0=*(u32 *)(blkbuf+32+i*4+0);
+			pxv0=*(u32 *)(blkbuf+48+i*4+0);
+		
+			for(j=0; j<4; j++)
+			{
+				k=j*4;
+				cy0=ytab[(pxy0>>(k+18))&3];	cy1=ytab[(pxy0>>(k+16))&3];
+				cy2=ytab[(pxy0>>(k+ 2))&3];	cy3=ytab[(pxy0>>(k+ 0))&3];
+				cu0=utab[(pxu0>>(k+18))&3];	cu1=utab[(pxu0>>(k+16))&3];
+				cu2=utab[(pxu0>>(k+ 2))&3];	cu3=utab[(pxu0>>(k+ 0))&3];
+				cv0=vtab[(pxv0>>(k+18))&3];	cv1=vtab[(pxv0>>(k+16))&3];
+				cv2=vtab[(pxv0>>(k+ 2))&3];	cv3=vtab[(pxv0>>(k+ 0))&3];
+				
+				cg0=cy0; cb0=cg0+cu0; cr0=cg0+cv0;
+				cg1=cy1; cb1=cg1+cu1; cr1=cg1+cv1;
+				cg2=cy2; cb2=cg2+cu2; cr2=cg2+cv2;
+				cg3=cy3; cb3=cg3+cu3; cr3=cg3+cv3;
+				
+				if((cr0|cr1|cr2|cr3)>>8)
+				{
+					cr0=lqtvq_clamp255(cr0);
+					cr1=lqtvq_clamp255(cr1);
+					cr2=lqtvq_clamp255(cr2);
+					cr3=lqtvq_clamp255(cr3);
+				}
+
+				if((cg0|cg1|cg2|cg3)>>8)
+				{
+					cg0=lqtvq_clamp255(cg0);
+					cg1=lqtvq_clamp255(cg1);
+					cg2=lqtvq_clamp255(cg2);
+					cg3=lqtvq_clamp255(cg3);
+				}
+
+				if((cb0|cb1|cb2|cb3)>>8)
+				{
+					cb0=lqtvq_clamp255(cb0);
+					cb1=lqtvq_clamp255(cb1);
+					cb2=lqtvq_clamp255(cb2);
+					cb3=lqtvq_clamp255(cb3);
+				}
+				
+				ct0[0]=cb0;	ct0[1]=cg0;	ct0[2]=cr0;	ct0[3]=255;
+				ct0[4]=cb1;	ct0[5]=cg1;	ct0[6]=cr1;	ct0[7]=255;
+				ct1[0]=cb2;	ct1[1]=cg2;	ct1[2]=cr2;	ct1[3]=255;
+				ct1[4]=cb3;	ct1[5]=cg3;	ct1[6]=cr3;	ct1[7]=255;
+				ct0+=8;		ct1+=8;
+			}
+		}
+		return;
+	}
+
+#if 1
+	if(bt==0x14)
+	{
+		pxy=*(byte *)(blkbuf+16);
+		i=*(byte *)(blkbuf+17);
+		pxu=i&15;
+		pxv=i>>4;
+		
+		utab[1]=utab[3];
+		vtab[1]=vtab[3];
+
+		for(i=0; i<2; i++)
+		{
+			ct0=ibuf+(i*4+0)*ystr;
+			ct1=ibuf+(i*4+1)*ystr;		
+			ct2=ibuf+(i*4+2)*ystr;
+			ct3=ibuf+(i*4+3)*ystr;		
+			for(j=0; j<2; j++)
+			{
+				k=(i*2+j)*2;
+				cy=ytab[(pxy>>k)&3];
+				k=i*2+j;
+				cu=utab[(pxu>>k)&1];
+				cv=vtab[(pxv>>k)&1];
+				
+				cg0=cy; cb0=cg0+cu; cr0=cg0+cv;
+				
+				if((cr0|cg0|cb0)>>8)
+				{
+					cr0=lqtvq_clamp255(cr0);
+					cg0=lqtvq_clamp255(cg0);
+					cb0=lqtvq_clamp255(cb0);
+				}
+				
+				pxy1=0xFF000000|(cr0<<16)|(cg0<<8)|cb0;
+				((u32 *)ct0)[0]=pxy1;	((u32 *)ct0)[1]=pxy1;
+				((u32 *)ct0)[2]=pxy1;	((u32 *)ct0)[3]=pxy1;
+				((u32 *)ct1)[0]=pxy1;	((u32 *)ct1)[1]=pxy1;
+				((u32 *)ct1)[2]=pxy1;	((u32 *)ct1)[3]=pxy1;
+				((u32 *)ct2)[0]=pxy1;	((u32 *)ct2)[1]=pxy1;
+				((u32 *)ct2)[2]=pxy1;	((u32 *)ct2)[3]=pxy1;
+				((u32 *)ct3)[0]=pxy1;	((u32 *)ct3)[1]=pxy1;
+				((u32 *)ct3)[2]=pxy1;	((u32 *)ct3)[3]=pxy1;
+				ct0+=16;	ct1+=16;	ct2+=16;	ct3+=16;
+			}
+		}
+		return;
+	}
+
+	if(bt==0x15)
+	{
+		pxy=*(u32 *)(blkbuf+16);
+		pxu=*(byte *)(blkbuf+20);
+		pxv=*(byte *)(blkbuf+21);
+
+		for(i=0; i<4; i++)
+		{
+			ct0=ibuf+(i*2+0)*ystr;
+			ct1=ibuf+(i*2+1)*ystr;		
+			for(j=0; j<4; j++)
+			{
+				k=(i*4+j)*2;
+				cy=ytab[(pxy>>k)&3];
+				k=((i>>1)*2+(j>>1))*2;
+				cu=utab[(pxu>>k)&3];
+				cv=vtab[(pxv>>k)&3];
+				
+				cg0=cy; cb0=cg0+cu; cr0=cg0+cv;
+				
+				if((cr0|cg0|cb0)>>8)
+				{
+					cr0=lqtvq_clamp255(cr0);
+					cg0=lqtvq_clamp255(cg0);
+					cb0=lqtvq_clamp255(cb0);
+				}
+				
+				ct0[0]=cb0;	ct0[1]=cg0;	ct0[2]=cr0;	ct0[3]=255;
+				ct0[4]=cb0;	ct0[5]=cg0;	ct0[6]=cr0;	ct0[7]=255;
+				ct1[0]=cb0;	ct1[1]=cg0;	ct1[2]=cr0;	ct1[3]=255;
+				ct1[4]=cb0;	ct1[5]=cg0;	ct1[6]=cr0;	ct1[7]=255;
+				
+				ct0+=8;
+				ct1+=8;
+			}
+		}
+		return;
+	}
+
+	if(bt==0x16)
+	{
+		pxy=*(u32 *)(blkbuf+16);
+		pxu=*(u32 *)(blkbuf+20);
+		pxv=*(u32 *)(blkbuf+24);
+
+		for(i=0; i<4; i++)
+		{
+			ct0=ibuf+(i*2+0)*ystr;
+			ct1=ibuf+(i*2+1)*ystr;		
+			for(j=0; j<4; j++)
+			{
+				k=(i*4+j)*2;
+				cy=ytab[(pxy>>k)&3];
+				cu=utab[(pxu>>k)&3];
+				cv=vtab[(pxv>>k)&3];
+				
+				cg0=cy; cb0=cg0+cu; cr0=cg0+cv;
+				
+				if((cr0|cg0|cb0)>>8)
+				{
+					cr0=lqtvq_clamp255(cr0);
+					cg0=lqtvq_clamp255(cg0);
+					cb0=lqtvq_clamp255(cb0);
+				}
+				
+				ct0[0]=cb0;	ct0[1]=cg0;	ct0[2]=cr0;	ct0[3]=255;
+				ct0[4]=cb0;	ct0[5]=cg0;	ct0[6]=cr0;	ct0[7]=255;
+				ct1[0]=cb0;	ct1[1]=cg0;	ct1[2]=cr0;	ct1[3]=255;
+				ct1[4]=cb0;	ct1[5]=cg0;	ct1[6]=cr0;	ct1[7]=255;
+				
+				ct0+=8;
+				ct1+=8;
+			}
+		}
+		return;
+	}
+
+	if(bt==0x17)
+	{
+//		pxu=*(u32 *)(blkbuf+32);
+//		pxv=*(u32 *)(blkbuf+36);
+		pxu=*(byte *)(blkbuf+32);
+		pxv=*(byte *)(blkbuf+33);
+
+		for(i=0; i<4; i++)
+		{
+			ct0=ibuf+(i*2+0)*ystr;
+			ct1=ibuf+(i*2+1)*ystr;
+			pxy0=*(u32 *)(blkbuf+16+i*4+0);
+		
+			for(j=0; j<4; j++)
+			{
+				k=j*4;
+				cy0=ytab[(pxy0>>(k+18))&3];
+				cy1=ytab[(pxy0>>(k+16))&3];
+				cy2=ytab[(pxy0>>(k+ 2))&3];
+				cy3=ytab[(pxy0>>(k+ 0))&3];
+				k=((i>>1)*4+(j>>1))*2;
+				cu=utab[(pxu>>k)&3];
+				cv=vtab[(pxv>>k)&3];
+				
+				cg0=cy0; cb0=cg0+cu; cr0=cg0+cv;
+				cg1=cy1; cb1=cg1+cu; cr1=cg1+cv;
+				cg2=cy2; cb2=cg2+cu; cr2=cg2+cv;
+				cg3=cy3; cb3=cg3+cu; cr3=cg3+cv;
+				
+				if((cr0|cr1|cr2|cr3)>>8)
+				{
+					cr0=lqtvq_clamp255(cr0);
+					cr1=lqtvq_clamp255(cr1);
+					cr2=lqtvq_clamp255(cr2);
+					cr3=lqtvq_clamp255(cr3);
+				}
+
+				if((cg0|cg1|cg2|cg3)>>8)
+				{
+					cg0=lqtvq_clamp255(cg0);
+					cg1=lqtvq_clamp255(cg1);
+					cg2=lqtvq_clamp255(cg2);
+					cg3=lqtvq_clamp255(cg3);
+				}
+
+				if((cb0|cb1|cb2|cb3)>>8)
+				{
+					cb0=lqtvq_clamp255(cb0);
+					cb1=lqtvq_clamp255(cb1);
+					cb2=lqtvq_clamp255(cb2);
+					cb3=lqtvq_clamp255(cb3);
+				}
+				
+				ct0[0]=cb0;	ct0[1]=cg0;	ct0[2]=cr0;	ct0[3]=255;
+				ct0[4]=cb1;	ct0[5]=cg1;	ct0[6]=cr1;	ct0[7]=255;
+				ct1[0]=cb2;	ct1[1]=cg2;	ct1[2]=cr2;	ct1[3]=255;
+				ct1[4]=cb3;	ct1[5]=cg3;	ct1[6]=cr3;	ct1[7]=255;
+				
+				ct0+=8;
+				ct1+=8;
+			}
+		}
+		return;
+	}
+#endif
 }
 
 
@@ -918,8 +1106,10 @@ void LQTVQ_DecBlock5BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	acu=(blkbuf[3]-128)<<1;
 	acv=(blkbuf[4]-128)<<1;
 	dcy=blkbuf[5];
-	dcu=blkbuf[6]<<1;
-	dcv=blkbuf[7]<<1;
+//	dcu=blkbuf[6]<<1;
+//	dcv=blkbuf[7]<<1;
+	dcu=(blkbuf[6]-128)<<1;
+	dcv=(blkbuf[7]-128)<<1;
 	
 	mcy=acy-(dcy>>1); ncy=mcy+dcy;
 	mcu=acu-(dcu>>1); ncu=mcu+dcu;
@@ -940,7 +1130,8 @@ void LQTVQ_DecBlock5BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	vtab[2]=( 5*mcv+11*ncv)>>4;
 	vtab[3]=ncv;
 	
-	if(blkbuf[0]==0x10)
+//	if(blkbuf[0]==0x10)
+	if(1)
 	{
 		pxu=*(u32 *)(blkbuf+24);
 		pxv=*(u32 *)(blkbuf+28);
@@ -1055,7 +1246,7 @@ void LQTVQ_DecBlock6BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	rgbtab[0]=0xFF000000|(cr0<<16)|(cg0<<8)|cb0;
 	rgbtab[1]=0xFF000000|(cr3<<16)|(cg3<<8)|cb3;
 
-	switch(blkbuf[0])
+	switch(blkbuf[0]&0x1F)
 	{
 	case 0x01:
 		pxy0=blkbuf[16];
@@ -1184,6 +1375,35 @@ void LQTVQ_DecBlock6BGRA(byte *blkbuf, byte *ibuf, int ystr)
 	}
 }
 
+/*
+0000
+0003
+0033
+0333
+
+0012 90 06
+0112 94 16
+1223 E9 6B
+1233 F9 6F
+
+0123 E8
+*/
+
+void LQTVQ_DecBlockGrad4BGRA(byte *blkbuf, byte *ibuf, int ystr)
+{
+	static const u32 grtab[16]={
+		0xF0F0F0F0,	0xFFFF0000,	0x0F0F0F0F,	0x0000FFFF,
+		0x3F0F0300,	0xFCF0C000,	0x00C0F0FC,	0x00030F3F,
+		0xE8E8E8E8, 0xFFAA5500, 0x1B1B1B1B, 0x0055AAFF,
+		0xF9E99490, 0x6F6B1606, 0x06166B6F, 0x9094E9F9};
+	byte tblk[128];
+	memcpy(tblk, blkbuf, 64);
+	
+	tblk[0]=0x0C;
+	*(u32 *)(tblk+16)=grtab[blkbuf[16]&15];
+	LQTVQ_DecBlock1BGRA(tblk, ibuf, ystr);
+}
+
 force_inline void lqtvq_fillau32_8x1(byte *px, byte v)
 {
 	px[ 3]=v; px[ 7]=v; px[11]=v; px[15]=v;
@@ -1226,9 +1446,9 @@ void LQTVQ_DecBlockAlphaBGRA(byte *blkbuf, byte *ibuf, int ystr)
 	ca=blkbuf[2];
 	da=blkbuf[3];
 
-	switch(blkbuf[1])
+	switch(blkbuf[1]&0x1F)
 	{
-	case 0:
+	case 0x00:
 		lqtvq_fillau32_8x1(ibuf+0*ystr, ca);
 		lqtvq_fillau32_8x1(ibuf+1*ystr, ca);
 		lqtvq_fillau32_8x1(ibuf+2*ystr, ca);
@@ -1238,11 +1458,14 @@ void LQTVQ_DecBlockAlphaBGRA(byte *blkbuf, byte *ibuf, int ystr)
 		lqtvq_fillau32_8x1(ibuf+6*ystr, ca);
 		lqtvq_fillau32_8x1(ibuf+7*ystr, ca);
 		break;
-	case 4:
+	case 0x04:
 		break;
-	case 12:
-		ma=(ca<<1)-da;
-		na=ma+da;
+	case 0x0C:
+//		ma=(ca<<1)-da;
+//		na=ma+da;
+		ma=ca-(da>>1); na=ma+da;
+		ma=lqtvq_clamp255(ma);
+		na=lqtvq_clamp255(na);
 		
 		tab[0]=ma;
 		tab[1]=(11*ma+ 5*na)>>4;
@@ -1261,15 +1484,6 @@ void LQTVQ_DecBlockAlphaBGRA(byte *blkbuf, byte *ibuf, int ystr)
 			px3=tab[(pxy0>> 6)&3];	px2=tab[(pxy0>> 4)&3];
 			px1=tab[(pxy0>> 2)&3];	px0=tab[(pxy0>> 0)&3];
 
-//			pxy0=*(u32 *)(blkbuf+48+(3-i)*4);
-//			px0=tab[(pxy0>>30)&3];	px1=tab[(pxy0>>28)&3];
-//			px2=tab[(pxy0>>26)&3];	px3=tab[(pxy0>>24)&3];
-//			px4=tab[(pxy0>>22)&3];	px5=tab[(pxy0>>20)&3];
-//			px6=tab[(pxy0>>18)&3];	px7=tab[(pxy0>>16)&3];
-//			px8=tab[(pxy0>>14)&3];	px9=tab[(pxy0>>12)&3];
-//			pxA=tab[(pxy0>>10)&3];	pxB=tab[(pxy0>> 8)&3];
-//			pxC=tab[(pxy0>> 6)&3];	pxD=tab[(pxy0>> 4)&3];
-//			pxE=tab[(pxy0>> 2)&3];	pxF=tab[(pxy0>> 0)&3];
 			lqtvq_fillau32_8x1_8x1(ibuf+(i*2+0)*ystr,
 				px0, px1, px2, px3, px4, px5, px6, px7);
 			lqtvq_fillau32_8x1_8x1(ibuf+(i*2+1)*ystr,
@@ -1283,7 +1497,7 @@ void LQTVQ_DecBlockAlphaBGRA(byte *blkbuf, byte *ibuf, int ystr)
 
 void LQTVQ_DecBlockBGRA(byte *blkbuf, byte *ibuf, int ystr)
 {
-	switch(blkbuf[0])
+	switch(blkbuf[0]&0x1F)
 	{
 	case 0x00:
 		if(*(u16 *)(blkbuf+2)!=0x00FF)
@@ -1311,6 +1525,11 @@ void LQTVQ_DecBlockBGRA(byte *blkbuf, byte *ibuf, int ystr)
 		if(*(u16 *)(blkbuf+2)!=0x00FF)
 			LQTVQ_DecBlockAlphaBGRA(blkbuf, ibuf, ystr);
 		break;
+	case 0x08:
+		LQTVQ_DecBlockGrad4BGRA(blkbuf, ibuf, ystr);
+		if(*(u16 *)(blkbuf+2)!=0x00FF)
+			LQTVQ_DecBlockAlphaBGRA(blkbuf, ibuf, ystr);
+		break;
 
 	case 0x09: case 0x0A:
 	case 0x0B: case 0x0C:
@@ -1322,24 +1541,27 @@ void LQTVQ_DecBlockBGRA(byte *blkbuf, byte *ibuf, int ystr)
 			LQTVQ_DecBlockAlphaBGRA(blkbuf, ibuf, ystr);
 		break;
 	case 0x10:
-		LQTVQ_DecBlock5BGRA(blkbuf, ibuf, ystr);
-		break;
-
-	case 0x13:
 		LQTVQ_DecBlock2BGRA(blkbuf, ibuf, ystr);
 		if(*(u16 *)(blkbuf+2)!=0x00FF)
 //		if(((*(u32 *)blkbuf)&0xFFFFFF00)!=0x00FF0000)
 			LQTVQ_DecBlockAlphaBGRA(blkbuf, ibuf, ystr);
 		break;
-	case 0x14:
+	case 0x11:
 		LQTVQ_DecBlock3BGRA(blkbuf, ibuf, ystr);
 		if(*(u16 *)(blkbuf+2)!=0x00FF)
 //		if(((*(u32 *)blkbuf)&0xFFFFFF00)!=0x00FF0000)
 			LQTVQ_DecBlockAlphaBGRA(blkbuf, ibuf, ystr);
 		break;
-	case 0x18:
-	case 0x1A:
-	case 0x1B:
+
+	case 0x13:
+		LQTVQ_DecBlock5BGRA(blkbuf, ibuf, ystr);
+		if(*(u16 *)(blkbuf+2)!=0x00FF)
+			LQTVQ_DecBlockAlphaBGRA(blkbuf, ibuf, ystr);
+		break;
+	case 0x14:
+	case 0x15:	case 0x16:
+	case 0x17:	case 0x18:
+	case 0x1A:	case 0x1B:
 		LQTVQ_DecBlock4BGRA(blkbuf, ibuf, ystr);
 		if(*(u16 *)(blkbuf+2)!=0x00FF)
 //		if(((*(u32 *)blkbuf)&0xFFFFFF00)!=0x00FF0000)
@@ -1358,34 +1580,40 @@ void LQTVQ_DecBlockBGRA(byte *blkbuf, byte *ibuf, int ystr)
 
 void LQTVQ_DecBlockBGRX(byte *blkbuf, byte *ibuf, int ystr)
 {
-	switch(blkbuf[0])
+	switch(blkbuf[0]&0x1F)
 	{
 	case 0x00:
 		LQTVQ_DecBlockFlatBGRA(blkbuf, ibuf, ystr);
 		break;
-
 	case 0x01: case 0x02:
 	case 0x03: case 0x04:
 	case 0x05: case 0x06:
 	case 0x07:
 		LQTVQ_DecBlock6BGRA(blkbuf, ibuf, ystr);
 		break;
-
+	case 0x08:
+		LQTVQ_DecBlockGrad4BGRA(blkbuf, ibuf, ystr);
+		break;
 	case 0x09: case 0x0A:
 	case 0x0B: case 0x0C:
 	case 0x0D: case 0x0E:
 	case 0x0F:
 		LQTVQ_DecBlock1BGRA(blkbuf, ibuf, ystr);
 		break;
-	case 0x13:
+	case 0x10:
 		LQTVQ_DecBlock2BGRA(blkbuf, ibuf, ystr);
 		break;
-	case 0x14:
+	case 0x11:
 		LQTVQ_DecBlock3BGRA(blkbuf, ibuf, ystr);
 		break;
-	case 0x18:
-	case 0x1A:
-	case 0x1B:
+
+	case 0x13:
+		LQTVQ_DecBlock5BGRA(blkbuf, ibuf, ystr);
+		break;
+	case 0x14:
+	case 0x15:	case 0x16:
+	case 0x17:	case 0x18:
+	case 0x1A:	case 0x1B:
 		LQTVQ_DecBlock4BGRA(blkbuf, ibuf, ystr);
 		break;
 	case 0x1C:

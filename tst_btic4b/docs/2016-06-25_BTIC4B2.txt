@@ -145,6 +145,11 @@ Header:
 
 Header may be located either in the image (preceding image-data or mipmap lumps), or appended onto BITMAPINFOHEADER within the relevant file-formats.
 
+If XSize and YSize are 0, then the resolution is taken from the BITMAPINFOHEADER. If they are non-zero and a bitmap header is used, then they are required to match.
+
+Defaults (No Header):
+* LDR8 RGBA with 512-bit blocks and GDbDr.
+
 
 == Bitstream Serialization ==
 
@@ -178,11 +183,15 @@ Rk Values:
 * RkCnt(AdRice)=2: Counts
 * RkMisc(AdSRice)=2: Misc Values.
 
-SMTF:
+SMTF (Old):
 * Values are encoded as a AdRiceLL encoded index(I).
 * 0: Returns the value in position 0.
 * 1-31: Swap I with I-1, returning the value which was previously in I.
 * 32-255: Rotate the table back 1 position, swapping the new 0 with the old I, returning the value previously at I.
+
+SMTF/STF2 (New):
+* Values are encoded as a AdRiceLL encoded index(I).
+* Swap I with (I*7)/8, returning the value that was at I.
 
 
 === Masks ===
@@ -224,6 +233,26 @@ Initially, the mask SMTF table will have values in descending order, with the in
 
 Bit 7 will indicate whether to use YUVD or YUVDyuv interpolation.
 If set, YUVD vectors will be decoded as YUVD, and single-axis interpolation will be Luma-only. Clearing this bit will cause YUVD endpoints to be decoded as YUVDyuv, and single-axis blocks will also interpolate chroma.
+
+
+=== Color Prediction ===
+
+Parameter -2 will be a predictor.
+This predictor may be applied at each block command to predict the color vector.
+
+If this parameter is 0, then the prediction will be whatever is in the color vector.
+
+Prediction will be based on blocks in the pattern:
+ C B
+ A p
+
+Where p is the block being predicted, A is the preceding block, with C and B being the blocks in the preceding scanline. Near the start of the image, if C falls outside of the image buffer, then prediction will not be used, and it will behave as if the predictor were 0.
+
+If one of the blocks is the result of a skip or skip+translate operation, its values will ignored be copied from the current contents of the color vector.
+
+If the predictor is 1, then a Paeth predictor will be used to predict the block color:
+
+p will be predicted as whichever value is closest to A+B-C.
 
 
 === Commands ===
@@ -300,9 +329,9 @@ If the LSB is 1, then the value is a bit-packed color vector. Each component del
 == Canonical Meta-Block ==
 
 Metablocks are an intermediate representation for blocks inside the codec.
-The specifics of the metablock format need not apply to its serialized form, but they may be related.
+The specifics of the metablock format need not apply to its serialized form, but they are related.
 
-The metablocks may be 384 or 512 bits in the current form.
+The metablocks may be 256, 384, 512, or 768 bits in the current form.
 
 8x8 blocks: Nominal=384 Bits, Ext=512 bits
 
@@ -322,6 +351,7 @@ The metablocks may be 384 or 512 bits in the current form.
 
  Bytes 0-7: Color Vector (LDR8-Only Blocks, No Alpha)
     0: BlockType:BYTE
+    1: Reserved:BYTE
     2: Cy:BYTE (Center Y, 8-bit)
     3: Cu:BYTE (Center U, 8-bit)
     4: Cv:BYTE (Center V, 8-bit)
@@ -361,7 +391,6 @@ The metablocks may be 384 or 512 bits in the current form.
  Bytes 72-95: V Data (8x8x3)
 
 Block Type (Hex):
-* Bs=Minimum blocksize needed to encode this format.
 * 00=Flat (0 bit, Bs=256b)
 * 01=2x2x1 (4 bit, Bs=256b)
 * 02=4x2x1 (8 bit, Bs=256b)
@@ -378,22 +407,27 @@ Block Type (Hex):
 * 0D=8x4x2 (64 bit, Bs=256b)
 * 0E=4x8x2 (64 bit, Bs=256b)
 * 0F=8x8x2 (128 bit, Bs=256b)
-* 10=Y8x8x2+UV4x4x2 (192 bit, 4:2:0, LDR8, Bs=256b)
-* 11=Y2x2x2+UV2x2x1 (16 bit, H.1:1:0, Bs=256b)
-* R 12
-* 13=8x8x3 (192 bit, Bs=384b)
-* 14=8x8x4 (256 bit, Bs=384b)
-* 15=Y4x4x2+UV2x2x2 (48 bit, H.4:1:0, Bs=256b)
-* 16=Y4x4x2+UV4x4x2 (96 bit, H.4:2:0, Bs=256b)
+* 10=8x8x3 (192 bit, Bs=384b)
+* 11=8x8x4 (256 bit, Bs=384b)
+* 12=Escape (Tag, Reserved)
+* 13=Y8x8x2+UV4x4x2 (192 bit, 4:2:0, LDR8, Bs=256b)
+* 14=Y2x2x2+UV2x2x1 (16 bit, 4:1:0, Bs=256b)
+* 15=Y4x4x2+UV2x2x2 (48 bit, 4:1:0, Bs=256b)
+* 16=Y4x4x2+UV4x4x2 (96 bit, 4:2:0, Bs=256b)
 * 17=Y8x8x2+UV2x2x2 (144 bit, 4:1:0, Bs=384b)
 * 18=Y8x8x2+UV4x4x2 (192 bit, 4:2:0, Bs=384b)
 * 19=Y8x8x3+UV8x8x2 (448 bit, 4:4:4, LDR8, Bs=512b)
 * 1A=Y8x8x2+UV4x8x2 (256 bit, 4:2:2, Bs=384b)
-* 1B=Y8x8x2+UV8x8x2 (384 bit, 4:4:4, Bs=512b)
+* 1B=Y8x8x2+UV8x8x2 (384 bit, 4:4:4, Bs=512b, BsA=768b)
 * 1C=Y8x8x3+UV4x4x2 (256 bit, 4:2:0, Bs=384b)
-* 1D=Y8x8x4+UV4x4x4 (384 bit, 4:2:0, Bs=512b)
-* 1E=Y8x8x3+UV4x8x3 (384 bit, 4:2:2, Bs=512b)
-* 1F=Y8x8x4+UV8x8x3 (640 bit, 4:4:4, Bs=768b)
+* 1D=Y8x8x4+UV4x4x4 (384 bit, 4:2:0, Bs=512b, BsA=768b)
+* 1E=Y8x8x3+UV4x8x3 (384 bit, 4:2:2, Bs=512b, BsA=768b)
+* 1F=Y8x8x4+UV8x8x3 (640 bit, 4:4:4, Bs=768b, BsA=N/A)
+** Bs: Minimum blocksize needed to encode this format.
+** BsA: Minimum blocksize needed to encode an alpha channel.
+** LDR8: Block uses LDR8 Header format.
+
+Bit 6 in BlockType will indicate the use of YUVDyuv for single-axis blocks.
 
 
 Pixel data will be laid out in raster order starting in the low-order bits.
