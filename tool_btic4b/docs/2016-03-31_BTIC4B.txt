@@ -1,0 +1,328 @@
+BTIC4B is meant as a reasonably high-speed codec design. Quality/bitrate is a somewhat lower priority than making it fast. Its primary use-case is real-time encoding of 4K video sequences.
+
+Value Ranges:
+* LDR 8, Y values are between 0 and 255.
+** U and V values are in the range of +/- 255.
+* LDR 10/12, Y values are between 0 and 1023 or 4095.
+** U and V values are in the range of +/- 1023 or 4095.
+* HDR 16, YUV values encode 16-bit color points representing half-float values.
+** HDR16 values may be either signed or unsigned.
+*** Values are signed, with negatives stored in ones' complement form.
+*** Values will be clamped to 16-bit range inside blocks.
+
+The primary colorspace used with this codec will be GDbDr, where:
+* LDR8-Only:
+** Y=G
+** U=((B-G)>>1)+128
+** V=((R-G)>>1)+128
+* LDR and HDR:
+** Y=G
+** U=B-G
+** V=R-G
+
+Endpoints will be stored in Center/Diff form:
+* Center=(Min+Max)/2
+* Diff=Max-Min
+* This is done for all components.
+
+Interpolation:
+* 2 bit:
+** 0=Min
+** 1=2/3*Min+1/3Max
+** 2=1/3*Min+2/3Max
+** 3=Max
+* 3 bit:
+** 0=Min
+** 1=6/7*Min+1/7Max
+** 2=5/7*Min+2/7Max
+** 3=4/7*Min+3/7Max
+** 4=3/7*Min+4/7Max
+** 5=2/7*Min+5/7Max
+** 6=1/7*Min+6/7Max
+** 7=Max
+
+
+== Canonical Meta-Block ==
+
+Metablocks are an intermediate representation for blocks inside the codec.
+The specifics of the metablock format need not apply to its serialized form, but they may be related.
+
+The metablocks may be 384 or 512 bits in the current form.
+
+8x8 blocks: Nominal=384 Bits, Ext=512 bits
+
+ Bytes 0-15: Color Vector
+    0: BlockType:BYTE
+    2: Ca2:BYTE (Center Alpha, 8-bit)
+    3: Da2:BYTE (Diff Alpha, 8-bit)
+    4: Cy:S16 (Center Y, 16-bit)
+    6: Cu:S16 (Center U, 16-bit)
+    8: Cv:S16 (Center V, 16-bit)
+   10: Dy:S16 (Diff Y, 16-bit)
+   12: Du:S16 (Diff U, 16-bit)
+   14: Dv:S16 (Diff V, 16-bit)
+ Bytes 16-47: YUV Data (384 bit block)
+ Bytes 48-63: YUV Data (512 bit block)
+
+ Bytes 0-15: Color Vector (LDR8-Only Blocks)
+    0: BlockType:BYTE
+    2: Cy:BYTE (Center Y, 8-bit)
+    3: Cu:BYTE (Center U, 8-bit)
+    4: Cv:BYTE (Center V, 8-bit)
+    5: Dy:BYTE (Diff Y, 8-bit)
+    6: Du:BYTE (Diff U, 8-bit)
+    7: Dv:BYTE (Diff V, 8-bit)
+
+ 8x8x3+4x4x2 (4:2:0, 384 bit)
+ Bytes 16-39: Y Data (8x8x3 bpp)
+ Bytes 40-43: U Data (4x4x2 bpp)
+ Bytes 44-47: V Data (4x4x2 bpp)
+
+ 8x8x3+4x8x3 (4:2:2, 512 bit)
+ Bytes 16-39: Y Data (8x8x3 bpp)
+ Bytes 40-51: U Data (4x8x3 bpp)
+ Bytes 52-63: V Data (4x8x3 bpp)
+
+ 8x8x2+8x8x2 (4:4:4, 512 bit)
+ Bytes 16-31: Y Data (8x8x2)
+ Bytes 32-47: U Data (8x8x2)
+ Bytes 48-63: V Data (8x8x2)
+
+ 8x8x4+4x4x4 (4:2:0, 512 bit)
+ Bytes 16-47: Y Data (8x8x4 bpp)
+ Bytes 48-55: U Data (4x4x4 bpp)
+ Bytes 56-63: V Data (4x4x4 bpp)
+
+ 8x8x3+8x8x2 (4:4:4, 512 bit)
+ Bytes  0- 7: Color Vector LDR8
+ Bytes  8-31: Y Data (8x8x3)
+ Bytes 32-47: U Data (8x8x2)
+ Bytes 48-63: V Data (8x8x2)
+
+
+Block Type (Hex):
+* 00=Flat (0 bit)
+* 01=2x2x1 (4 bit)
+* 02=4x2x1 (8 bit)
+* 03=2x4x1 (8 bit)
+* 04=4x4x1 (16 bit)
+* 05=8x4x1 (32 bit)
+* 06=4x8x1 (32 bit)
+* 07=8x8x1 (64 bit)
+* R 08
+* 09=2x2x2 (8 bit)
+* 0A=4x2x2 (16 bit)
+* 0B=2x4x2 (16 bit)
+* 0C=4x4x2 (32 bit)
+* 0D=8x4x2 (64 bit)
+* 0E=4x8x2 (64 bit)
+* 0F=8x8x2 (128 bit)
+* ..
+* 13=8x8x3 (192 bit)
+* 14=8x8x4 (256 bit)
+* P 15=Y4x4x2+UV2x2x2 (48 bit, H.4:1:0)
+* P 16=Y4x4x2+UV4x4x2 (96 bit, H.4:2:0)
+* P 17=Y8x8x2+UV2x2x2 (144 bit, 4:1:0)
+* 18=Y8x8x2+UV4x4x2 (192 bit, 4:2:0)
+* 19=Y8x8x3+UV8x8x2 (448 bit, 4:4:4, LDR8)
+* 1A=Y8x8x2+UV4x8x2 (256 bit, 4:2:2)
+* 1B=Y8x8x2+UV8x8x2 (384 bit, 4:4:4)
+* 1C=Y8x8x3+UV4x4x2 (256 bit, 4:2:0)
+* 1D=Y8x8x4+UV4x4x4 (384 bit, 4:2:0)
+* 1E=Y8x8x3+UV4x8x3 (384 bit, 4:2:2)
+* R 1F=Y8x8x3+UV8x8x3 (N/E, 576 bit, 4:4:4)
+
+
+Pixel data will be laid out with the top-left corner in the high-order bits. However, the pixel data will itself be laid out in little-endian order, and words organized to appear as a larger value.
+
+If read from the LSB, the pixels will seem to be in right-to-left bottom-to-top order.
+
+Single axis blocks will generally interpolate only along Y, assuming U and V to be flat. Blocks with Y and UV will interpolate each axis independently.
+
+YUV data will be packed end-to-end in blocks if less than the normal amount of bits is used. Ex: 4.10 will have the UV data start at byte 32 rather than 40.
+
+
+== Alpha Channel ==
+
+If an alpha channel is used, then the metablock format will be 512 bits, but only 384 bits may be used for the pixel data. The remaining 128 bits will be used for the alpha channel.
+
+In the main header, Ca2/Da2 will allow a few special cases:
+* Ca2=0..254, Da2!=0:
+** Alpha block is interpreted as 8x8x2bpp
+* Ca2=0..255, Da2=0:
+** Block is a single uniform opacity.
+** 0=Transparent, 255=Opaque
+* Ca2=255, Da2=1
+** Alpha block will have its own header.
+
+The Ca2/Da2 fields will map linearly to alpha values between 0 and 1.
+
+
+ 0: Ca
+ 2: Da
+ 4- 7: Alpha Bits (Odd/Even, 1bpp)
+ 8-15: Alpha Bits (Even/Odd, 2bpp)
+
+ 0: Z-Tag
+ 2: Ca
+ 4: Da
+ 8-15: Alpha Data
+
+Z-Tag: Encoded as a -NaN, with low bits as tag. Escape byte is 0x82 (~(-NaN)).
+
+* Tag=0: Flat
+* Tag=1: 2x2x1 (4 bits)
+* Tag=2: 4x4x1 (16 bits)
+* Tag=3: 8x8x1 (64 bits)
+* Tag=4: 2x2x2 (8 bits)
+* Tag=5: 4x4x2 (32 bits)
+* Tag=6: 4x4x3 (48 bits)
+* Tag=7: 4x8x2 (64 bits)
+** Even/Odd Pixel Average, interpolated to 8x8 on decode.
+** Encoder will encode Even/Odd pixels with little or no filtering.
+* Tag=8: 4x8x2 (64 bits)
+** Alpha is encoded at 1/2 horizontal resolution.
+* Tag=9: 8x4x2 (64 bits)
+** Alpha is encoded at 1/2 vertical resolution.
+
+Even/Odd Average:
+ A b C d E f G h
+ i J k L m N o P
+ Q r S t U v W x
+ y Z ...
+ b=(A+C)/2, i=(A+Q)/2, k=(C+S+J+L)/4, ...
+
+It is undefined whether the average is in terms of pixel values or between the index values.
+
+A cheaper approximation of this may divide the block into 4x2 sub-blocks:
+
+ A b C d
+ e F g H
+ b=(A+C)/2, d=(C+H)/2, e=(A+F)/2, g=(F+H)/2
+
+Even/Odd+Odd/Even:
+* Even/Odd will generate pixels and serve as a set of predictions (Low/High)
+** Predictors will be based on the lowest and highest adjacent pixel.
+* Odd/Even will choose between the low and high prediction.
+ 
+
+== Bytestream Serialization (Partial Drop) ==
+
+A bytestream serialization may be used which may be more compact than the raw blocks.
+
+A byte-based representation may be used here for performance reasons (entropy coding is better for bitrate, but is slower).
+
+Partial Drop: Will primarily use bitstream.
+
+
+Will support a byte-stream serialization:
+* 0x00-0x1F: Block Command
+** Folowed by a delta color-vector and pixel-bits for that block type. Blocks are identified by their subtype.
+* 0x20-0x3F: Run of Blocks (Reusing prior color vector).
+** Command gives the block type, followed by a byte with giving the number of blocks (1-64).
+** High order 2 bits of run length are reserved.
+** Flat color blocks have no data, and merely repeat the previous color.
+* 0x40: End Of Image Data
+* 0x41: Skip Blocks
+** Followed by a byte giving the number of skipped blocks.
+* 0x42: Move+Skip Blocks
+** Followed by a byte giving the number of skipped blocks, and bytes for the X and Y offsets.
+* 0x43: Set Parameter
+* 0x44: Set parameter vector
+* 0x45: Set delta quantization factors
+* 0x46: Enable Feature, following byte gives feature.
+* 0x47: Disable Feature, byte gives feature.
+* 0x48: Run of flat color blocks.
+** Followed by byte count, and a color vector for each block.
+* 0x49: Absolute Color (YUVD)
+* 0x4A: Absolute Color (YUVDyuv)
+** Encodes a YUVDyuv color vector, though the vector is interpreted as an absolute color.
+
+Color Vector:
+* YUV, YUVD, or YUVDyuv
+* The single axis blocks will normally use YUVD (rather than YUVDyuv).
+** A YUVD block with Du or Dv will indicate it should be understood as YUVDyuv.
+* YUV will be used for flat-color blocks.
+
+The color vector will start with a mask byte/VLI, where if the LSB is 0, the remaining bits indicate which components are encoded. Each component will be represented as a sign-folded VLI (0, -1, 1, -2, 2, ...).
+
+The values are stored as a quantized differences from the preceding values.
+
+
+Mask Value Bits:
+* 0x02=Has Cy
+* 0x04=Has Cu
+* 0x08=Has Cv
+* 0x10=Has Dy
+* 0x20=Has Du
+* 0x40=Has Dv
+
+VLI:
+ 00-7F            0-    127
+ 80-BF XX       128-  16383
+ C0-DF XX XX  16384-2097151
+ ...
+
+
+If the LSB is 1, then the value is a bit-packed color vector. Each component delta will be 5 bits.
+* YUV will use 15 bits:
+** 11-15=Cv, 6-10=Cu, 1-5=Cy, 0=1
+* YUVD or YUVDyuv will use 23 or 32 bits:
+** 21=0, 16-20=Dy, 11-15=Cv, 6-10=Cu, 1-5=Cy, 0=1
+** 27-31=Dv, 22-26=Du, 21=1, 16-20=Dy, 11-15=Cv, 6-10=Cu, 1-5=Cy, 0=1
+** If bit 21 is set, an additional byte will be present, and the vector is extended to include Du and Dv.
+** If bit 21 is clear, Du and Dv are assumed to be zero.
+** YUVD and YUVDyuv are basically the same, differing slightly in interpretation.
+* These values will be stored using sign folding.
+
+
+== Bitstream Serialization ==
+
+Will be similar to the bytestream serialization, except using an entropy-coded bitstream.
+
+The bitstream will be encoded in LSB-first order, with values encoded with the LSB first in the bitstream.
+
+Adaptive Rice with Length Limiting (AdRiceLL) will be used for commands and values.
+This consists of a unary coded Q value followed by Rk suffix bits.
+The Rk value is updated after every symbol depending on the value of Q.
+
+* Q=0..7: Encoded as a normal AdRice value.
+** Q=0: Rk=Rk-1;
+** Q=1: Rk=Rk;
+** Q=2|3: Rk=Rk+1;
+** Q=4..7: Rk=Rk+2;
+* Q>=8: Encoded as 5+(Q-8)*3 bits. Rk=Rk+3+(Q-8);
+* Rk is kept in the range of 0 to 15.
+
+Commands will be encoded using SMTF.
+
+Masks will be encoded with a variant of SMTF:
+* 0: Use current mask.
+* 1..256: SMTF coded mask symbol.
+* LSB of the mask symbol's value indicates whether the selected mask should replace the currently active mask.
+** 0: The mask is only used for the current color vector.
+** 1: The mask replaces the currently active mask.
+
+Masks will be optional, and will default to being disabled.
+* If the mask is disabled, all then delta components always will be coded.
+** This will depend on the type of color vector used by the block.
+** YUV: Encodes delta Cy, Cu, and Cv
+** YUVD: Encodes delta Cy, Cu, Cv, and Dy
+** YUVDyuv: Encodes delta Cy, Cu, Cv, Dy, Du, and Dv
+* Enabling feature -1 will enable masks.
+
+Rk:
+* RkCy: Center Y
+* RkCuv: Center U and V
+* RkDy: Diff Y
+* RkDuv: Diff U and V
+* RkCmd: Command
+* RkMask: Masks
+* RkCnt: Counts
+* RkMisc: Misc values.
+
+SMTF:
+* Values are encoded as a AdRiceLL encoded index(I).
+* 0: Returns the value in position 0.
+* 1-31: Swap I with I-1, returning the value which was previously in I.
+* 32-255: Rotate the table back 1 position, swapping the new 0 with the old I, returning the value previously at I.

@@ -4,14 +4,6 @@
 
 randbits.txt
 
-resource/texcache.zip
-
-resource/mdlcache.zip
-
-**/*.dll
-
-**/*.exe
-
 *.obj
 *.pdn
 *.suo
@@ -19,4 +11,3 @@ resource/mdlcache.zip
 *.ilk
 *.exp
 *.lib
-!resource/*.dll

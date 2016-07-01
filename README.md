@@ -1,6 +1,23 @@
 # bgbtech_misc
 BGB related misc stuff.
 
+tool_btic4b
+==========
+
+BTIC4B Command-Line Tool.
+
+This is a tool for encoding/decoding images into the BTIC4B image format, which consists of the TLV+bitstream format wrapped in a BMP header (generally given a BPX file extension).
+
+Like BTIC1H, BTIC4B is based on VQ/Color-Cell technology, but differs in that it uses 8x8 pixel blocks rather than 4x4. This seems able to somewhat improve quality/bitrate over 1H (in addition to making it faster).
+
+Unlike 1H, the bitstream uses little-endian bit-ordering, the AdRice coding is length limited, and a different SMTF+AdRice scheme is used. These changes are primarily to help with decode speed (cheaper for shifting and avoids the need for byte-swapping in the bitstream).
+
+In tests, results seem to be reasonably competitive with those of JPEG.
+A potential application is as a lower-complexity alternative to JPEG for compressing graphics within an application.
+
+Potential later use cases may include HDR/FP16 graphics, and as a video codec (both of these are incomplete at the time of this writing).
+
+
 tst_btic1h
 ==========
 
@@ -8,7 +25,7 @@ tst_btic1h: BTIC1H VfW codec (Test).
 This was an initial test of the design for BTIC1H.
 This implementation does frame-at-a-time encoding, and does not support incremental encoding.
 A version used for streaming video from a robot would likely be a little more minimalist and
-support incremental encoding. This is a "too be done" thing.
+support incremental encoding. This is a "to be done" thing.
 
 This supports being compiled as a VfW codec driver. This allows its use from other Windows applications while embedded in an AVI. AVI and a modified BMP will be the canonical formats for on-disk storage of BTIC1H video or images.
 
