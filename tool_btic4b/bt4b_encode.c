@@ -856,13 +856,15 @@ int BTIC4B_SetupContextQf(BTIC4B_Context *ctx, int qf)
 
 //	ctx->qdy_4x4x2=48*qsc;
 //	ctx->qdy_4x4x2=64*qsc;
-//	ctx->qdy_4x4x2=64*qsc15;
 
+//	ctx->qdy_4x4x2=64*qsc15;
 	ctx->qdy_4x4x2=80*qsc15;
 
 //	ctx->qdy_4x4x2=56*qsc;
 //	ctx->qdy_8x8x2=80*qsc;
+//	ctx->qdy_8x8x2=80*qsc15;
 //	ctx->qdy_8x8x2=96*qsc;
+//	ctx->qdy_8x8x2=96*qsc15;
 //	ctx->qdy_8x8x2=112*qsc;
 	ctx->qdy_8x8x2=112*qsc15;
 
@@ -872,11 +874,11 @@ int BTIC4B_SetupContextQf(BTIC4B_Context *ctx, int qf)
 
 //	ctx->qduv_flat=16*qsc;
 //	ctx->qduv_flat=32*qsc;
-//	ctx->qduv_flat=40*qsc;
+	ctx->qduv_flat=40*qsc15;
 //	ctx->qduv_flat=48*qsc;
-	ctx->qduv_flat=64*qsc;
-//	ctx->qduv_2x2=96*qsc;
-	ctx->qduv_2x2=128*qsc;
+//	ctx->qduv_flat=64*qsc;
+	ctx->qduv_2x2=96*qsc15;
+//	ctx->qduv_2x2=128*qsc;
 
 	ctx->qdce_sc=16*(1.6/qsc15);
 //	ctx->qdce_sc=20*(1.6/qsc15);
@@ -1488,7 +1490,16 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 			BTIC4B_EncUpdatePredPost(ctx, blkb, blks);
 			break;
 		case 0x19:
-			__asm { int 3 }
+//			__asm { int 3 }
+			BTIC4B_EncEmitCommand(ctx, 0x19);
+			BTIC4B_EncUpdatePred(ctx, blkb, blks);
+			BTIC4B_FastEncYUVDyuv(ctx,
+				blkb[2], (blkb[3]-128)<<1, (blkb[4]-128)<<1,
+				blkb[5], (blkb[6]-128)<<1, (blkb[7]-128)<<1);
+			BTIC4B_EncEmit192B(ctx, blkb+8);
+			BTIC4B_EncEmit128B(ctx, blkb+32);
+			BTIC4B_EncEmit128B(ctx, blkb+48);
+			BTIC4B_EncUpdatePredPost(ctx, blkb, blks);
 			break;
 		case 0x1A:
 			BTIC4B_EncEmitCommand(ctx, 0x1A);
@@ -1609,7 +1620,8 @@ int BTIC4B_EncImgAlphaBlocks(BTIC4B_Context *ctx,
 		cs1=blkb; bc=0;
 		while(cs1<cse)
 		{
-			if((*(u16 *)(cs1+2))!=0x00FF)
+			if(((*(u16 *)(cs1+2))!=0x00FF) &&
+					((cs1[0]&0x1F)!=0x19) && ((cs1[0]&0x1F)!=0x13))
 				break;
 			cs1+=64; bc++;
 		}
@@ -1631,6 +1643,9 @@ int BTIC4B_EncImgAlphaBlocks(BTIC4B_Context *ctx,
 			if(cs1[1]!=0)
 				break;
 			if(cs1[2]!=ctx->cy)
+				break;
+			if(((cs1[0]&0x1F)==0x19) ||
+					((cs1[0]&0x1F)==0x13))
 				break;
 			cs1+=64; bc2++;
 		}

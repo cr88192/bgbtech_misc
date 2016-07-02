@@ -536,6 +536,12 @@ void BTIC4B_FillBlockHeadL8(BTIC4B_Context *ctx, byte *blk, int tag)
 
 void BTIC4B_FillBlockHeadAlphaTag(BTIC4B_Context *ctx, byte *blk, int tag)
 {
+	if((blk[0]&0x1F)==0x19)
+	{
+		BTIC4B_DBGTRAP
+		return;
+	}
+
 	blk[1]=tag;
 	blk[2]=lqtvq_clamp255(ctx->cy);
 	blk[3]=lqtvq_clamp255(ctx->dy);
@@ -543,8 +549,15 @@ void BTIC4B_FillBlockHeadAlphaTag(BTIC4B_Context *ctx, byte *blk, int tag)
 	*(s16 *)(blk+48+2)=lqtvq_clamp32767S(ctx->dy);
 }
 
-void BTIC4B_FillBlockHeadAlphaTagL8(BTIC4B_Context *ctx, byte *blk, int tag)
+void BTIC4B_FillBlockHeadAlphaTagL8(BTIC4B_Context *ctx,
+	byte *blk, int tag)
 {
+	if((blk[0]&0x1F)==0x19)
+	{
+		BTIC4B_DBGTRAP
+		return;
+	}
+
 	blk[1]=tag;
 	blk[2]=lqtvq_clamp255(ctx->cy);
 	blk[3]=lqtvq_clamp255(ctx->dy);
@@ -718,14 +731,12 @@ byte *BTIC4B_DecSetupDecBlockInner(BTIC4B_Context *ctx, byte *ct, int op)
 		BTIC4B_DecRead32B(ctx, ct+32);
 		BTIC4B_DecRead32B(ctx, ct+36);
 		break;
-
 	case 0x19:
 		BTIC4B_FillBlockHeadL8(ctx, ct, op);
 		BTIC4B_DecRead192B(ctx, ct+ 8);
 		BTIC4B_DecRead128B(ctx, ct+32);
 		BTIC4B_DecRead128B(ctx, ct+48);
 		break;
-
 	case 0x1A:
 		BTIC4B_FillBlockHeadTag(ctx, ct, op);
 		BTIC4B_DecRead128B(ctx, ct+16);
@@ -1061,7 +1072,8 @@ int BTIC4B_DecImgBlocks(BTIC4B_Context *ctx,
 	return(ret);
 }
 
-byte *BTIC4B_DecSetupDecAlphaBlockInner(BTIC4B_Context *ctx, byte *ct, int op)
+byte *BTIC4B_DecSetupDecAlphaBlockInner(BTIC4B_Context *ctx,
+	byte *ct, int op)
 {
 //	byte *ct;
 
@@ -1370,16 +1382,17 @@ BTIC4B_API int BTIC4B_DecodeImgBmpBufferCtx(BTIC4B_Context *ctx,
 	byte *cbuf, int cbsz, byte *ibuf, int *rxs, int *rys, int clrfl)
 {
 	byte *tbuf;
-	u32 fcc;
+	u32 fcc, px;
 	int xs, ys, txs, tys, tsz, npx, tnpx;
-	int i, j, k;
+	int i, j, k, n;
 	
 	tbuf=BTIC4B_BufBmpGetImg(cbuf, &xs, &ys, &fcc, &tsz);
-	if(fcc!=BTIC4B_FCC_BT4B)
-		return(BTIC4B_ERRS_BADFCC);
 	
 	if(!ibuf)
 	{
+		if(fcc && (fcc!=BTIC4B_FCC_BT4B))
+			return(BTIC4B_ERRS_BADFCC);
+
 		if(*rxs)*rxs=xs;
 		if(*rys)*rys=ys;
 		return(0);
@@ -1395,10 +1408,81 @@ BTIC4B_API int BTIC4B_DecodeImgBmpBufferCtx(BTIC4B_Context *ctx,
 			return(BTIC4B_ERRS_BADIBUFSZ);
 	}
 	
-	i=BTIC4B_DecodeImgBufferCtx(ctx, tbuf, tsz, ibuf, xs, ys, clrfl);
-	if(*rxs)*rxs=xs;
-	if(*rys)*rys=ys;
-	return(i);
+//	if(fcc!=BTIC4B_FCC_BT4B)
+//		return(BTIC4B_ERRS_BADFCC);
+
+	if(fcc==0)
+	{
+		if(cbuf[0x1C]==32)
+		{
+			switch(clrfl&127)
+			{
+			case BTIC4B_CLRS_RGBA:
+			case BTIC4B_CLRS_RGBX:
+				n=xs*ys;
+				for(i=0; i<n; i++)
+				{
+					px=((u32 *)tbuf)[i];
+					px=(px&0xFF00FF00)|
+						((px<<16)&0x00FF0000)|
+						((px>>16)&0x000000FF);
+					((u32 *)ibuf)[i]=px;
+				}
+				break;
+			case BTIC4B_CLRS_BGRA:
+			case BTIC4B_CLRS_BGRX:
+				memcpy(ibuf, tbuf, xs*ys*4);
+				break;
+			default:
+				break;
+			}
+			return(0);
+		}
+
+		if(cbuf[0x1C]==24)
+		{
+			switch(clrfl&127)
+			{
+			case BTIC4B_CLRS_RGBA:
+			case BTIC4B_CLRS_RGBX:
+				n=xs*ys;
+				for(i=0; i<n; i++)
+				{
+					px=*((u32 *)(tbuf+(i*3)));
+					px=px|0xFF000000;
+					px=(px&0xFF00FF00)|
+						((px<<16)&0x00FF0000)|
+						((px>>16)&0x000000FF);
+					((u32 *)ibuf)[i]=px;
+				}
+				break;
+			case BTIC4B_CLRS_BGRA:
+			case BTIC4B_CLRS_BGRX:
+				n=xs*ys;
+				for(i=0; i<n; i++)
+				{
+					px=*((u32 *)(tbuf+(i*3)));
+					px=px|0xFF000000;
+					((u32 *)ibuf)[i]=px;
+				}
+				break;
+			default:
+				break;
+			}
+			return(0);
+		}
+		return(BTIC4B_ERRS_BADFCC);
+	}
+
+	if(fcc==BTIC4B_FCC_BT4B)
+	{
+		i=BTIC4B_DecodeImgBufferCtx(ctx, tbuf, tsz, ibuf, xs, ys, clrfl);
+		if(*rxs)*rxs=xs;
+		if(*rys)*rys=ys;
+		return(i);
+	}
+
+	return(BTIC4B_ERRS_BADFCC);
 }
 
 BTIC4B_API int BTIC4B_DecodeImgBmpBuffer(byte *cbuf, int cbsz,
