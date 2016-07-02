@@ -880,7 +880,7 @@ int BTIC4B_SetupContextQf(BTIC4B_Context *ctx, int qf)
 
 	ctx->qdce_sc=16*(1.6/qsc15);
 //	ctx->qdce_sc=20*(1.6/qsc15);
-	ctx->qdce_sc=8*(1.6/qsc15);
+//	ctx->qdce_sc=8*(1.6/qsc15);
 
 	ctx->rk_cy=2;
 	ctx->rk_cuv=2;

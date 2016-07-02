@@ -1130,9 +1130,10 @@ void BTIC4B_EncBlock0Inner(
 	int mbyl, nbyl, mbyr, nbyr, mby, nby;
 	int mbyu, nbyu, mbyd, nbyd;
 	int dbyh, dbyv, dcy1, dcy2, dbyhvp;
-	int dey, dpey, dcenexp, alexp;
+	int dey, dpey, dcenexp, alexp, dcesc;
 	int mcy, mcu, mcv, ncy, ncu, ncv;
 	int acy, acu, acv, dcy, dcu, dcv;
+	int dcy1b, dcu1b, dcv1b;
 	int mca, nca, dcuv;
 	int ls0, ls0b, ls1, ls2, lc0, lc1, lc2, lc3;
 	int l0, l1, l2, l3;
@@ -1202,6 +1203,19 @@ void BTIC4B_EncBlock0Inner(
 //		dey=dey/64;
 //		dey=dey/(dcy>>1);
 //		dcenexp=dey>(dcy>>1);
+
+		if(dcenexp)
+		{
+//			i=(dcy*7)>>4; i=i*i*16;
+			i=dcy>>1; i=i*i*16;
+//			dcesc=(256*dey)/(i+1);
+//			dcesc=(288*dey)/(i+1);
+//			dcesc=(320*dey)/(i+1);
+//			dcesc=(384*dey)/(i+1);
+			dcesc=(350*dey)/(i+1);
+			if(dcesc>256)
+				dcesc=256;
+		}
 	}
 #endif
 	
@@ -1244,6 +1258,13 @@ void BTIC4B_EncBlock0Inner(
 //		dcy=(dcy*7)>>3;
 //		dcu=(dcu*7)>>3;
 //		dcv=(dcv*7)>>3;
+
+		dcy1b=(dcy*dcesc)>>8;
+//		dcu1b=(dcu*dcesc)>>8;
+//		dcv1b=(dcv*dcesc)>>8;
+//		dcy1b=dcy;
+		dcu1b=dcu;
+		dcv1b=dcv;
 	}
 
 	*(s16 *)(blkbuf+ 4)=acy;
@@ -1376,6 +1397,7 @@ void BTIC4B_EncBlock0Inner(
 //			if(0)
 			{
 				*(u32 *)(blkbuf+ 0)=  0x01|0x00FF0000;
+				*(s16 *)(blkbuf+10)=dcy1b;
 				BTIC4B_EncYBits2x2x1(blkbuf+16, ybuf, ls0, acy);
 				return;
 			}
@@ -1393,6 +1415,7 @@ void BTIC4B_EncBlock0Inner(
 //				if(0)
 				{
 					*(u32 *)(blkbuf+ 0)=  0x02|0x00FF0000;
+					*(s16 *)(blkbuf+10)=dcy1b;
 					BTIC4B_EncYBits4x2x1(blkbuf+16, ybuf, ls0, acy);
 					return;
 				}
@@ -1405,6 +1428,7 @@ void BTIC4B_EncBlock0Inner(
 //				if(0)
 				{
 					*(u32 *)(blkbuf+ 0)=  0x03|0x00FF0000;
+					*(s16 *)(blkbuf+10)=dcy1b;
 					BTIC4B_EncYBits2x4x1(blkbuf+16, ybuf, ls0, acy);
 					return;
 				}
@@ -1421,6 +1445,7 @@ void BTIC4B_EncBlock0Inner(
 //			if(0)
 			{
 				*(u32 *)(blkbuf+ 0)=  0x04|0x00FF0000;
+				*(s16 *)(blkbuf+10)=dcy1b;
 				BTIC4B_EncYBits4x4x1(blkbuf+16, ybuf, ls0, acy);
 				return;
 			}
@@ -1439,6 +1464,7 @@ void BTIC4B_EncBlock0Inner(
 //				if(0)
 				{
 					*(u32 *)(blkbuf+ 0)=  0x05|0x00FF0000;
+					*(s16 *)(blkbuf+10)=dcy1b;
 					BTIC4B_EncYBits8x4x1(blkbuf+16, ybuf, ls0, acy);
 					return;
 				}
@@ -1451,6 +1477,7 @@ void BTIC4B_EncBlock0Inner(
 //				if(0)
 				{
 					*(u32 *)(blkbuf+ 0)=  0x06|0x00FF0000;
+					*(s16 *)(blkbuf+10)=dcy1b;
 					BTIC4B_EncYBits4x8x1(blkbuf+16, ybuf, ls0, acy);
 					return;
 				}
@@ -1468,6 +1495,7 @@ void BTIC4B_EncBlock0Inner(
 //			if(0)
 			{
 				*(u32 *)(blkbuf+ 0)=  0x07|0x00FF0000;
+				*(s16 *)(blkbuf+10)=dcy1b;
 				BTIC4B_EncYBits8x8x1(blkbuf+16, ybuf, ls0, acy);
 				return;
 			}
