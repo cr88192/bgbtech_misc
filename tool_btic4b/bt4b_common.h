@@ -29,6 +29,12 @@ typedef unsigned int uint;
 #endif
 #endif
 
+#if defined(_MSC_VER) && defined(BTEIFGL_DLL)
+#ifndef BTIC4B_API
+#define BTIC4B_API __declspec(dllexport)
+#endif
+#endif
+
 #if defined(_MSC_VER) && defined(BTIC4B_DLL)
 #ifndef BTIC4B_API
 #define BTIC4B_API __declspec(dllexport)
@@ -80,6 +86,10 @@ typedef unsigned int uint;
 #define BTIC4B_CLRS_RGBX		2
 #define BTIC4B_CLRS_BGRX		3
 
+#define BTIC4B_CLRT_GDBDR		0
+#define BTIC4B_CLRT_RCT			1
+#define BTIC4B_CLRT_YCBCR		2
+
 #ifdef _MSC_VER
 #define BTIC4B_DBGTRAP		__debugbreak();
 #else
@@ -102,7 +112,9 @@ int cnt;
 int bits;
 }BTIC4B_SmtfState;
 
-typedef struct {
+typedef struct BTIC4B_Context_s BTIC4B_Context;
+
+struct BTIC4B_Context_s {
 byte *ct, *cs;
 u32 bit_win;
 int bit_pos;
@@ -134,6 +146,8 @@ byte rk_cnt, rk_misc;
 byte cmask;				//current mask
 byte imask;				//ideal mask
 byte pred;				//predictor
+byte imgt;				//image type
+byte clrt;				//colorspace transform
 
 BTIC4B_SmtfState sm_cmd;
 BTIC4B_SmtfState sm_mask;
@@ -147,7 +161,30 @@ int stat_pixbits;
 
 int yuv_cz[8];
 
-}BTIC4B_Context;
+void (*DecBlock)(BTIC4B_Context *ctx,
+	byte *blkbuf, byte *ibuf, int ystr);
+u32 (*ClrDec1)(int cy, int cu, int cv);
+u32 (*ClrDec1A)(int cy, int cu, int cv, int ca);
+void (*ClrDec4)(
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	u32 *rpx0, u32 *rpx1);
+void (*ClrDec4B)(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	u32 *rpx0, u32 *rpx1);
+void (*ClrDec4C)(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	int cu2, int cv2, int cu3, int cv3,
+	u32 *rpx0, u32 *rpx1);
+
+void (*ClrDec2T)(int tag,
+	int cy, int cu, int cv,
+	int dy, int du, int dv,
+	int *rr0, int *rg0, int *rb0,
+	int *rr1, int *rg1, int *rb1);
+
+};
 
 BTIC4B_API int BTIC4B_DecodeImgBufferCtx(BTIC4B_Context *ctx,
 	byte *cbuf, int cbsz, byte *ibuf,

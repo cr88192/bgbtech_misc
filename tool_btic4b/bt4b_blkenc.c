@@ -360,8 +360,14 @@ void BTIC4B_SplitIbufBGRA444(byte *ibuf, int ystr,
 			cr=(cr0+cr1+cr2+cr3)>>2;
 			cb=(cb0+cb1+cb2+cb3)>>2;
 
-			cy0=cg0;	cy1=cg1;
-			cy2=cg2;	cy3=cg3;
+			cy0=(2*cg0+cr0+cb0)>>2;
+			cy1=(2*cg1+cr1+cb1)>>2;
+			cy2=(2*cg2+cr2+cb2)>>2;
+			cy3=(2*cg3+cr3+cb3)>>2;
+
+//			cy0=cg0;	cy1=cg1;
+//			cy2=cg2;	cy3=cg3;
+
 //			cu=((cb-cg)>>1)+128;
 //			cv=((cr-cg)>>1)+128;
 			cu=cb-cg;
@@ -692,6 +698,17 @@ static const int lqtvq_sat1_tab[8]=
 static const int lqtvq_sat2_tab[8]=
 		{0,0,0,1, 2,3,3,3};
 #define BTIC4B_SAT2(x)	lqtvq_sat2_tab[(x)+2]
+
+static const int lqtvq_sat3_tab[16]=
+		{0,0,0,0, 0,1,2,3, 4,5,6,7, 7,7,7,7};
+#define BTIC4B_SAT3(x)	lqtvq_sat3_tab[(x)+4]
+
+static const int lqtvq_sat4_tab[32]=
+		{0, 0, 0, 0, 0, 0, 0, 0,
+		 0, 1, 2, 3, 4, 5, 6, 7,
+		 8, 9,10,11,12,13,14,15,
+		15,15,15,15,15,15,15,15};
+#define BTIC4B_SAT4(x)	lqtvq_sat4_tab[(x)+8]
 
 #else
 #define BTIC4B_SAT1(x)	(x)
@@ -1242,8 +1259,10 @@ force_inline void BTIC4B_EncYBits8x8x2(
 force_inline void BTIC4B_EncYBits8x8x3(
 	byte *oblk, int *ybuf, int lsy, int acy)
 {
-	static const int lc0=8388608+4095;
-	static const int lc1=8388608-4095;
+//	static const int lc0=8388608+4095;
+//	static const int lc1=8388608-4095;
+	static const int lc0=8388608+2047;
+	static const int lc1=8388608-2047;
 	int *csy, *csye;
 	u32 i0, i1;
 	int i;
@@ -1256,22 +1275,22 @@ force_inline void BTIC4B_EncYBits8x8x3(
 	{
 //		csy=ybuf+i*16;
 
-		i1=        (((csy[15]-acy)*lsy+lc1)>>21);
-		i1=(i1<<3)|(((csy[14]-acy)*lsy+lc0)>>21);
-		i1=(i1<<3)|(((csy[13]-acy)*lsy+lc1)>>21);
-		i1=(i1<<3)|(((csy[12]-acy)*lsy+lc0)>>21);
-		i1=(i1<<3)|(((csy[11]-acy)*lsy+lc1)>>21);
-		i1=(i1<<3)|(((csy[10]-acy)*lsy+lc0)>>21);
-		i1=(i1<<3)|(((csy[ 9]-acy)*lsy+lc1)>>21);
-		i1=(i1<<3)|(((csy[ 8]-acy)*lsy+lc0)>>21);
-		i0=        (((csy[ 7]-acy)*lsy+lc0)>>21);
-		i0=(i0<<3)|(((csy[ 6]-acy)*lsy+lc1)>>21);
-		i0=(i0<<3)|(((csy[ 5]-acy)*lsy+lc0)>>21);
-		i0=(i0<<3)|(((csy[ 4]-acy)*lsy+lc1)>>21);
-		i0=(i0<<3)|(((csy[ 3]-acy)*lsy+lc0)>>21);
-		i0=(i0<<3)|(((csy[ 2]-acy)*lsy+lc1)>>21);
-		i0=(i0<<3)|(((csy[ 1]-acy)*lsy+lc0)>>21);
-		i0=(i0<<3)|(((csy[ 0]-acy)*lsy+lc1)>>21);
+		i1=        BTIC4B_SAT3(((csy[15]-acy)*lsy+lc1)>>21);
+		i1=(i1<<3)|BTIC4B_SAT3(((csy[14]-acy)*lsy+lc0)>>21);
+		i1=(i1<<3)|BTIC4B_SAT3(((csy[13]-acy)*lsy+lc1)>>21);
+		i1=(i1<<3)|BTIC4B_SAT3(((csy[12]-acy)*lsy+lc0)>>21);
+		i1=(i1<<3)|BTIC4B_SAT3(((csy[11]-acy)*lsy+lc1)>>21);
+		i1=(i1<<3)|BTIC4B_SAT3(((csy[10]-acy)*lsy+lc0)>>21);
+		i1=(i1<<3)|BTIC4B_SAT3(((csy[ 9]-acy)*lsy+lc1)>>21);
+		i1=(i1<<3)|BTIC4B_SAT3(((csy[ 8]-acy)*lsy+lc0)>>21);
+		i0=        BTIC4B_SAT3(((csy[ 7]-acy)*lsy+lc0)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 6]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 5]-acy)*lsy+lc0)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 4]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 3]-acy)*lsy+lc0)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 2]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 1]-acy)*lsy+lc0)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 0]-acy)*lsy+lc1)>>21);
 		*(u32 *)(oblk+i*6+0)=i0;
 		*(u32 *)(oblk+i*6+3)=i1;
 		csy+=16;
@@ -1283,6 +1302,8 @@ force_inline void BTIC4B_EncYBits8x8x4(
 {
 	static const int lc0=8388608+4095;
 	static const int lc1=8388608-4095;
+//	static const int lc0=8388608+1023;
+//	static const int lc1=8388608-1023;
 	int *csy, *csye;
 	u32 i0, i1;
 	int i;
@@ -1291,22 +1312,22 @@ force_inline void BTIC4B_EncYBits8x8x4(
 	for(i=0; i<4; i++)
 //	while(csy<csye)
 	{
-		i1=        (((csy[15]-acy)*lsy+lc1)>>20);
-		i1=(i1<<4)|(((csy[14]-acy)*lsy+lc0)>>20);
-		i1=(i1<<4)|(((csy[13]-acy)*lsy+lc1)>>20);
-		i1=(i1<<4)|(((csy[12]-acy)*lsy+lc0)>>20);
-		i1=(i1<<4)|(((csy[11]-acy)*lsy+lc1)>>20);
-		i1=(i1<<4)|(((csy[10]-acy)*lsy+lc0)>>20);
-		i1=(i1<<4)|(((csy[ 9]-acy)*lsy+lc1)>>20);
-		i1=(i1<<4)|(((csy[ 8]-acy)*lsy+lc0)>>20);
-		i0=        (((csy[ 7]-acy)*lsy+lc0)>>20);
-		i0=(i0<<4)|(((csy[ 6]-acy)*lsy+lc1)>>20);
-		i0=(i0<<4)|(((csy[ 5]-acy)*lsy+lc0)>>20);
-		i0=(i0<<4)|(((csy[ 4]-acy)*lsy+lc1)>>20);
-		i0=(i0<<4)|(((csy[ 3]-acy)*lsy+lc0)>>20);
-		i0=(i0<<4)|(((csy[ 2]-acy)*lsy+lc1)>>20);
-		i0=(i0<<4)|(((csy[ 1]-acy)*lsy+lc0)>>20);
-		i0=(i0<<4)|(((csy[ 0]-acy)*lsy+lc1)>>20);
+		i1=        BTIC4B_SAT4(((csy[15]-acy)*lsy+lc1)>>20);
+		i1=(i1<<4)|BTIC4B_SAT4(((csy[14]-acy)*lsy+lc0)>>20);
+		i1=(i1<<4)|BTIC4B_SAT4(((csy[13]-acy)*lsy+lc1)>>20);
+		i1=(i1<<4)|BTIC4B_SAT4(((csy[12]-acy)*lsy+lc0)>>20);
+		i1=(i1<<4)|BTIC4B_SAT4(((csy[11]-acy)*lsy+lc1)>>20);
+		i1=(i1<<4)|BTIC4B_SAT4(((csy[10]-acy)*lsy+lc0)>>20);
+		i1=(i1<<4)|BTIC4B_SAT4(((csy[ 9]-acy)*lsy+lc1)>>20);
+		i1=(i1<<4)|BTIC4B_SAT4(((csy[ 8]-acy)*lsy+lc0)>>20);
+		i0=        BTIC4B_SAT4(((csy[ 7]-acy)*lsy+lc0)>>20);
+		i0=(i0<<4)|BTIC4B_SAT4(((csy[ 6]-acy)*lsy+lc1)>>20);
+		i0=(i0<<4)|BTIC4B_SAT4(((csy[ 5]-acy)*lsy+lc0)>>20);
+		i0=(i0<<4)|BTIC4B_SAT4(((csy[ 4]-acy)*lsy+lc1)>>20);
+		i0=(i0<<4)|BTIC4B_SAT4(((csy[ 3]-acy)*lsy+lc0)>>20);
+		i0=(i0<<4)|BTIC4B_SAT4(((csy[ 2]-acy)*lsy+lc1)>>20);
+		i0=(i0<<4)|BTIC4B_SAT4(((csy[ 1]-acy)*lsy+lc0)>>20);
+		i0=(i0<<4)|BTIC4B_SAT4(((csy[ 0]-acy)*lsy+lc1)>>20);
 		*(u32 *)(oblk+i*8+0)=i0;
 		*(u32 *)(oblk+i*8+4)=i1;
 		csy+=16;
@@ -1330,6 +1351,7 @@ void BTIC4B_EncBlock0Inner(
 	int dey, dpey, dcenexp, alexp, dcesc;
 	int mcy, mcu, mcv, ncy, ncu, ncv;
 	int acy, acu, acv, dcy, dcu, dcv;
+	int acy2, acu2, acv2;
 	int dcy1b, dcu1b, dcv1b;
 	int mca, nca, dcuv;
 	int ls0, ls0b, ls1, ls2, lc0, lc1, lc2, lc3;
@@ -1355,6 +1377,28 @@ void BTIC4B_EncBlock0Inner(
 	mca=mcyuv[3];
 	nca=ncyuv[3];
 	alexp=((mca!=nca)&&(mca<240))||(mca>>8);
+
+#if 0
+	if(ubuf2)
+	{
+		acy2=0; acu2=0; acv2=0;
+		for(i=0; i<64; i++)
+		{
+			acy2+=ybuf[i];
+			acu2+=ubuf2[i];
+			acv2+=vbuf2[i];
+		}
+		acy2=acy2>>6;
+		acu2=acu2>>6;
+		acv2=acv2>>6;
+		
+		l0=ncy-acy; l1=acy-mcy; l2=(l0+l1)>>1;
+		
+		acy=(29*acy+3*acy2)>>5;
+		acu=(29*acu+3*acu2)>>5;
+		acv=(29*acv+3*acv2)>>5;
+	}
+#endif
 
 #if 1
 	dey=0;
@@ -1746,8 +1790,8 @@ void BTIC4B_EncBlock0Inner(
 
 //		if(dcenexp ||
 //			((ctx->qfl&127)<80))
-		if(dcenexp || alexp)
-//		if(dcenexp)
+//		if(dcenexp || alexp)
+		if(dcenexp)
 //		if(0)
 		{
 			*(u32 *)(blkbuf+ 0)=  0x0F|0x00FF0000;

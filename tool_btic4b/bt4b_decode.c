@@ -1270,26 +1270,126 @@ int BTIC4B_DecImgAlphaBlocks(BTIC4B_Context *ctx,
 	return(ret);
 }
 
+byte *BTIC4B_BufReadUVLI(byte *cs, u64 *rval)
+{
+	u64 i;
+
+	i=*cs++;
+	if(i<0x80)
+	{
+		if(rval)*rval=i;
+		return(cs);
+	}else if(i<0xC0)
+	{
+		i=(i&0x7F<<8)|(*cs++);
+		if(rval)*rval=i;
+		return(cs);
+	}else if(i<0xE0)
+	{
+		i=(i&0x3F<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		if(rval)*rval=i;
+		return(cs);
+	}else if(i<0xF0)
+	{
+		i=(i&0x1F<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		if(rval)*rval=i;
+		return(cs);
+	}else if(i<0xF8)
+	{
+		i=(i&0x0F<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		if(rval)*rval=i;
+		return(cs);
+	}else if(i<0xFC)
+	{
+		i=(i&0x07<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		if(rval)*rval=i;
+		return(cs);
+	}else if(i<0xFE)
+	{
+		i=(i&0x03<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		if(rval)*rval=i;
+		return(cs);
+	}else if(i<0xFF)
+	{
+		i=(i&0x01<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		if(rval)*rval=i;
+		return(cs);
+	}else
+	{
+		i=(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		i=(i<<8)|(*cs++);
+		if(rval)*rval=i;
+		return(cs);
+	}
+	
+	return(cs);
+}
+
+BTIC4B_API int BTIC4B_DecodeImgHeaderDataCtx(BTIC4B_Context *ctx,
+	byte *ics, int isz)
+{
+	u64 xs2, ys2, mod;
+	byte *cs, *cse;
+
+	cs=ics; cse=ics+isz;
+	
+	cs=BTIC4B_BufReadUVLI(cs, &xs2);
+	cs=BTIC4B_BufReadUVLI(cs, &ys2);
+	cs=BTIC4B_BufReadUVLI(cs, &mod);
+	
+	ctx->imgt=mod&7;
+	
+	switch((mod>>3)&3)
+	{
+	case 0:		ctx->blksz=32; break;
+	case 1:		ctx->blksz=48; break;
+	case 2:		ctx->blksz=64; break;
+	case 3:		ctx->blksz=96; break;
+	}
+
+	switch((mod>>5)&3)
+	{
+	case 0:		ctx->clrt=BTIC4B_CLRT_GDBDR; break;
+	case 1:		ctx->clrt=BTIC4B_CLRT_RCT; break;
+	case 2:		ctx->clrt=BTIC4B_CLRT_YCBCR; break;
+	case 3:		ctx->clrt=BTIC4B_CLRT_YCBCR; break;
+	}
+	return(0);
+}
+
 BTIC4B_API int BTIC4B_DecodeImgBufferCtx(BTIC4B_Context *ctx,
 	byte *cbuf, int cbsz, byte *ibuf, int xs, int ys, int clrfl)
 {
 	byte *csib, *csibe, *csax, *csaxe;
 	byte *cs, *cs1, *cse;
 	int i, j, k;
-	
-	if(!ctx->blks)
-	{
-		ctx->xs=xs;
-		ctx->ys=ys;
-		ctx->xsb=(xs+7)>>3;
-		ctx->ysb=(ys+7)>>3;
-		ctx->nblk=ctx->xsb*ctx->ysb;
-//		ctx->nblk=(ctx->xsb+1)*(ctx->ysb+1);
-		ctx->blksz=64;
-		
-		ctx->blks=malloc(ctx->nblk*ctx->blksz);
-		ctx->lblks=malloc(ctx->nblk*ctx->blksz);
-	}
 	
 	if(!cbsz)
 		return(0);
@@ -1308,6 +1408,10 @@ BTIC4B_API int BTIC4B_DecodeImgBufferCtx(BTIC4B_Context *ctx,
 				{ csib=cs+4; csibe=cs1; }
 			if(j==BTIC4B_TCC_AX)
 				{ csax=cs+4; csaxe=cs1; }
+			
+			if(j==BTIC4B_TCC_HX)
+				{ BTIC4B_DecodeImgHeaderDataCtx(ctx, cs+4, i-4); }
+			
 			cs=cs1;
 			continue;
 		}
@@ -1349,6 +1453,21 @@ BTIC4B_API int BTIC4B_DecodeImgBufferCtx(BTIC4B_Context *ctx,
 	if(!csib)
 		return(BTIC4B_ERRS_NOIMAGE);
 
+	if(!ctx->blks)
+	{
+		ctx->xs=xs;
+		ctx->ys=ys;
+		ctx->xsb=(xs+7)>>3;
+		ctx->ysb=(ys+7)>>3;
+		ctx->nblk=ctx->xsb*ctx->ysb;
+//		ctx->nblk=(ctx->xsb+1)*(ctx->ysb+1);
+		if(!ctx->blksz)
+			ctx->blksz=64;
+		
+		ctx->blks=malloc(ctx->nblk*ctx->blksz);
+		ctx->lblks=malloc(ctx->nblk*ctx->blksz);
+	}
+
 	BTIC4B_DecImgBlocks(ctx, csib, csibe-csib,
 		ctx->blks, ctx->lblks, xs, ys);
 	if(csax)
@@ -1356,7 +1475,7 @@ BTIC4B_API int BTIC4B_DecodeImgBufferCtx(BTIC4B_Context *ctx,
 		BTIC4B_DecImgAlphaBlocks(ctx, csax, csaxe-csax,
 			ctx->blks, ctx->lblks, xs, ys);
 	}
-	BTIC4B_DecImageClrs(ctx->blks, ibuf, xs, ys, clrfl);
+	BTIC4B_DecImageClrs(ctx, ctx->blks, ibuf, xs, ys, clrfl);
 
 	return(0);
 }

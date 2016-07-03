@@ -1769,6 +1769,93 @@ int BTIC4B_EncImgAlphaBlocks(BTIC4B_Context *ctx,
 }
 #endif
 
+byte *BTIC4B_EncEmitUVLI(byte *ct, u64 val)
+{
+	if(val<0x80)
+	{
+		*ct++=val;
+		return(ct);
+	}
+	if(val<0x4000)
+	{
+		*ct++=0x80|(val>>8);
+		*ct++=val;
+		return(ct);
+	}
+	if(val<0x200000)
+	{
+		*ct++=0xC0|(val>>16);
+		*ct++=val>>8;		*ct++=val;
+		return(ct);
+	}
+	if(val<0x10000000)
+	{
+		*ct++=0xE0|(val>>24);
+		*ct++=val>>16;		*ct++=val>>8;
+		*ct++=val;
+		return(ct);
+	}
+	if(val<0x800000000ULL)
+	{
+		*ct++=0xF0|(val>>32);
+		*ct++=val>>24;		*ct++=val>>16;
+		*ct++=val>>8;		*ct++=val;
+		return(ct);
+	}
+	if(val<0x40000000000ULL)
+	{
+		*ct++=0xF8|(val>>40);
+		*ct++=val>>32;		*ct++=val>>24;
+		*ct++=val>>16;		*ct++=val>>8;
+		*ct++=val;
+		return(ct);
+	}
+	if(val<0x2000000000000ULL)
+	{
+		*ct++=0xFC|(val>>48);
+		*ct++=val>>40;		*ct++=val>>32;
+		*ct++=val>>24;		*ct++=val>>16;
+		*ct++=val>>8;		*ct++=val;
+		return(ct);
+	}
+	if(val<0x100000000000000ULL)
+	{
+		*ct++=0xFE;		*ct++=val>>48;
+		*ct++=val>>40;	*ct++=val>>32;
+		*ct++=val>>24;	*ct++=val>>16;
+		*ct++=val>>8;	*ct++=val;
+		return(ct);
+	}
+
+	*ct++=0xFF;		*ct++=val>>56;
+	*ct++=val>>48;	*ct++=val>>40;
+	*ct++=val>>32;	*ct++=val>>24;
+	*ct++=val>>16;	*ct++=val>>8;
+	*ct++=val;
+	return(ct);
+}
+
+BTIC4B_API byte *BTIC4B_EncodeBufEmitHeadCtx(
+	BTIC4B_Context *ctx, byte *ict)
+{
+	byte *ct;
+	int mod;
+	int i;
+
+	mod=0|(2<<3)|(ctx->clrt<<5);
+
+	ct=ict;
+	*ct++=0;	*ct++=0;
+	*ct++='H';	*ct++='X';
+	ct=BTIC4B_EncEmitUVLI(ct, ctx->xs);
+	ct=BTIC4B_EncEmitUVLI(ct, ctx->ys);
+	ct=BTIC4B_EncEmitUVLI(ct, mod);
+	
+	i=ct-ict;
+	ict[0]=i>>8; ict[1]=i;
+	return(ct);
+}
+
 BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 	byte *obuf, int cbsz, byte *ibuf, int xs, int ys, int qfl, int clrs)
 {
@@ -1788,10 +1875,14 @@ BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 	}
 
 	ct=obuf;
+
+	ctx->clrt=BTIC4B_CLRT_RCT;
 	
 	BTIC4B_SetupContextQf(ctx, qfl);
 //	BTIC4B_EncImageBGRA(ctx, ctx->blks, ibuf, xs, ys);
 	BTIC4B_EncImageClrs(ctx, ctx->blks, ibuf, xs, ys, clrs);
+	
+	ct=BTIC4B_EncodeBufEmitHeadCtx(ctx, ct);
 	
 	ct0=ct+16;
 	sz1=BTIC4B_EncImgBlocks(ctx,
