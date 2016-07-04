@@ -1499,6 +1499,7 @@ void BTIC4B_DecBlockBGRX(BTIC4B_Context *ctx,
 	}
 }
 
+#if 1
 void BTIC4B_DecBlockRGBA(BTIC4B_Context *ctx,
 	byte *blkbuf, byte *ibuf, int ystr)
 {
@@ -1536,6 +1537,7 @@ void BTIC4B_DecBlockRGBX(BTIC4B_Context *ctx,
 	*(s16 *)(tbuf+14)=du;
 	BTIC4B_DecBlockBGRX(ctx, tbuf, ibuf, ystr);
 }
+#endif
 
 void BTIC4B_DecBlockEdgeClrs(BTIC4B_Context *ctx,
 	byte *blkbuf, byte *ibuf,
@@ -1802,6 +1804,49 @@ void BTIC4B_DecImageClrDec4C_GDbDr(
 	rpx1[0]=px2;	rpx1[1]=px3;
 }
 
+u32 BTIC4B_DecImageClr1_GDbDrSW(int cy, int cu, int cv)
+	{ return(BTIC4B_DecImageClr1_GDbDr(cy, cv, cu)); }
+u32 BTIC4B_DecImageClr1A_GDbDrSW(int cy, int cu, int cv, int ca)
+	{ return(BTIC4B_DecImageClr1A_GDbDr(cy, cv, cu, ca)); }
+
+void BTIC4B_DecImageClrDec2T_GDbDrSW(int tag,
+	int acy, int acu, int acv,
+	int dcy, int dcu, int dcv,
+	int *rr0, int *rg0, int *rb0,
+	int *rr1, int *rg1, int *rb1)
+{
+	BTIC4B_DecImageClrDec2T_GDbDr(
+		tag, acy, acv, acu, dcy, dcv, dcu,
+		rr0, rg0, rb0, rr1, rg1, rb1);
+}
+
+void BTIC4B_DecImageClrDec4_GDbDrSW(
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	u32 *rpx0, u32 *rpx1)
+{
+	BTIC4B_DecImageClrDec4_GDbDr(
+		cy0, cy1, cy2, cy3, cv, cu, rpx0, rpx1);
+}
+
+void BTIC4B_DecImageClrDec4B_GDbDrSW(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	u32 *rpx0, u32 *rpx1)
+{
+	BTIC4B_DecImageClrDec4B_GDbDr(
+		cy0, cy1, cy2, cy3, cv0, cu0, cv1, cu1, rpx0, rpx1);
+}
+
+void BTIC4B_DecImageClrDec4C_GDbDrSW(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	int cu2, int cv2, int cu3, int cv3,
+	u32 *rpx0, u32 *rpx1)
+{
+	BTIC4B_DecImageClrDec4C_GDbDr(
+		cy0, cy1, cy2, cy3, cv0, cu0, cv1, cu1,
+		cv2, cu2, cv3, cu3, rpx0, rpx1);
+}
 
 #if 1
 u32 BTIC4B_DecImageClr1_RCT(int cy, int cu, int cv)
@@ -2022,6 +2067,57 @@ void BTIC4B_DecImageClrDec4C_RCT(
 	rpx0[0]=px0;	rpx0[1]=px1;
 	rpx1[0]=px2;	rpx1[1]=px3;
 }
+
+
+u32 BTIC4B_DecImageClr1_RCTSW(int cy, int cu, int cv)
+	{ return(BTIC4B_DecImageClr1_RCT(cy, cv, cu)); }
+u32 BTIC4B_DecImageClr1A_RCTSW(int cy, int cu, int cv, int ca)
+	{ return(BTIC4B_DecImageClr1A_RCT(cy, cv, cu, ca)); }
+
+void BTIC4B_DecImageClrDec2T_RCTSW(int tag,
+	int acy, int acu, int acv,
+	int dcy, int dcu, int dcv,
+	int *rr0, int *rg0, int *rb0,
+	int *rr1, int *rg1, int *rb1)
+{
+	BTIC4B_DecImageClrDec2T_RCT(
+		tag, acy, acv, acu, dcy, dcv, dcu,
+		rr0, rg0, rb0, rr1, rg1, rb1);
+}
+
+void BTIC4B_DecImageClrDec4_RCTSW(
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	u32 *rpx0, u32 *rpx1)
+{
+	BTIC4B_DecImageClrDec4_RCT(
+		cy0, cy1, cy2, cy3, cv, cu,
+		rpx0, rpx1);
+}
+
+void BTIC4B_DecImageClrDec4B_RCTSW(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	u32 *rpx0, u32 *rpx1)
+{
+	BTIC4B_DecImageClrDec4B_RCT(
+		cy0, cy1, cy2, cy3,
+		cv0, cu0, cv1, cu1,
+		rpx0, rpx1);
+}
+
+void BTIC4B_DecImageClrDec4C_RCTSW(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	int cu2, int cv2, int cu3, int cv3,
+	u32 *rpx0, u32 *rpx1)
+{
+	BTIC4B_DecImageClrDec4C_RCT(
+		cy0, cy1, cy2, cy3,
+		cv0, cu0, cv1, cu1,
+		cv2, cu2, cv3, cu3,
+		rpx0, rpx1);
+}
+
 #endif
 
 void BTIC4B_DecImageClrsI(BTIC4B_Context *ctx,
@@ -2032,7 +2128,7 @@ void BTIC4B_DecImageClrsI(BTIC4B_Context *ctx,
 		byte *blkbuf, byte *ibuf, int ystr);
 	byte *cs, *ct;
 	int xs1, ys1, xs2, ys2, xf, yf, ystr;
-	int bi;
+	int bi, sw;
 	int i, j, k;
 	
 	BTIC4B_InitScTables();
@@ -2040,16 +2136,22 @@ void BTIC4B_DecImageClrsI(BTIC4B_Context *ctx,
 	switch(clrs&127)
 	{
 	case BTIC4B_CLRS_RGBA:
-		DecBlock=BTIC4B_DecBlockRGBA;
+//		DecBlock=BTIC4B_DecBlockRGBA;
+		DecBlock=BTIC4B_DecBlockBGRA;
+		sw=1;
 		break;
 	case BTIC4B_CLRS_BGRA:
 		DecBlock=BTIC4B_DecBlockBGRA;
+		sw=0;
 		break;
 	case BTIC4B_CLRS_RGBX:
-		DecBlock=BTIC4B_DecBlockRGBX;
+//		DecBlock=BTIC4B_DecBlockRGBX;
+		DecBlock=BTIC4B_DecBlockBGRX;
+		sw=1;
 		break;
 	case BTIC4B_CLRS_BGRX:
 		DecBlock=BTIC4B_DecBlockBGRX;
+		sw=0;
 		break;
 	}
 	
@@ -2060,20 +2162,42 @@ void BTIC4B_DecImageClrsI(BTIC4B_Context *ctx,
 	switch(ctx->clrt)
 	{
 	case BTIC4B_CLRT_GDBDR:
-		ctx->ClrDec1=BTIC4B_DecImageClr1_GDbDr;
-		ctx->ClrDec1A=BTIC4B_DecImageClr1A_GDbDr;
-		ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_GDbDr;
-		ctx->ClrDec4=BTIC4B_DecImageClrDec4_GDbDr;
-		ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_GDbDr;
-		ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_GDbDr;
+		if(sw)
+		{
+			ctx->ClrDec1=BTIC4B_DecImageClr1_GDbDrSW;
+			ctx->ClrDec1A=BTIC4B_DecImageClr1A_GDbDrSW;
+			ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_GDbDrSW;
+			ctx->ClrDec4=BTIC4B_DecImageClrDec4_GDbDrSW;
+			ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_GDbDrSW;
+			ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_GDbDrSW;
+		}else
+		{
+			ctx->ClrDec1=BTIC4B_DecImageClr1_GDbDr;
+			ctx->ClrDec1A=BTIC4B_DecImageClr1A_GDbDr;
+			ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_GDbDr;
+			ctx->ClrDec4=BTIC4B_DecImageClrDec4_GDbDr;
+			ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_GDbDr;
+			ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_GDbDr;
+		}
 		break;
 	case BTIC4B_CLRT_RCT:
-		ctx->ClrDec1=BTIC4B_DecImageClr1_RCT;
-		ctx->ClrDec1A=BTIC4B_DecImageClr1A_RCT;
-		ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_RCT;
-		ctx->ClrDec4=BTIC4B_DecImageClrDec4_RCT;
-		ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_RCT;
-		ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_RCT;
+		if(sw)
+		{
+			ctx->ClrDec1=BTIC4B_DecImageClr1_RCTSW;
+			ctx->ClrDec1A=BTIC4B_DecImageClr1A_RCTSW;
+			ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_RCTSW;
+			ctx->ClrDec4=BTIC4B_DecImageClrDec4_RCTSW;
+			ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_RCTSW;
+			ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_RCTSW;
+		}else
+		{
+			ctx->ClrDec1=BTIC4B_DecImageClr1_RCT;
+			ctx->ClrDec1A=BTIC4B_DecImageClr1A_RCT;
+			ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_RCT;
+			ctx->ClrDec4=BTIC4B_DecImageClrDec4_RCT;
+			ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_RCT;
+			ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_RCT;
+		}
 		break;
 	default:
 		ctx->ClrDec1=BTIC4B_DecImageClr1_RCT;

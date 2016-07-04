@@ -309,7 +309,8 @@ void BTIC4B_SplitIbufBGRX(byte *ibuf, int ystr,
 	mcyuv[3]=255;	ncyuv[3]=255;
 }
 
-void BTIC4B_SplitIbufBGRA444(byte *ibuf, int ystr,
+void BTIC4B_SplitIbufBGRA444(BTIC4B_Context *ctx,
+	byte *ibuf, int ystr,
 	int *ybuf, int *ubuf, int *vbuf, int *abuf,
 	int *mcyuv, int *ncyuv)
 {
@@ -360,23 +361,35 @@ void BTIC4B_SplitIbufBGRA444(byte *ibuf, int ystr,
 			cr=(cr0+cr1+cr2+cr3)>>2;
 			cb=(cb0+cb1+cb2+cb3)>>2;
 
-			cy0=(2*cg0+cr0+cb0)>>2;
-			cy1=(2*cg1+cr1+cb1)>>2;
-			cy2=(2*cg2+cr2+cb2)>>2;
-			cy3=(2*cg3+cr3+cb3)>>2;
+			if(ctx->clrt==BTIC4B_CLRT_RCT)
+			{
+				cy0=(2*cg0+cr0+cb0)>>2;
+				cy1=(2*cg1+cr1+cb1)>>2;
+				cy2=(2*cg2+cr2+cb2)>>2;
+				cy3=(2*cg3+cr3+cb3)>>2;
+
+				cu0=cb0-cg0;	cv0=cr0-cg0;
+				cu1=cb1-cg1;	cv1=cr1-cg1;
+				cu2=cb2-cg2;	cv2=cr2-cg2;
+				cu3=cb3-cg3;	cv3=cr3-cg3;
+			}else
+			{
+				cy0=cg0;	cy1=cg1;
+				cy2=cg2;	cy3=cg3;
+
+				cu0=cb0-cg0;	cv0=cr0-cg0;
+				cu1=cb1-cg1;	cv1=cr1-cg1;
+				cu2=cb2-cg2;	cv2=cr2-cg2;
+				cu3=cb3-cg3;	cv3=cr3-cg3;
+			}
 
 //			cy0=cg0;	cy1=cg1;
 //			cy2=cg2;	cy3=cg3;
 
 //			cu=((cb-cg)>>1)+128;
 //			cv=((cr-cg)>>1)+128;
-			cu=cb-cg;
-			cv=cr-cg;
-
-			cu0=cb0-cg0;	cv0=cr0-cg0;
-			cu1=cb1-cg1;	cv1=cr1-cg1;
-			cu2=cb2-cg2;	cv2=cr2-cg2;
-			cu3=cb3-cg3;	cv3=cr3-cg3;
+//			cu=cb-cg;
+//			cv=cr-cg;
 
 //			cu0=(3*cu0+cu)>>2;		cv0=(3*cv0+cv)>>2;
 //			cu1=(3*cu1+cu)>>2;		cv1=(3*cv1+cv)>>2;
@@ -1342,7 +1355,6 @@ void BTIC4B_EncBlock0Inner(
 	int *ubuf2, int *vbuf2,
 	int *mcyuv, int *ncyuv)
 {
-//	int *csy;
 	int aby[16];
 	int amcy[4], ancy[4];
 	int mbyl, nbyl, mbyr, nbyr, mby, nby;
@@ -1353,7 +1365,7 @@ void BTIC4B_EncBlock0Inner(
 	int acy, acu, acv, dcy, dcu, dcv;
 	int acy2, acu2, acv2;
 	int dcy1b, dcu1b, dcv1b;
-	int mca, nca, dcuv;
+	int mca, nca, dcuv, bt, fl;
 	int ls0, ls0b, ls1, ls2, lc0, lc1, lc2, lc3;
 	int l0, l1, l2, l3;
 	int i0, i1, i2, i3;
@@ -1543,151 +1555,81 @@ void BTIC4B_EncBlock0Inner(
 	lc2=8388608+4095;
 	lc3=8388608-4095;
 
+#if 1
+	bt=-1;
 	dcuv=dcu|dcv;
-//	if((dcu+dcv)>ctx->qduv_flat)
-//	if((dcu|dcv)>ctx->qduv_flat)
+	
+#if 0
+	if(ctx->qfl&BTIC4B_QFL_USEBFQ)
+	{
+		fl=0;
+		if(dbyhvp)fl|=1;
+		if(dcenexp)fl|=2;
+		if(alexp)fl|=4;
+
+		for(i=0; i<32; i++)
+		{
+			if(dcy>ctx->bfq_qdy[i])
+				continue;
+			if(dcuv>ctx->bfq_qduv[i])
+				continue;
+			if((fl&ctx->bfq_rqfl[i])!=ctx->bfq_rqfl[i])
+				continue;
+			if((fl&ctx->bfq_exfl[i])!=0)
+				continue;
+			if(ctx->bfq_cost[i]>=200)
+				continue;
+			if((bt<0) || (ctx->bfq_cost[i]<=ctx->bfq_cost[bt]))
+				bt=i;
+//			if(bt>=0)break;
+		}
+
+//		if(bt<0)bt=0x19;
+		if(bt<0)bt=0x11;
+	}
+#endif	
+
 	if(dcuv>ctx->qduv_flat)
 	{
 		if(dcuv<ctx->qduv_2x2)
 		{
-#if 1
 			if(dcy<ctx->qdy_2x2x2)
-			{
-				*(u32 *)(blkbuf+ 0)=  0x14|0x00FF0000;
-				BTIC4B_EncYBits2x2x2(blkbuf+16, ybuf, ls0, acy);
-				BTIC4B_EncUVBits2x2x1(blkbuf+18, ubuf, ls1, acu);
-				BTIC4B_EncUVBits2x2x1(blkbuf+19, vbuf, ls2, acv);
-				blkbuf[17]=blkbuf[18]|(blkbuf[19]<<4);
-				return;
-			}
-#endif
-
-#if 1
+				{ if(bt<0)bt=0x14; }
 			if(dcy<ctx->qdy_4x4x2)
-			{
-				*(u32 *)(blkbuf+ 0)=  0x15|0x00FF0000;
-				BTIC4B_EncYBits4x4x2(blkbuf+16, ybuf, ls0, acy);
-				BTIC4B_EncUVBits2x2x2(blkbuf+20, ubuf, ls1, acu);
-				BTIC4B_EncUVBits2x2x2(blkbuf+21, vbuf, ls2, acv);
-				return;
-			}
-#endif
-
-#if 1
+				{ if(bt<0)bt=0x15; }
 			if((dcy<ctx->qdy_8x8x2) || dcenexp)
-			{
-				*(u32 *)(blkbuf+ 0)=  0x17|0x00FF0000;
-				BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
-				BTIC4B_EncUVBits2x2x2(blkbuf+32, ubuf, ls1, acu);
-				BTIC4B_EncUVBits2x2x2(blkbuf+33, vbuf, ls2, acv);
-				return;
-			}
-#endif
+				{ if(bt<0)bt=0x17; }
 		}else
 		{
 			if((dcu>dcy) || (dcv>dcy))
 			{
-//				if((dcu+dcv)<ctx->qdy_4x4x2)
 				if((dcuv<ctx->qdy_4x4x2) ||
 					((dcy<ctx->qdy_4x4x2) && alexp))
-				{
-					*(u32 *)(blkbuf+ 0)=  0x16|0x00FF0000;
-					BTIC4B_EncYBits4x4x2(blkbuf+16, ybuf, ls0, acy);
-					BTIC4B_EncUVBits4x4x2(blkbuf+20, ubuf, ls1, acu);
-					BTIC4B_EncUVBits4x4x2(blkbuf+24, vbuf, ls2, acv);
-					return;
-				}
-
-//				if((dcy<ctx->qdy_8x8x2) || dcenexp)
-//				if(!alexp && ubuf2)
+						{ if(bt<0)bt=0x16; }
 				if((dcy<ctx->qdy_8x8x2) && !alexp && ubuf2)
-				{
-					*(u32 *)(blkbuf+ 0)=  0x1B|0x00FF0000;
-					BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
-					BTIC4B_EncYBits8x8x2(blkbuf+32, ubuf2, ls1, acu);
-					BTIC4B_EncYBits8x8x2(blkbuf+48, vbuf2, ls2, acv);
-					return;
-				}
-
+					{ if(bt<0)bt=0x1B; }
 				if(!alexp && ubuf2)
-				{
-//					*(u32 *)(blkbuf+ 0)=  0x1B|0x00FF0000;
-					blkbuf[0]=0x19;
-					blkbuf[1]=0x00;
-					blkbuf[2]=acy;
-					blkbuf[3]=lqtvq_clamp255((acu>>1)+128);
-					blkbuf[4]=lqtvq_clamp255((acv>>1)+128);
-					blkbuf[5]=dcy;
-					blkbuf[6]=lqtvq_clamp255((dcu>>1)+128);
-					blkbuf[7]=lqtvq_clamp255((dcv>>1)+128);
-					BTIC4B_EncYBits8x8x3(blkbuf+8, ybuf, ls0, acy);
-					BTIC4B_EncYBits8x8x2(blkbuf+32, ubuf2, ls1, acu);
-					BTIC4B_EncYBits8x8x2(blkbuf+48, vbuf2, ls2, acv);
-					return;
-				}
+					{ if(bt<0)bt=0x19; }
 			}
-
-#if 1
 			if(dcy<ctx->qdy_4x4x2)
-			{
-				*(u32 *)(blkbuf+ 0)=  0x16|0x00FF0000;
-				BTIC4B_EncYBits4x4x2(blkbuf+16, ybuf, ls0, acy);
-				BTIC4B_EncUVBits4x4x2(blkbuf+20, ubuf, ls1, acu);
-				BTIC4B_EncUVBits4x4x2(blkbuf+24, vbuf, ls2, acv);
-				return;
-			}
-#endif
+				{ if(bt<0)bt=0x16; }
 		}
 		
-//		if((dcy<ctx->qdy_8x8x2) || dcenexp || alexp)
 		if((dcy<ctx->qdy_8x8x2) || dcenexp)
-//		if((dcy<ctx->qdy_8x8x2) || dcenexp ||
-//			((ctx->qfl&127)<80))
-		{
-			*(u32 *)(blkbuf+ 0)=  0x18|0x00FF0000;
-			BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
-			BTIC4B_EncUVBits4x4x2(blkbuf+32, ubuf, ls1, acu);
-			BTIC4B_EncUVBits4x4x2(blkbuf+36, vbuf, ls2, acv);
-			return;
-		}
+			{ if(bt<0)bt=0x18; }
 		
-//		if((dcy<ctx->qdy_8x8x3) || alexp)
 		if(1)
-		{
-			*(u32 *)(blkbuf+ 0)=  0x1C|0x00FF0000;
-			BTIC4B_EncYBits8x8x3(blkbuf+16, ybuf, ls0, acy);
-			BTIC4B_EncUVBits4x4x2(blkbuf+40, ubuf, ls1, acu);
-			BTIC4B_EncUVBits4x4x2(blkbuf+44, vbuf, ls2, acv);
-			return;
-		}
-
-		*(u32 *)(blkbuf+ 0)=  0x1D|0x00FF0000;
-		BTIC4B_EncYBits8x8x4(blkbuf+16, ybuf, ls0, acy);
-		BTIC4B_EncUVBits4x4x4(blkbuf+48, ubuf, ls1, acu);
-		BTIC4B_EncUVBits4x4x4(blkbuf+56, vbuf, ls2, acv);
-		return;
+			{ if(bt<0)bt=0x1C; }
+		if(bt<0)bt=0x1D;
 	}else
 	{
 		if(dcy<ctx->qdy_flat)
-		{
-			*(u32 *)(blkbuf+ 0)=  0x00|0x00FF0000;
-			return;
-		}
-		
+			{ if(bt<0)bt=0x00; }
 		if(dcy<ctx->qdy_2x2x2)
 		{
 			if(dcenexp)
-//			if(0)
-			{
-				*(u32 *)(blkbuf+ 0)=  0x01|0x00FF0000;
-				*(s16 *)(blkbuf+10)=dcy1b;
-				BTIC4B_EncYBits2x2x1(blkbuf+16, ybuf, ls0, acy);
-				return;
-			}
-		
-			*(u32 *)(blkbuf+ 0)=  0x09|0x00FF0000;
-			BTIC4B_EncYBits2x2x2(blkbuf+16, ybuf, ls0, acy);
-			return;
+				{ if(bt<0)bt=0x01; }
+			if(bt<0)bt=0x09;
 		}
 		
 		if(dbyhvp && (dcy1<=ctx->qdy_2x2x2))
@@ -1695,127 +1637,222 @@ void BTIC4B_EncBlock0Inner(
 			if(dbyv<=dbyh)
 			{
 				if(dcenexp)
-//				if(0)
-				{
-					*(u32 *)(blkbuf+ 0)=  0x02|0x00FF0000;
-					*(s16 *)(blkbuf+10)=dcy1b;
-					BTIC4B_EncYBits4x2x1(blkbuf+16, ybuf, ls0, acy);
-					return;
-				}
-
-				*(u32 *)(blkbuf+ 0)=  0x0A|0x00FF0000;
-				BTIC4B_EncYBits4x2x2(blkbuf+16, ybuf, ls0, acy);
+					{ if(bt<0)bt=0x02; }
+				if(bt<0)bt=0x0A;
 			}else
 			{
 				if(dcenexp)
-//				if(0)
-				{
-					*(u32 *)(blkbuf+ 0)=  0x03|0x00FF0000;
-					*(s16 *)(blkbuf+10)=dcy1b;
-					BTIC4B_EncYBits2x4x1(blkbuf+16, ybuf, ls0, acy);
-					return;
-				}
-
-				*(u32 *)(blkbuf+ 0)=  0x0B|0x00FF0000;
-				BTIC4B_EncYBits2x4x2(blkbuf+16, ybuf, ls0, acy);
+					{ if(bt<0)bt=0x03; }
+				if(bt<0)bt=0x0B;
 			}
-			return;
 		}
 
 		if(dcy<ctx->qdy_4x4x2)
 		{
 			if(dcenexp)
-//			if(0)
-			{
-				*(u32 *)(blkbuf+ 0)=  0x04|0x00FF0000;
-				*(s16 *)(blkbuf+10)=dcy1b;
-				BTIC4B_EncYBits4x4x1(blkbuf+16, ybuf, ls0, acy);
-				return;
-			}
-
-			*(u32 *)(blkbuf+ 0)=  0x0C|0x00FF0000;
-			BTIC4B_EncYBits4x4x2(blkbuf+16, ybuf, ls0, acy);
-			return;
+				{ if(bt<0)bt=0x04; }
+			if(bt<0)bt=0x0C;
 		}
 
-#if 1
 		if(dbyhvp && (dcy2<=ctx->qdy_4x4x2))
 		{
 			if(dbyv<=dbyh)
 			{
 				if(dcenexp)
-//				if(0)
-				{
-					*(u32 *)(blkbuf+ 0)=  0x05|0x00FF0000;
-					*(s16 *)(blkbuf+10)=dcy1b;
-					BTIC4B_EncYBits8x4x1(blkbuf+16, ybuf, ls0, acy);
-					return;
-				}
-
-				*(u32 *)(blkbuf+ 0)=  0x0D|0x00FF0000;
-				BTIC4B_EncYBits8x4x2(blkbuf+16, ybuf, ls0, acy);
+					{ if(bt<0)bt=0x05; }
+				if(bt<0)bt=0x0D;
 			}else
 			{
 				if(dcenexp)
-//				if(0)
-				{
-					*(u32 *)(blkbuf+ 0)=  0x06|0x00FF0000;
-					*(s16 *)(blkbuf+10)=dcy1b;
-					BTIC4B_EncYBits4x8x1(blkbuf+16, ybuf, ls0, acy);
-					return;
-				}
-
-				*(u32 *)(blkbuf+ 0)=  0x0E|0x00FF0000;
-				BTIC4B_EncYBits4x8x2(blkbuf+16, ybuf, ls0, acy);
+					{ if(bt<0)bt=0x06; }
+				if(bt<0)bt=0x0E;
 			}
-			return;
 		}
-#endif
 
 		if(dcy<ctx->qdy_8x8x2)
 		{
 			if(dcenexp)
-//			if(0)
-			{
-				*(u32 *)(blkbuf+ 0)=  0x07|0x00FF0000;
-				*(s16 *)(blkbuf+10)=dcy1b;
-				BTIC4B_EncYBits8x8x1(blkbuf+16, ybuf, ls0, acy);
-				return;
-			}
-
-			*(u32 *)(blkbuf+ 0)=  0x0F|0x00FF0000;
-			BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
-			return;
+				{ if(bt<0)bt=0x07; }
+			if(bt<0)bt=0x0F;
 		}
 
-//		if(dcenexp ||
-//			((ctx->qfl&127)<80))
-//		if(dcenexp || alexp)
 		if(dcenexp)
-//		if(0)
-		{
-			*(u32 *)(blkbuf+ 0)=  0x0F|0x00FF0000;
-			BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
-			return;
-		}
+			{ if(bt<0)bt=0x0F; }
 
-#if 1
 		if((dcy<ctx->qdy_8x8x3) ||
 			((ctx->qfl&127)<80))
-		{
-			*(u32 *)(blkbuf+ 0)=  0x10|0x00FF0000;
-			BTIC4B_EncYBits8x8x3(blkbuf+16, ybuf, ls0, acy);
-			return;
-		}
-#endif
-		
-		if(1)
-		{
-			*(u32 *)(blkbuf+ 0)=  0x11|0x00FF0000;
-			BTIC4B_EncYBits8x8x4(blkbuf+16, ybuf, ls0b, acy);
-			return;
-		}
+				{ if(bt<0)bt=0x10; }
+		if(bt<0)bt=0x11;
 	}
+#endif
+
+#if 1
+	switch(bt)
+	{
+	case 0x00:
+		*(u32 *)(blkbuf+ 0)=  0x00|0x00FF0000;
+		break;
+	case 0x01:
+		*(u32 *)(blkbuf+ 0)=  0x01|0x00FF0000;
+		*(s16 *)(blkbuf+10)=dcy1b;
+		BTIC4B_EncYBits2x2x1(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x02:
+		*(u32 *)(blkbuf+ 0)=  0x02|0x00FF0000;
+		*(s16 *)(blkbuf+10)=dcy1b;
+		BTIC4B_EncYBits4x2x1(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x03:
+		*(u32 *)(blkbuf+ 0)=  0x03|0x00FF0000;
+		*(s16 *)(blkbuf+10)=dcy1b;
+		BTIC4B_EncYBits2x4x1(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x04:
+		*(u32 *)(blkbuf+ 0)=  0x04|0x00FF0000;
+		*(s16 *)(blkbuf+10)=dcy1b;
+		BTIC4B_EncYBits4x4x1(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x05:
+		*(u32 *)(blkbuf+ 0)=  0x05|0x00FF0000;
+		*(s16 *)(blkbuf+10)=dcy1b;
+		BTIC4B_EncYBits8x4x1(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x06:
+		*(u32 *)(blkbuf+ 0)=  0x06|0x00FF0000;
+		*(s16 *)(blkbuf+10)=dcy1b;
+		BTIC4B_EncYBits4x8x1(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x07:
+		*(u32 *)(blkbuf+ 0)=  0x07|0x00FF0000;
+		*(s16 *)(blkbuf+10)=dcy1b;
+		BTIC4B_EncYBits8x8x1(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x08:
+		break;
+	case 0x09:
+		*(u32 *)(blkbuf+ 0)=  0x09|0x00FF0000;
+		BTIC4B_EncYBits2x2x2(blkbuf+16, ybuf, ls0, acy);
+		return;
+	case 0x0A:
+		*(u32 *)(blkbuf+ 0)=  0x0A|0x00FF0000;
+		BTIC4B_EncYBits4x2x2(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x0B:
+		*(u32 *)(blkbuf+ 0)=  0x0B|0x00FF0000;
+		BTIC4B_EncYBits2x4x2(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x0C:
+		*(u32 *)(blkbuf+ 0)=  0x0C|0x00FF0000;
+		BTIC4B_EncYBits4x4x2(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x0D:
+		*(u32 *)(blkbuf+ 0)=  0x0D|0x00FF0000;
+		BTIC4B_EncYBits8x4x2(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x0E:
+		*(u32 *)(blkbuf+ 0)=  0x0E|0x00FF0000;
+		BTIC4B_EncYBits4x8x2(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x0F:
+		*(u32 *)(blkbuf+ 0)=  0x0F|0x00FF0000;
+		BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x10:
+		*(u32 *)(blkbuf+ 0)=  0x10|0x00FF0000;
+		BTIC4B_EncYBits8x8x3(blkbuf+16, ybuf, ls0, acy);
+		break;
+	case 0x11:
+		*(u32 *)(blkbuf+ 0)=  0x11|0x00FF0000;
+		BTIC4B_EncYBits8x8x4(blkbuf+16, ybuf, ls0b, acy);
+		break;
+	case 0x12:
+		break;
+	case 0x13:
+		blkbuf[0]=0x13;
+		blkbuf[1]=0x00;
+		blkbuf[2]=acy;
+		blkbuf[3]=lqtvq_clamp255((acu>>1)+128);
+		blkbuf[4]=lqtvq_clamp255((acv>>1)+128);
+		blkbuf[5]=dcy;
+		blkbuf[6]=lqtvq_clamp255((dcu>>1)+128);
+		blkbuf[7]=lqtvq_clamp255((dcv>>1)+128);
+		BTIC4B_EncYBits8x8x2(blkbuf+8, ybuf, ls0, acy);
+		BTIC4B_EncUVBits4x4x2(blkbuf+24, ubuf2, ls1, acu);
+		BTIC4B_EncUVBits4x4x2(blkbuf+28, vbuf2, ls2, acv);
+		break;
+	case 0x14:
+		*(u32 *)(blkbuf+ 0)=  0x14|0x00FF0000;
+		BTIC4B_EncYBits2x2x2(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncUVBits2x2x1(blkbuf+18, ubuf, ls1, acu);
+		BTIC4B_EncUVBits2x2x1(blkbuf+19, vbuf, ls2, acv);
+		blkbuf[17]=blkbuf[18]|(blkbuf[19]<<4);
+		break;
+	case 0x15:
+		*(u32 *)(blkbuf+ 0)=  0x15|0x00FF0000;
+		BTIC4B_EncYBits4x4x2(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncUVBits2x2x2(blkbuf+20, ubuf, ls1, acu);
+		BTIC4B_EncUVBits2x2x2(blkbuf+21, vbuf, ls2, acv);
+		break;
+	case 0x16:
+		*(u32 *)(blkbuf+ 0)=  0x16|0x00FF0000;
+		BTIC4B_EncYBits4x4x2(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncUVBits4x4x2(blkbuf+20, ubuf, ls1, acu);
+		BTIC4B_EncUVBits4x4x2(blkbuf+24, vbuf, ls2, acv);
+		break;
+	case 0x17:
+		*(u32 *)(blkbuf+ 0)=  0x17|0x00FF0000;
+		BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncUVBits2x2x2(blkbuf+32, ubuf, ls1, acu);
+		BTIC4B_EncUVBits2x2x2(blkbuf+33, vbuf, ls2, acv);
+		break;
+	case 0x18:
+		*(u32 *)(blkbuf+ 0)=  0x18|0x00FF0000;
+		BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncUVBits4x4x2(blkbuf+32, ubuf, ls1, acu);
+		BTIC4B_EncUVBits4x4x2(blkbuf+36, vbuf, ls2, acv);
+		break;
+	case 0x19:
+		blkbuf[0]=0x19;
+		blkbuf[1]=0x00;
+		blkbuf[2]=acy;
+		blkbuf[3]=lqtvq_clamp255((acu>>1)+128);
+		blkbuf[4]=lqtvq_clamp255((acv>>1)+128);
+		blkbuf[5]=dcy;
+		blkbuf[6]=lqtvq_clamp255((dcu>>1)+128);
+		blkbuf[7]=lqtvq_clamp255((dcv>>1)+128);
+		BTIC4B_EncYBits8x8x3(blkbuf+8, ybuf, ls0, acy);
+		BTIC4B_EncYBits8x8x2(blkbuf+32, ubuf2, ls1, acu);
+		BTIC4B_EncYBits8x8x2(blkbuf+48, vbuf2, ls2, acv);
+		break;
+	case 0x1A:
+		*(u32 *)(blkbuf+ 0)=  0x1A|0x00FF0000;
+		BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncYBits4x8x2(blkbuf+32, ubuf2, ls1, acu);
+		BTIC4B_EncYBits4x8x2(blkbuf+40, vbuf2, ls2, acv);
+		break;
+	case 0x1B:
+		*(u32 *)(blkbuf+ 0)=  0x1B|0x00FF0000;
+		BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncYBits8x8x2(blkbuf+32, ubuf2, ls1, acu);
+		BTIC4B_EncYBits8x8x2(blkbuf+48, vbuf2, ls2, acv);
+		break;
+	case 0x1C:
+		*(u32 *)(blkbuf+ 0)=  0x1C|0x00FF0000;
+		BTIC4B_EncYBits8x8x3(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncUVBits4x4x2(blkbuf+40, ubuf, ls1, acu);
+		BTIC4B_EncUVBits4x4x2(blkbuf+44, vbuf, ls2, acv);
+		break;
+	case 0x1D:
+		*(u32 *)(blkbuf+ 0)=  0x1D|0x00FF0000;
+		BTIC4B_EncYBits8x8x4(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncUVBits4x4x4(blkbuf+48, ubuf, ls1, acu);
+		BTIC4B_EncUVBits4x4x4(blkbuf+56, vbuf, ls2, acv);
+		break;
+	default:
+		break;
+	}
+#endif
+
 }
 
 void BTIC4B_EncBlockAInner(
@@ -1961,7 +1998,7 @@ void BTIC4B_EncBlockBGRA(BTIC4B_Context *ctx,
 	int i, j, k;
 
 #if 1
-	BTIC4B_SplitIbufBGRA444(ibuf, ystr,
+	BTIC4B_SplitIbufBGRA444(ctx, ibuf, ystr,
 		ybuf, ubuf, vbuf, abuf,
 		mcyuv, ncyuv);
 
@@ -2015,6 +2052,43 @@ void BTIC4B_EncBlockBGRX(BTIC4B_Context *ctx,
 void BTIC4B_EncBlockRGBA(BTIC4B_Context *ctx,
 	byte *blkbuf, byte *ibuf, int ystr)
 {
+	int ybuf[64], ubuf[64], vbuf[64], abuf[64];
+	int ubuf2[16], vbuf2[16];
+	int mcyuv[4], ncyuv[4];
+	int i0, i1;
+	int cu, cv;
+	int i, j, k;
+
+#if 1
+	BTIC4B_SplitIbufBGRA444(ctx, ibuf, ystr,
+		ybuf, vbuf, ubuf, abuf,
+		mcyuv, ncyuv);
+
+	i0=mcyuv[1]; i1=mcyuv[2];	mcyuv[1]=i1; mcyuv[2]=i0;
+	i0=ncyuv[1]; i1=ncyuv[2];	ncyuv[1]=i1; ncyuv[2]=i0;
+//	i0=mcyuv[4]; i1=mcyuv[5];	mcyuv[4]=i1; mcyuv[5]=i0;
+//	i0=ncyuv[4]; i1=ncyuv[5];	ncyuv[4]=i1; ncyuv[5]=i0;
+
+	for(i=0; i<4; i++)
+		for(j=0; j<4; j++)
+	{
+		i0=i*16+j*2;
+		i1=i*4+j;
+		
+		cu=(ubuf[i0+0]+ubuf[i0+1]+ubuf[i0+8]+ubuf[i0+9])>>2;
+		cv=(vbuf[i0+0]+vbuf[i0+1]+vbuf[i0+8]+vbuf[i0+9])>>2;
+		ubuf2[i1]=cu;
+		vbuf2[i1]=cv;
+	}
+
+	BTIC4B_EncBlock0Inner(ctx, blkbuf,
+		ybuf, ubuf2, vbuf2, ubuf, vbuf,
+		mcyuv, ncyuv);
+
+	BTIC4B_EncBlockAInner(ctx, blkbuf, abuf, mcyuv[3], ncyuv[3]);
+#endif
+
+#if 0
 	byte tbuf[128];
 	int cu, cv, du, dv;
 	int i, j;
@@ -2029,11 +2103,29 @@ void BTIC4B_EncBlockRGBA(BTIC4B_Context *ctx,
 	*(s16 *)(tbuf+12)=dv;
 	*(s16 *)(tbuf+14)=du;
 	memcpy(blkbuf, tbuf, 64);
+#endif
 }
 
 void BTIC4B_EncBlockRGBX(BTIC4B_Context *ctx,
 	byte *blkbuf, byte *ibuf, int ystr)
 {
+	int ybuf[64], ubuf[16], vbuf[16];
+	int mcyuv[4], ncyuv[4];
+	int i0, i1;
+	
+	BTIC4B_SplitIbufBGRX(ibuf, ystr,
+		ybuf, vbuf, ubuf,
+		mcyuv, ncyuv);
+	i0=mcyuv[1]; i1=mcyuv[2];	mcyuv[1]=i1; mcyuv[2]=i0;
+	i0=ncyuv[1]; i1=ncyuv[2];	ncyuv[1]=i1; ncyuv[2]=i0;
+//	i0=mcyuv[4]; i1=mcyuv[5];	mcyuv[4]=i1; mcyuv[5]=i0;
+//	i0=ncyuv[4]; i1=ncyuv[5];	ncyuv[4]=i1; ncyuv[5]=i0;
+
+	BTIC4B_EncBlock0Inner(ctx, blkbuf,
+		ybuf, ubuf, vbuf, NULL, NULL,
+		mcyuv, ncyuv);
+
+#if 0
 	byte tbuf[128];
 	int cu, cv, du, dv;
 	int i, j;
@@ -2048,8 +2140,10 @@ void BTIC4B_EncBlockRGBX(BTIC4B_Context *ctx,
 	*(s16 *)(tbuf+12)=dv;
 	*(s16 *)(tbuf+14)=du;
 	memcpy(blkbuf, tbuf, 64);
+#endif
 }
 
+#if 1
 void BTIC4B_EncImageBGRA(BTIC4B_Context *ctx,
 	byte *blks, byte *ibuf, int xs, int ys)
 {
@@ -2075,6 +2169,7 @@ void BTIC4B_EncImageBGRA(BTIC4B_Context *ctx,
 		}
 	}
 }
+#endif
 
 void BTIC4B_EncImageClrs(BTIC4B_Context *ctx,
 	byte *blks, byte *ibuf, int xs, int ys, int clrs)

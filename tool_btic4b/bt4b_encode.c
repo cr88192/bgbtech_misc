@@ -1078,7 +1078,7 @@ force_inline void BTIC4B_EncUpdatePredPost(BTIC4B_Context *ctx,
 int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 	byte *cbuf, byte *blks, byte *lblks, int xs, int ys, int qf)
 {
-	byte *cs, *cs1, *cse, *csl;
+	byte *cs, *cs1, *cse, *csl, *cs1e;
 	byte *blkb;
 	int xs1, ys1;
 	int bi, bc, bc2;
@@ -1105,8 +1105,12 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 	BTIC4B_EncEmitGenericUVal(ctx, ctx->qdy);
 	BTIC4B_EncEmitGenericUVal(ctx, ctx->qduv);
 
-	if((qf&127)<50)
-		BTIC4B_EmitSetParm(ctx, -2, 1);
+//	if((qf&127)<50)
+	if(qf&BTIC4B_QFL_USEPRED)
+	{
+//		BTIC4B_EmitSetParm(ctx, -2, 1);
+		BTIC4B_EmitSetParm(ctx, -2, 2);
+	}
 	
 	cs=blks;
 	csl=lblks;
@@ -1118,9 +1122,16 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 		blkb=cs;
 		cs+=64;
 
-		cs1=cs; bc=1;
-		while((cs1<cse) && (cs1[0]==blkb[0]))
-			{ cs1+=64; bc2++; }
+		if(blkb[0]==0x00)
+		{
+			cs1=cs; bc=1; cs1e=cs1+63*64;
+			if(cse<cs1e)cs1e=cse;
+			while((cs1<cs1e) && (cs1[0]==blkb[0]))
+				{ cs1+=64; bc++; }
+		}else
+		{
+			bc=0;
+		}
 
 		cs1=blkb; bc2=0;
 		while((cs1<cse) && (cs1[0]==blkb[0]))
@@ -1839,10 +1850,18 @@ BTIC4B_API byte *BTIC4B_EncodeBufEmitHeadCtx(
 	BTIC4B_Context *ctx, byte *ict)
 {
 	byte *ct;
-	int mod;
+	int mod, bs;
 	int i;
 
-	mod=0|(2<<3)|(ctx->clrt<<5);
+	switch(ctx->blksz)
+	{
+	case 32: bs=0; break;
+	case 48: bs=1; break;
+	case 64: bs=2; break;
+	case 96: bs=3; break;
+	}
+
+	mod=ctx->imgt|(bs<<3)|(ctx->clrt<<5);
 
 	ct=ict;
 	*ct++=0;	*ct++=0;
@@ -1870,12 +1889,14 @@ BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 		ctx->xsb=(xs+7)>>3;
 		ctx->ysb=(ys+7)>>3;
 		ctx->nblk=ctx->xsb*ctx->ysb;
-		ctx->blks=malloc(ctx->nblk*64);
-		ctx->lblks=malloc(ctx->nblk*64);
+		ctx->blksz=64;
+		ctx->blks=malloc(ctx->nblk*ctx->blksz);
+		ctx->lblks=malloc(ctx->nblk*ctx->blksz);
 	}
 
 	ct=obuf;
 
+	ctx->imgt=0;
 	ctx->clrt=BTIC4B_CLRT_RCT;
 	
 	BTIC4B_SetupContextQf(ctx, qfl);

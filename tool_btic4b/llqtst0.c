@@ -1,218 +1,23 @@
 #include "bt4b_multi.c"
 #include "bt1h_targa.c"
 
-int tst_llq0(byte *ibuf, byte *obuf, int xs, int ys)
+float calc_rmse(byte *ibuf0, byte *ibuf1, int xs, int ys)
 {
-	byte *ybuf, *ubuf, *vbuf;
-	byte *cs0, *cs1, *cs0e, *cty0, *cty1, *ctu, *ctv;
-	byte cr0, cr1, cr2, cr3;
-	byte cg0, cg1, cg2, cg3;
-	byte cb0, cb1, cb2, cb3;
-	byte cy0, cy1, cy2, cy3;
-	byte cr, cg, cb;
-	byte cy, cu, cv;
-	byte lcy, lcu, lcv;
-	int xs1, ys1, ystr;
-	int i, j, k;
+	double er, eg, eb;
+	int dr, dg, db;
+	int i, j, k, n;
 	
-	ystr=xs*4;
-	
-	xs1=xs>>1; ys1=ys>>1;
-	ybuf=obuf;
-	ubuf=ybuf+xs*ys;
-	vbuf=ubuf+xs1*ys1;
-	
-	for(i=0; i<ys1; i++)
+	n=xs*ys; er=0; eg=0; eb=0;
+	for(i=0; i<n; i++)
 	{
-		cs0=ibuf+(i*2+0)*ystr;
-		cs1=ibuf+(i*2+1)*ystr;
-		cs0e=cs0+ystr;
-		cty0=ybuf+(i*2+0)*xs;
-		cty1=ybuf+(i*2+1)*xs;
-		ctu=ubuf+i*xs1;
-		ctv=vbuf+i*xs1;
-		
-		while(cs0<cs0e)
-		{
-			cb0=cs0[0];	cg0=cs0[1];	cr0=cs0[2];
-			cb1=cs0[4];	cg1=cs0[5];	cr1=cs0[6];
-			cb2=cs1[0];	cg2=cs1[1];	cr2=cs1[2];
-			cb3=cs1[4];	cg3=cs1[5];	cr3=cs1[6];
-			cs0+=8;		cs1+=8;
-			
-			cr=(cr0+cr1+cr2+cr3)>>2;
-			cg=(cg0+cg1+cg2+cg3)>>2;
-			cb=(cb0+cb1+cb2+cb3)>>2;
-			
-			cy0=cg0;	cy1=cg1;
-			cy2=cg2;	cy3=cg3;
-			cy=(3*cr+4*cg+cb)>>3;
-			cu=((cb-cy)>>1)+128;
-			cv=((cr-cy)>>1)+128;
-			
-			cty0[0]=cy0; cty0[1]=cy1;
-			cty1[0]=cy2; cty1[1]=cy3;
-			*ctu++=cu;		*ctv++=cv;
-			cty0+=2;		cty1+=2;
-		}
+		dr=ibuf0[i*4+0]-ibuf1[i*4+0];
+		dg=ibuf0[i*4+1]-ibuf1[i*4+1];
+		db=ibuf0[i*4+2]-ibuf1[i*4+2];
+		er=er+dr*dr;
+		eg=eg+dg*dg;
+		eb=eb+db*db;
 	}
-	return(0);
-}
-
-u32 bit_htab[512];
-byte *bit_ct;
-u32 bit_win;
-int bit_pos;
-
-void llq0_EmitSym(int sym)
-{
-	int ht, hc, hl;
-	int i;
-	
-	ht=bit_htab[sym];
-	hc=(u16)ht;
-	hl=(ht>>16)&15;
-	bit_win|=hc<<bit_pos;
-	bit_pos+=hl;
-
-#if 0
-	while(bit_pos>=8)
-	{
-		*bit_ct++=bit_win;
-		bit_win=bit_win>>8;
-		bit_pos-=8;
-	}
-#endif
-
-#if 1
-	i=bit_pos>>3;
-	*(u32 *)bit_ct=bit_win;
-	bit_ct+=i;
-	bit_win>>=i<<3;
-	bit_pos=bit_pos&7;
-#endif
-}
-
-void llq0_EmitSymOrZ(int *rzc, int val)
-{
-	int zc, uval;
-	
-	zc=*rzc;
-
-#if 1
-	if(!val)
-	{
-		*rzc=zc+1;
-		return;
-	}
-		
-	if(zc>0)
-	{
-		while(zc>=256)
-		{
-			llq0_EmitSym(0);
-			llq0_EmitSym(255);
-			zc-=255;
-		}
-		
-		if(zc>1)
-		{
-			llq0_EmitSym(0);
-			llq0_EmitSym(zc);
-		}else
-		{
-			llq0_EmitSym(1);
-		}
-		*rzc=0;
-	}
-#endif
-
-	uval=(val<<1)^(val>>31);
-	llq0_EmitSym(uval+1);
-}
-
-int tst_llqe0(byte *ibuf, byte *obuf, int xs, int ys)
-{
-	byte *csy0, *csy1, *csy0e, *csu, *csv;
-	byte *ybuf, *ubuf, *vbuf;
-
-	byte cy0, cy1, cy2, cy3;
-	byte cy, cu, cv;
-	
-	int ly0, ly1, lu, lv;
-	int dy0, dy1, dy2, dy3, du, dv;
-	int xs1, ys1, ystr, qsc, qsf;
-	int zc;
-	int i, j, k;
-
-	bit_ct=obuf;
-	bit_win=0;
-	bit_pos=0;
-
-	xs1=xs>>1; ys1=ys>>1;
-	ybuf=ibuf;
-	ubuf=ybuf+xs*ys;
-	vbuf=ubuf+xs1*ys1;
-	
-	qsc=9;
-	qsf=256/qsc;
-	zc=0;
-	
-	for(i=0; i<ys1; i++)
-	{
-		csy0=ybuf+(i*2+0)*xs;
-		csy1=ybuf+(i*2+1)*xs;
-		csy0e=csy0+xs;
-		csu=ubuf+i*xs1;
-		csv=vbuf+i*xs1;
-		
-		ly0=0;		ly1=0;
-		lu=0;		lv=0;
-		
-		while(csy0<csy0e)
-		{
-			cy0=csy0[0]; cy1=csy0[1];
-			cy2=csy1[0]; cy3=csy1[1];
-			cu=*csu++;	cv=*csv++;
-			csy0+=2;
-			csy1+=2;
-			
-			dy0=cy0-ly0;
-			dy2=cy2-ly1;
-			dy0=(dy0*qsf)>>8;
-			dy2=(dy2*qsf)>>8;
-			ly0+=dy0*qsc;
-			ly1+=dy2*qsc;
-
-			dy1=cy1-ly0;
-			dy3=cy3-ly1;
-			dy1=(dy1*qsf)>>8;
-			dy3=(dy3*qsf)>>8;
-			ly0+=dy1*qsc;
-			ly1+=dy3*qsc;
-
-			du=cu-lu;
-			dv=cv-lv;
-			du=(du*qsf)>>8;
-			dv=(dv*qsf)>>8;
-			lu+=du*qsc;
-			lv+=dv*qsc;
-
-#if 1
-			llq0_EmitSymOrZ(&zc, dy0);
-			llq0_EmitSymOrZ(&zc, dy1);
-			llq0_EmitSymOrZ(&zc, dy2);
-			llq0_EmitSymOrZ(&zc, dy3);
-			llq0_EmitSymOrZ(&zc, du);
-			llq0_EmitSymOrZ(&zc, dv);
-#endif
-		}
-	}
-
-	llq0_EmitSym(0);
-	llq0_EmitSym(0);
-	
-	return(bit_ct-obuf);
+	return(sqrt((er+eg+eb)/(3*n)));
 }
 
 void cmp_rmse(byte *ibuf0, byte *ibuf1, int xs, int ys)
@@ -623,10 +428,10 @@ int bt4b_test(char *infile, int qfl)
 //	cbuf=malloc(xs*ys*8);
 	cbuf=malloc(1<<24);
 	
-	for(i=0; i<512; i++)
-	{
-		bit_htab[i]=i|(9<<16);
-	}
+//	for(i=0; i<512; i++)
+//	{
+//		bit_htab[i]=i|(9<<16);
+//	}
 
 #if 0
 	k=xs*ys;
@@ -753,6 +558,218 @@ int bt4b_test(char *infile, int qfl)
 //	BTIC1H_Img_SaveTGA("bt4at0.tga", tbuf2, xs, ys);
 }
 
+typedef struct {
+short bfq_qdy[32];		//dy cutoff
+short bfq_qduv[32];		//duv cutoff
+byte bfq_rqfl[32];		//require flags
+byte bfq_exfl[32];		//exclude flags
+byte bfq_cost[32];		//block cost
+float eb, err, bpp;
+}BT4B_TestVector;
+
+typedef struct {
+BT4B_TestVector vecs[256];
+}BT4B_TestArray;
+
+int bt4b_test2_run(BT4B_TestVector *test,
+	byte *ibuf, int xs, int ys, int qfl)
+{
+	static byte *tbuf0, *tbuf1, *tbuf2, *cbuf;
+	BTIC4B_Context tctx;
+	BTIC4B_Context *ctx;
+	double dt, mpxf, e, eb, bpp, qsc;
+	int t0, t1, t2, t3, t0e;
+	int nf, sz;
+	int i, j, k;
+	
+	if(!tbuf1)
+		tbuf1=malloc(xs*ys*8);
+	if(!cbuf)
+		cbuf=malloc(1<<24);
+
+	qsc=(100-(qfl&127))/25.0;
+
+	ctx=BTIC4B_AllocContext();
+	
+	for(i=0; i<32; i++)
+	{
+		ctx->bfq_qdy[i]=qsc*test->bfq_qdy[i];
+		ctx->bfq_qduv[i]=qsc*test->bfq_qduv[i];
+		ctx->bfq_rqfl[i]=test->bfq_rqfl[i];
+		ctx->bfq_exfl[i]=test->bfq_exfl[i];
+		ctx->bfq_cost[i]=test->bfq_cost[i];
+	}
+	
+	qfl|=BTIC4B_QFL_USEBFQ;
+	
+	sz=BTIC4B_EncodeImgBufferCtx(ctx, cbuf, 1<<24,
+		ibuf, xs, ys, qfl, BTIC4B_CLRS_RGBA);
+	BTIC4B_FreeContext(ctx);
+
+	ctx=BTIC4B_AllocContext();
+	BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
+		tbuf1, xs, ys, BTIC4B_CLRS_RGBA);
+	BTIC4B_FreeContext(ctx);
+
+	bpp=(sz*8.0)/(xs*ys);
+	e=calc_rmse(ibuf, tbuf1, xs, ys);
+	eb=pow(e, 1.5)*(bpp+1);
+
+	test->err=e;
+	test->bpp=bpp;
+	test->eb=eb;
+
+//	cmp_rmse(tbuf0, tbuf1, xs, ys);
+}
+
+int bt4b_test2_setupvec(BT4B_TestVector *test)
+{
+	int i;
+	
+	for(i=0; i<32; i++)
+	{
+		test->bfq_qdy[i]=192+(rand()&31)+1;
+		test->bfq_qduv[i]=192+(rand()&31)+1;
+		test->bfq_rqfl[i]=0;
+		test->bfq_exfl[i]=0;
+		test->bfq_cost[i]=128;
+	}
+	
+	test->bfq_cost[0x08]=255;
+	test->bfq_cost[0x12]=255;
+	test->bfq_cost[0x13]=255;
+	test->bfq_cost[0x1E]=255;
+	test->bfq_cost[0x1F]=255;
+	
+	test->bfq_exfl[0x13]=4;
+	test->bfq_exfl[0x19]=4;
+	test->bfq_exfl[0x1B]=4;
+}
+
+int bt4b_test2_breedvec(
+	BT4B_TestVector *testa, BT4B_TestVector *testb,
+	BT4B_TestVector *testc)
+{
+	float f, g;
+
+	int i, j;
+	
+	for(i=0; i<32; i++)
+	{
+		f=(rand()&255)/255.0;
+		g=(rand()&255)/255.0; g=2*g-10;
+		j=(1.0-f)*testa->bfq_qdy[i]+f*testb->bfq_qdy[i]+g;
+		if(j<1)j=1;
+		if(j>224)j=224;
+		testc->bfq_qdy[i]=j;
+
+		f=(rand()&255)/255.0;
+		g=(rand()&255)/255.0; g=2*g-10;
+		j=(1.0-f)*testa->bfq_qduv[i]+f*testb->bfq_qduv[i]+g;
+		if(j<1)j=1;
+		if(j>224)j=224;
+		testc->bfq_qduv[i]=j;
+
+		f=(rand()&255)/255.0;
+		g=(rand()&255)/255.0; g=2*g-10;
+		j=(1.0-f)*testa->bfq_cost[i]+f*testb->bfq_cost[i]+g;
+		if(j<1)j=1;
+		if(j>199)j=199;
+		testc->bfq_cost[i]=j;
+	}
+
+	testc->bfq_cost[0x08]=255;
+	testc->bfq_cost[0x12]=255;
+	testc->bfq_cost[0x13]=255;
+	testc->bfq_cost[0x1E]=255;
+	testc->bfq_cost[0x1F]=255;
+}
+
+int bt4b_test2_dump(BT4B_TestVector *test)
+{
+	int i, j, k;
+
+	printf("Eb=%.2f (Err=%.2f, bpp=%.2f)\n",
+		test->eb, test->err, test->bpp);
+	for(i=0; i<8; i++)
+		for(j=0; j<4; j++)
+	{
+		k=i*4+j;
+		if(test->bfq_cost[k]>200)
+			continue;
+		printf("%02X(%3d %3d %3d) ", k,
+			test->bfq_qdy[k],
+			test->bfq_qduv[k],
+			test->bfq_cost[k]);
+	}
+	printf("\n");
+}
+
+int bt4b_test2_sim(byte *ibuf, int xs, int ys, int qfl)
+{
+	BT4B_TestVector *vecs[256];
+	BT4B_TestVector *tvec0, *tvec1;
+	int i0, i1;
+	int i, j, k, n, ng;
+	
+	for(i=0; i<64; i++)
+	{
+		vecs[i]=malloc(sizeof(BT4B_TestVector));
+		bt4b_test2_setupvec(vecs[i]);
+	}
+	n=64;
+	
+	ng=0;
+	while(ng<64)
+	{
+		printf("Generation %d\n", ng++);
+		
+		for(i=0; i<n; i++)
+		{
+			printf("%d/%d\r", i, n);
+			bt4b_test2_run(vecs[i], ibuf, xs, ys, qfl);
+		}
+		
+		for(i=0; i<n; i++)
+			for(j=i+1; j<n; j++)
+		{
+			tvec0=vecs[i];	tvec1=vecs[j];
+			if(tvec1->eb <= tvec0->eb)
+				{ vecs[i]=tvec1; vecs[j]=tvec0; }
+		}
+		
+		for(i=16; i<64; i++)
+		{
+			i0=rand()&15;
+			i1=rand()&15;
+			bt4b_test2_breedvec(vecs[i0], vecs[i1], vecs[i]);
+		}
+
+		for(i=56; i<64; i++)
+			bt4b_test2_setupvec(vecs[i]);
+
+		bt4b_test2_dump(vecs[0]);
+		
+		for(i=0; i<4; i++)
+			printf("%p:%.2f ", vecs[i], vecs[i]->eb);
+		printf("\n");
+	}
+}
+
+int bt4b_test2(char *infile, int qfl)
+{
+	BTIC4B_Context tctx;
+	BTIC4B_Context *ctx;
+	byte *ibuf;
+	double dt, mpxf;
+	int t0, t1, t2, t3, t0e;
+	int xs, ys, nf, sz;
+	int i, j, k;
+	
+	ibuf=BTIC1H_Img_LoadTGA(infile, &xs, &ys);
+	bt4b_test2_sim(ibuf, xs, ys, qfl);
+}
+
 int bt4b_help(char *pgm)
 {
 	printf("usage: %s [opts] infile outfile\n", pgm);
@@ -760,6 +777,7 @@ int bt4b_help(char *pgm)
 	printf("    -d    Encode infile.BPX outfile.TGA\n");
 	printf("    -t    Test infile.TGA\n");
 	printf("    -q q  Set Quality Level (Default=90)\n");
+	printf("    -np   Disable Block Prediction\n");
 	return(0);
 }
 
@@ -770,6 +788,8 @@ int main(int argc, char *argv[])
 	int i, j, k;
 	
 	infile=NULL; outfile=NULL; cmd=0; q=90; qfl=0; dfl=0;
+	qfl|=BTIC4B_QFL_USEPRED;
+	
 	for(i=1; i<argc; i++)
 	{
 		if(argv[i][0]=='-')
@@ -780,6 +800,8 @@ int main(int argc, char *argv[])
 				cmd=2;
 			if(!strcmp(argv[i], "-t"))
 				cmd=3;
+			if(!strcmp(argv[i], "-tg"))
+				cmd=4;
 
 			if(!strcmp(argv[i], "-q"))
 			{
@@ -787,6 +809,11 @@ int main(int argc, char *argv[])
 				i++;
 				continue;
 			}
+
+			if(!strcmp(argv[i], "-p"))
+				qfl|=BTIC4B_QFL_USEPRED;
+			if(!strcmp(argv[i], "-np"))
+				qfl&=~BTIC4B_QFL_USEPRED;
 
 			continue;
 		}
@@ -815,6 +842,14 @@ int main(int argc, char *argv[])
 		if(!infile)
 			infile="yazil0_1.tga";
 		bt4b_test(infile, q|qfl);
+		return(0);
+	}
+
+	if(cmd==4)
+	{
+		if(!infile)
+			infile="yazil0_1.tga";
+		bt4b_test2(infile, q|qfl);
 		return(0);
 	}
 

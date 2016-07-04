@@ -97,6 +97,9 @@ typedef unsigned int uint;
 #endif
 
 #define BTIC4B_QFL_PFRAME		0x0100
+#define BTIC4B_QFL_IFRAME		0x0200
+#define BTIC4B_QFL_USEPRED		0x0400
+#define BTIC4B_QFL_USEBFQ		0x0800
 
 #define BTIC4B_ERRS_GENERIC	-1
 #define BTIC4B_ERRS_BADFCC	-16
@@ -183,6 +186,13 @@ void (*ClrDec2T)(int tag,
 	int dy, int du, int dv,
 	int *rr0, int *rg0, int *rb0,
 	int *rr1, int *rg1, int *rb1);
+
+//block format query
+short bfq_qdy[32];		//dy cutoff
+short bfq_qduv[32];		//duv cutoff
+byte bfq_rqfl[32];		//require flags
+byte bfq_exfl[32];		//exclude flags
+byte bfq_cost[32];		//block cost
 
 };
 

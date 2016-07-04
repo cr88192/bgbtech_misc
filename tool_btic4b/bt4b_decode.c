@@ -771,9 +771,41 @@ byte *BTIC4B_DecSetupDecBlockInner(BTIC4B_Context *ctx, byte *ct, int op)
 	return(ct+ctx->blksz);
 }
 
-void BTIC4B_DecGetBlkPredClrs(BTIC4B_Context *ctx,
+force_inline void BTIC4B_DecGetBlkPredClrs(BTIC4B_Context *ctx,
 	byte *blk, int *rcyuvd)
 {
+	static const u32 mb=(1<<0x13)|(1<<0x19);
+	int i, j;
+
+	i=blk[0];
+	if((i&0x20)|((mb>>(i&0x1F))&1))
+//	if(((blk[0]&0x1F)==0x19) || ((blk[0]&0x1F)==0x13))
+	{
+		if(i&0x20)
+		{
+			rcyuvd[0]=ctx->cy;	rcyuvd[1]=ctx->cu;
+			rcyuvd[2]=ctx->cv;	rcyuvd[3]=ctx->dy;
+			rcyuvd[4]=ctx->du;	rcyuvd[5]=ctx->dv;
+			return;
+		}
+		
+		rcyuvd[0]=blk[2];
+		rcyuvd[1]=(blk[3]-128)<<1;
+		rcyuvd[2]=(blk[4]-128)<<1;
+		rcyuvd[3]=blk[5];
+		rcyuvd[4]=(blk[6]-128)<<1;
+		rcyuvd[5]=(blk[7]-128)<<1;
+	}else
+	{
+		rcyuvd[0]=*(s16 *)(blk+ 4);
+		rcyuvd[1]=*(s16 *)(blk+ 6);
+		rcyuvd[2]=*(s16 *)(blk+ 8);
+		rcyuvd[3]=*(s16 *)(blk+10);
+		rcyuvd[4]=*(s16 *)(blk+12);
+		rcyuvd[5]=*(s16 *)(blk+14);
+	}
+
+#if 0
 	switch(blk[0]&0x3F)
 	{
 	case 0x00:	case 0x01:	case 0x02:	case 0x03:
@@ -805,8 +837,10 @@ void BTIC4B_DecGetBlkPredClrs(BTIC4B_Context *ctx,
 		rcyuvd[4]=ctx->du;	rcyuvd[5]=ctx->dv;
 		break;
 	}
+#endif
 }
 
+#if 1
 int BTIC4B_Pred_Paeth(int a, int b, int c)
 {
 	int p, pa, pb, pc;
@@ -819,16 +853,61 @@ int BTIC4B_Pred_Paeth(int a, int b, int c)
 	p=(pa<=pb)?((pa<=pc)?a:c):((pb<=pc)?b:c);
 	return(p);
 }
+#endif
+
+#if 0
+int BTIC4B_Pred_Paeth(int a, int b, int c)
+{
+	int p, pa, pb, pc;
+	int ma, mb, mc;
+	p=a+b-c;
+	pa=p-a; pa=pa*pa;
+	pb=p-b; pb=pb*pb;
+	pc=p-c; pc=pc*pc;
+	ma=((pb-pa)>>24);
+	mb=((pc-pb)>>24);
+	mc=((pc-pa)>>24);
+	p=(ma&((mb&c)|((~mb)&b))) | ((~ma)&((mc&c)|((~mc)&a)));
+	return(p);
+}
+#endif
+
+force_inline int BTIC4B_Pred_HalfLin(int a, int b, int c)
+	{ return((3*a+3*b-2*c)>>2); }
+
 
 void BTIC4B_DecUpdateCtxPred(BTIC4B_Context *ctx,
 	byte *pba, byte *pbb, byte *pbc, byte pred)
 {
-	int pyuva[6], pyuvb[6], pyuvc[6], pyuvd[6];
+	int pyuva[6], pyuvb[6], pyuvc[6];
 	
 	BTIC4B_DecGetBlkPredClrs(ctx, pba, pyuva);
 	BTIC4B_DecGetBlkPredClrs(ctx, pbb, pyuvb);
 	BTIC4B_DecGetBlkPredClrs(ctx, pbc, pyuvc);
-	
+
+	if(pred==2)
+	{
+		ctx->cy=BTIC4B_Pred_HalfLin(pyuvc[0], pyuvb[0], pyuva[0]);
+		ctx->cu=BTIC4B_Pred_HalfLin(pyuvc[1], pyuvb[1], pyuva[1]);
+		ctx->cv=BTIC4B_Pred_HalfLin(pyuvc[2], pyuvb[2], pyuva[2]);
+		ctx->dy=BTIC4B_Pred_HalfLin(pyuvc[3], pyuvb[3], pyuva[3]);
+		ctx->du=BTIC4B_Pred_HalfLin(pyuvc[4], pyuvb[4], pyuva[4]);
+		ctx->dv=BTIC4B_Pred_HalfLin(pyuvc[5], pyuvb[5], pyuva[5]);
+		return;
+	}
+
+	if(pred==1)
+	{
+		ctx->cy=BTIC4B_Pred_Paeth(pyuvc[0], pyuvb[0], pyuva[0]);
+		ctx->cu=BTIC4B_Pred_Paeth(pyuvc[1], pyuvb[1], pyuva[1]);
+		ctx->cv=BTIC4B_Pred_Paeth(pyuvc[2], pyuvb[2], pyuva[2]);
+		ctx->dy=BTIC4B_Pred_Paeth(pyuvc[3], pyuvb[3], pyuva[3]);
+		ctx->du=BTIC4B_Pred_Paeth(pyuvc[4], pyuvb[4], pyuva[4]);
+		ctx->dv=BTIC4B_Pred_Paeth(pyuvc[5], pyuvb[5], pyuva[5]);
+		return;
+	}
+
+#if 0
 	switch(pred)
 	{
 	case 0:
@@ -844,13 +923,14 @@ void BTIC4B_DecUpdateCtxPred(BTIC4B_Context *ctx,
 	default:
 		break;
 	}
+#endif
 }
 
 void BTIC4B_DecUpdateCtxPredV(BTIC4B_Context *ctx,
 	byte *pba, byte *pbb, byte *pbc, byte pred,
 	int *rpyc)
 {
-	int pyuva[6], pyuvb[6], pyuvc[6], pyuvd[6];
+	int pyuva[6], pyuvb[6], pyuvc[6];
 	
 	BTIC4B_DecGetBlkPredClrs(ctx, pba, pyuva);
 	BTIC4B_DecGetBlkPredClrs(ctx, pbb, pyuvb);
@@ -868,6 +948,14 @@ void BTIC4B_DecUpdateCtxPredV(BTIC4B_Context *ctx,
 		rpyc[4]=BTIC4B_Pred_Paeth(pyuvc[4], pyuvb[4], pyuva[4]);
 		rpyc[5]=BTIC4B_Pred_Paeth(pyuvc[5], pyuvb[5], pyuva[5]);
 		break;
+	case 2:
+		rpyc[0]=BTIC4B_Pred_HalfLin(pyuvc[0], pyuvb[0], pyuva[0]);
+		rpyc[1]=BTIC4B_Pred_HalfLin(pyuvc[1], pyuvb[1], pyuva[1]);
+		rpyc[2]=BTIC4B_Pred_HalfLin(pyuvc[2], pyuvb[2], pyuva[2]);
+		rpyc[3]=BTIC4B_Pred_HalfLin(pyuvc[3], pyuvb[3], pyuva[3]);
+		rpyc[4]=BTIC4B_Pred_HalfLin(pyuvc[4], pyuvb[4], pyuva[4]);
+		rpyc[5]=BTIC4B_Pred_HalfLin(pyuvc[5], pyuvb[5], pyuva[5]);
+		return;
 	default:
 		break;
 	}
