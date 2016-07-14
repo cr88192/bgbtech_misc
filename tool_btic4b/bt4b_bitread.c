@@ -291,11 +291,19 @@ int BTIC4B_ReadAdRiceLL(BTIC4B_Context *ctx, byte *rk)
 	
 	if(j)
 	{
+#if 0
 //		i=(u16)j;
 		BTIC4B_SkipNBits(ctx, (j>>16)&15);
 		*rk=(j>>20)&15;
 //		return(i);
 		return((u16)j);
+#endif
+
+#if 1
+		BTIC4B_SkipNBits(ctx, (j>>8)&15);
+		*rk=(j>>12)&15;
+		return((byte)j);
+#endif
 	}
 #endif
 

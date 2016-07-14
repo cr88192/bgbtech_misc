@@ -489,6 +489,7 @@ force_inline void BTIC4B_DecRead256B(BTIC4B_Context *ctx, byte *buf)
 
 void BTIC4B_FillBlockHeadTag(BTIC4B_Context *ctx, byte *blk, int tag)
 {
+	int cy, cu, cv, dy, du, dv, m;
 //	*(u16 *)(blk+ 0)=tag;
 //	*(u16 *)(blk+ 2)=0x00FF;
 
@@ -504,12 +505,52 @@ void BTIC4B_FillBlockHeadTag(BTIC4B_Context *ctx, byte *blk, int tag)
 //	*(u16 *)(blk+12)=lqtvq_clamp65535(ctx->du);
 //	*(u16 *)(blk+14)=lqtvq_clamp65535(ctx->dv);
 
+#if 0
+	*(s16 *)(blk+ 4)=ctx->cy;
+	*(s16 *)(blk+ 6)=ctx->cu;
+	*(s16 *)(blk+ 8)=ctx->cv;
+	*(s16 *)(blk+10)=ctx->dy;
+	*(s16 *)(blk+12)=ctx->du;
+	*(s16 *)(blk+14)=ctx->dv;
+#endif
+
+#if 1
 	*(s16 *)(blk+ 4)=lqtvq_clamp32767S(ctx->cy);
 	*(s16 *)(blk+ 6)=lqtvq_clamp32767S(ctx->cu);
 	*(s16 *)(blk+ 8)=lqtvq_clamp32767S(ctx->cv);
 	*(s16 *)(blk+10)=lqtvq_clamp32767S(ctx->dy);
 	*(s16 *)(blk+12)=lqtvq_clamp32767S(ctx->du);
 	*(s16 *)(blk+14)=lqtvq_clamp32767S(ctx->dv);
+#endif
+
+#if 0
+	cy=ctx->cy;	cu=ctx->cu;	cv=ctx->cv;
+	dy=ctx->dy;	du=ctx->du;	dv=ctx->dv;
+
+//	m=	(cy^(cy>>31))|(cu^(cu>>31))|(cv^(cv>>31))|
+//		(dy^(dy>>31))|(du^(du>>31))|(dv^(dv>>31));
+
+	m=	(cy-((s16)cy))|(cu-((s16)cu))|(cv-((s16)cv))|
+		(dy-((s16)dy))|(du-((s16)du))|(dv-((s16)dv));
+
+//	if(m>>16)
+	if(m)
+	{
+		cy=lqtvq_clamp32767S(cy);
+		cu=lqtvq_clamp32767S(cu);
+		cv=lqtvq_clamp32767S(cv);
+		dy=lqtvq_clamp32767S(dy);
+		du=lqtvq_clamp32767S(du);
+		dv=lqtvq_clamp32767S(dv);
+	}
+
+	*(s16 *)(blk+ 4)=cy;
+	*(s16 *)(blk+ 6)=cu;
+	*(s16 *)(blk+ 8)=cv;
+	*(s16 *)(blk+10)=dy;
+	*(s16 *)(blk+12)=du;
+	*(s16 *)(blk+14)=dv;
+#endif
 }
 
 void BTIC4B_FillBlockHeadL8(BTIC4B_Context *ctx, byte *blk, int tag)
@@ -606,10 +647,13 @@ void BTIC4B_DecodeCopyAlphaBlocks(BTIC4B_Context *ctx,
 	}
 }
 
+void BTIC4B_DecodeSetPredictor(BTIC4B_Context *ctx, int pred);
+void BTIC4B_DecodeDirtyL8(BTIC4B_Context *ctx);
+
 void BTIC4B_DecodeSetParm(BTIC4B_Context *ctx, int var, int val)
 {
 	if(var==-2)
-		{ ctx->pred=val; }
+		{ BTIC4B_DecodeSetPredictor(ctx, val); }
 }
 
 void BTIC4B_DecodeEnableFeature(BTIC4B_Context *ctx, int var)
@@ -698,6 +742,7 @@ byte *BTIC4B_DecSetupDecBlockInner(BTIC4B_Context *ctx, byte *ct, int op)
 		break;
 
 	case 0x13:
+		BTIC4B_DecodeDirtyL8(ctx);
 		BTIC4B_FillBlockHeadL8(ctx, ct, op);
 		BTIC4B_DecRead128B(ctx, ct+ 8);
 		BTIC4B_DecRead32B(ctx, ct+24);
@@ -732,6 +777,7 @@ byte *BTIC4B_DecSetupDecBlockInner(BTIC4B_Context *ctx, byte *ct, int op)
 		BTIC4B_DecRead32B(ctx, ct+36);
 		break;
 	case 0x19:
+		BTIC4B_DecodeDirtyL8(ctx);
 		BTIC4B_FillBlockHeadL8(ctx, ct, op);
 		BTIC4B_DecRead192B(ctx, ct+ 8);
 		BTIC4B_DecRead128B(ctx, ct+32);
@@ -766,6 +812,12 @@ byte *BTIC4B_DecSetupDecBlockInner(BTIC4B_Context *ctx, byte *ct, int op)
 		BTIC4B_DecRead192B(ctx, ct+16);
 		BTIC4B_DecRead96B(ctx, ct+40);
 		BTIC4B_DecRead96B(ctx, ct+52);
+		break;
+	case 0x1F:
+		BTIC4B_FillBlockHeadTag(ctx, ct, op);
+		BTIC4B_DecRead256B(ctx, ct+16);
+		BTIC4B_DecRead192B(ctx, ct+48);
+		BTIC4B_DecRead192B(ctx, ct+72);
 		break;
 	}
 	return(ct+ctx->blksz);
@@ -840,7 +892,36 @@ force_inline void BTIC4B_DecGetBlkPredClrs(BTIC4B_Context *ctx,
 #endif
 }
 
-#if 1
+force_inline void BTIC4B_DecGetBlkPredClrsFast(BTIC4B_Context *ctx,
+	byte *blk, int *rcyuvd)
+{
+	rcyuvd[0]=*(s16 *)(blk+ 4);
+	rcyuvd[1]=*(s16 *)(blk+ 6);
+	rcyuvd[2]=*(s16 *)(blk+ 8);
+	rcyuvd[3]=*(s16 *)(blk+10);
+	rcyuvd[4]=*(s16 *)(blk+12);
+	rcyuvd[5]=*(s16 *)(blk+14);
+}
+
+void BTIC4B_DecGetBlkPredClrs3Gen(BTIC4B_Context *ctx,
+	byte *blka, byte *blkb, byte *blkc,
+	int *rcyuv)
+{
+	BTIC4B_DecGetBlkPredClrs(ctx, blka, rcyuv+ 0);
+	BTIC4B_DecGetBlkPredClrs(ctx, blkb, rcyuv+ 6);
+	BTIC4B_DecGetBlkPredClrs(ctx, blkc, rcyuv+12);
+}
+
+void BTIC4B_DecGetBlkPredClrs3Fast(BTIC4B_Context *ctx,
+	byte *blka, byte *blkb, byte *blkc,
+	int *rcyuv)
+{
+	BTIC4B_DecGetBlkPredClrsFast(ctx, blka, rcyuv+ 0);
+	BTIC4B_DecGetBlkPredClrsFast(ctx, blkb, rcyuv+ 6);
+	BTIC4B_DecGetBlkPredClrsFast(ctx, blkc, rcyuv+12);
+}
+
+#if 0
 int BTIC4B_Pred_Paeth(int a, int b, int c)
 {
 	int p, pa, pb, pc;
@@ -872,14 +953,96 @@ int BTIC4B_Pred_Paeth(int a, int b, int c)
 }
 #endif
 
+#if 1
+force_inline int BTIC4B_Pred_Paeth(int a, int b, int c)
+{
+	int p, pa, pb, pc;
+	int ma, mb, mc;
+	p=a+b-c;
+
+	pa=p-a;	pb=p-b;	pc=p-c;
+	pa=pa^(pa>>31);	pb=pb^(pb>>31);	pc=pc^(pc>>31);
+	ma=((pb-pa)>>31);
+	mb=((pc-pb)>>31);
+	mc=((pc-pa)>>31);
+	p=(ma&((mb&c)|((~mb)&b))) | ((~ma)&((mc&c)|((~mc)&a)));
+	return(p);
+}
+#endif
+
+#if 0
+force_inline void BTIC4B_Pred_Paeth3(
+	int a0, int b0, int c0,
+	int a1, int b1, int c1,
+	int a2, int b2, int c2,
+	int *rp0, int *rp1, int *rp2)
+{
+	int p0, pa0, pb0, pc0;
+	int p1, pa1, pb1, pc1;
+	int p2, pa2, pb2, pc2;
+	int ma0, mb0, mc0;
+	int ma1, mb1, mc1;
+	int ma2, mb2, mc2;
+	p0=a0+b0-c0;
+	p1=a1+b1-c1;
+	p2=a2+b2-c2;
+	pa0=p0-a0;	pb0=p0-b0;	pc0=p0-c0;
+	pa1=p1-a1;	pb1=p1-b1;	pc1=p1-c1;
+	pa2=p2-a2;	pb2=p2-b2;	pc2=p2-c2;
+	pa0=pa0^(pa0>>31);		pb0=pb0^(pb0>>31);		pc0=pc0^(pc0>>31);
+	pa1=pa1^(pa1>>31);		pb1=pb1^(pb1>>31);		pc1=pc1^(pc1>>31);
+	pa2=pa2^(pa2>>31);		pb2=pb2^(pb2>>31);		pc2=pc2^(pc2>>31);
+	ma0=((pb0-pa0)>>31);	mb0=((pc0-pb0)>>31);	mc0=((pc0-pa0)>>31);
+	ma1=((pb1-pa1)>>31);	mb1=((pc1-pb1)>>31);	mc1=((pc1-pa1)>>31);
+	ma2=((pb2-pa2)>>31);	mb2=((pc2-pb2)>>31);	mc2=((pc2-pa2)>>31);
+	*rp0=(ma0&((mb0&c0)|((~mb0)&b0))) | ((~ma0)&((mc0&c0)|((~mc0)&a0)));
+	*rp1=(ma1&((mb1&c1)|((~mb1)&b1))) | ((~ma1)&((mc1&c1)|((~mc1)&a1)));
+	*rp2=(ma2&((mb2&c2)|((~mb2)&b2))) | ((~ma2)&((mc2&c2)|((~mc2)&a2)));
+}
+#endif
+
+#if 1
+force_inline void BTIC4B_Pred_Paeth3J(
+	int a0, int b0, int c0,
+	int a1, int b1, int c1,
+	int a2, int b2, int c2,
+	int *rp0, int *rp1, int *rp2)
+{
+	int p0, pa0, pb0, pc0;
+	int p1, pa1, pb1, pc1;
+	int p2, pa2, pb2, pc2;
+	int ma0, mb0, mc0;
+	int ma1, mb1, mc1;
+	int ma2, mb2, mc2;
+
+	p0=a0+b0-c0;
+	pa0=p0-a0;	pb0=p0-b0;	pc0=p0-c0;
+	pa0=pa0^(pa0>>31);		pb0=pb0^(pb0>>31);		pc0=pc0^(pc0>>31);
+	ma0=((pb0-pa0)>>31);	mb0=((pc0-pb0)>>31);	mc0=((pc0-pa0)>>31);
+
+	ma2=(~ma0)&(~mc0);
+	mb2=ma0&(~mb0);
+	mc2=(ma0&mb0)|((~ma0)&mc0);
+
+	*rp0=(ma2&a0)|(mb2&b0)|(mc2&c0);
+	*rp1=(ma2&a1)|(mb2&b1)|(mc2&c1);
+	*rp2=(ma2&a2)|(mb2&b2)|(mc2&c2);
+}
+#endif
+
 force_inline int BTIC4B_Pred_HalfLin(int a, int b, int c)
 	{ return((3*a+3*b-2*c)>>2); }
+force_inline int BTIC4B_Pred_HalfAvg(int a, int b, int c)
+	{ return((3*a+3*b+2*c)>>3); }
+// force_inline int BTIC4B_Pred_HalfAvg(int a, int b, int c)
+//	{ return((7*a+7*b+2*c)>>4); }
 
 
+#if 0
 void BTIC4B_DecUpdateCtxPred(BTIC4B_Context *ctx,
 	byte *pba, byte *pbb, byte *pbc, byte pred)
 {
-	int pyuva[6], pyuvb[6], pyuvc[6];
+	int pyuva[6], pyuvb[6], pyuvc[6], pyuvd[6];
 	
 	BTIC4B_DecGetBlkPredClrs(ctx, pba, pyuva);
 	BTIC4B_DecGetBlkPredClrs(ctx, pbb, pyuvb);
@@ -896,6 +1059,32 @@ void BTIC4B_DecUpdateCtxPred(BTIC4B_Context *ctx,
 		return;
 	}
 
+	if(pred==4)
+	{
+		BTIC4B_Pred_Paeth3J(
+			pyuvc[0], pyuvb[0], pyuva[0],
+			pyuvc[1], pyuvb[1], pyuva[1],
+			pyuvc[2], pyuvb[2], pyuva[2],
+			&(ctx->cy), &(ctx->cu), &(ctx->cv));
+		BTIC4B_Pred_Paeth3J(
+			pyuvc[3], pyuvb[3], pyuva[3],
+			pyuvc[4], pyuvb[4], pyuva[4],
+			pyuvc[5], pyuvb[5], pyuva[5],
+			&(ctx->dy), &(ctx->du), &(ctx->dv));
+		return;
+	}
+
+	if(pred==3)
+	{
+		ctx->cy=BTIC4B_Pred_HalfAvg(pyuvc[0], pyuvb[0], pyuva[0]);
+		ctx->cu=BTIC4B_Pred_HalfAvg(pyuvc[1], pyuvb[1], pyuva[1]);
+		ctx->cv=BTIC4B_Pred_HalfAvg(pyuvc[2], pyuvb[2], pyuva[2]);
+		ctx->dy=BTIC4B_Pred_HalfAvg(pyuvc[3], pyuvb[3], pyuva[3]);
+		ctx->du=BTIC4B_Pred_HalfAvg(pyuvc[4], pyuvb[4], pyuva[4]);
+		ctx->dv=BTIC4B_Pred_HalfAvg(pyuvc[5], pyuvb[5], pyuva[5]);
+		return;
+	}
+
 	if(pred==1)
 	{
 		ctx->cy=BTIC4B_Pred_Paeth(pyuvc[0], pyuvb[0], pyuva[0]);
@@ -906,6 +1095,7 @@ void BTIC4B_DecUpdateCtxPred(BTIC4B_Context *ctx,
 		ctx->dv=BTIC4B_Pred_Paeth(pyuvc[5], pyuvb[5], pyuva[5]);
 		return;
 	}
+
 
 #if 0
 	switch(pred)
@@ -925,6 +1115,7 @@ void BTIC4B_DecUpdateCtxPred(BTIC4B_Context *ctx,
 	}
 #endif
 }
+#endif
 
 void BTIC4B_DecUpdateCtxPredV(BTIC4B_Context *ctx,
 	byte *pba, byte *pbb, byte *pbc, byte pred,
@@ -956,14 +1147,45 @@ void BTIC4B_DecUpdateCtxPredV(BTIC4B_Context *ctx,
 		rpyc[4]=BTIC4B_Pred_HalfLin(pyuvc[4], pyuvb[4], pyuva[4]);
 		rpyc[5]=BTIC4B_Pred_HalfLin(pyuvc[5], pyuvb[5], pyuva[5]);
 		return;
+	case 3:
+		rpyc[0]=BTIC4B_Pred_HalfAvg(pyuvc[0], pyuvb[0], pyuva[0]);
+		rpyc[1]=BTIC4B_Pred_HalfAvg(pyuvc[1], pyuvb[1], pyuva[1]);
+		rpyc[2]=BTIC4B_Pred_HalfAvg(pyuvc[2], pyuvb[2], pyuva[2]);
+		rpyc[3]=BTIC4B_Pred_HalfAvg(pyuvc[3], pyuvb[3], pyuva[3]);
+		rpyc[4]=BTIC4B_Pred_HalfAvg(pyuvc[4], pyuvb[4], pyuva[4]);
+		rpyc[5]=BTIC4B_Pred_HalfAvg(pyuvc[5], pyuvb[5], pyuva[5]);
+		return;
+	case 4:
+		BTIC4B_Pred_Paeth3J(
+			pyuvc[0], pyuvb[0], pyuva[0],
+			pyuvc[1], pyuvb[1], pyuva[1],
+			pyuvc[2], pyuvb[2], pyuva[2],
+			rpyc+0, rpyc+1, rpyc+2);
+		BTIC4B_Pred_Paeth3J(
+			pyuvc[3], pyuvb[3], pyuva[3],
+			pyuvc[4], pyuvb[4], pyuva[4],
+			pyuvc[5], pyuvb[5], pyuva[5],
+			rpyc+3, rpyc+4, rpyc+5);
+		break;
 	default:
 		break;
 	}
 }
 
-force_inline void BTIC4B_DecUpdatePred(BTIC4B_Context *ctx,
+void BTIC4B_DecUpdateCtxPred(BTIC4B_Context *ctx,
+	byte *pba, byte *pbb, byte *pbc, byte pred)
+{
+	int pyuvd[6];
+	BTIC4B_DecUpdateCtxPredV(ctx, pba, pbb, pbc, pred, pyuvd);
+	ctx->cy=pyuvd[0];	ctx->cu=pyuvd[1];
+	ctx->cv=pyuvd[2];	ctx->dy=pyuvd[3];
+	ctx->du=pyuvd[4];	ctx->dv=pyuvd[5];
+}
+
+void BTIC4B_DecUpdatePred_Generic(BTIC4B_Context *ctx,
 	byte *ct, byte *blks)
 {
+	int pyuvd[6];
 	byte *ctpa, *ctpb, *ctpc;
 	int xs1;
 
@@ -976,8 +1198,210 @@ force_inline void BTIC4B_DecUpdatePred(BTIC4B_Context *ctx,
 	{
 		ctpb=ct-xs1*ctx->blksz;
 		ctpc=ct-ctx->blksz;
-		BTIC4B_DecUpdateCtxPred(ctx,
-			ctpa, ctpb, ctpc, ctx->pred);
+//		BTIC4B_DecUpdateCtxPred(ctx,
+//			ctpa, ctpb, ctpc, ctx->pred);
+		BTIC4B_DecUpdateCtxPredV(ctx,
+			ctpa, ctpb, ctpc, ctx->pred, pyuvd);
+		ctx->cy=pyuvd[0];	ctx->cu=pyuvd[1];
+		ctx->cv=pyuvd[2];	ctx->dy=pyuvd[3];
+		ctx->du=pyuvd[4];	ctx->dv=pyuvd[5];
+	}
+}
+
+void BTIC4B_DecUpdatePred_HalfAvg(BTIC4B_Context *ctx,
+	byte *ct, byte *blks)
+{
+	int pyuv[3*6];
+	byte *ctpa, *ctpb, *ctpc;
+	int xs1;
+
+	xs1=ctx->xsb;
+	ctpa=ct-(xs1+1)*ctx->blksz;
+	if(ctpa>=blks)
+	{
+		ctpb=ct-xs1*ctx->blksz;
+		ctpc=ct-ctx->blksz;
+
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpa, pyuva);
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpb, pyuvb);
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpc, pyuvc);
+
+		ctx->DecGetBlkPredClrs3(ctx, ctpa, ctpb, ctpc, pyuv);
+
+		ctx->cy=BTIC4B_Pred_HalfAvg(pyuv[12], pyuv[ 6], pyuv[0]);
+		ctx->cu=BTIC4B_Pred_HalfAvg(pyuv[13], pyuv[ 7], pyuv[1]);
+		ctx->cv=BTIC4B_Pred_HalfAvg(pyuv[14], pyuv[ 8], pyuv[2]);
+		ctx->dy=BTIC4B_Pred_HalfAvg(pyuv[15], pyuv[ 9], pyuv[3]);
+		ctx->du=BTIC4B_Pred_HalfAvg(pyuv[16], pyuv[10], pyuv[4]);
+		ctx->dv=BTIC4B_Pred_HalfAvg(pyuv[17], pyuv[11], pyuv[5]);
+	}
+}
+
+void BTIC4B_DecUpdatePred_Paeth3J(BTIC4B_Context *ctx,
+	byte *ct, byte *blks)
+{
+	int pyuv[3*6];
+//	int pyuvd[6];
+	byte *ctpa, *ctpb, *ctpc;
+	int xs1;
+
+	xs1=ctx->xsb;
+	ctpa=ct-(xs1+1)*ctx->blksz;
+	if(ctpa>=blks)
+	{
+		ctpb=ct-xs1*ctx->blksz;
+		ctpc=ct-ctx->blksz;
+
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpa, pyuva);
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpb, pyuvb);
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpc, pyuvc);
+
+		ctx->DecGetBlkPredClrs3(ctx, ctpa, ctpb, ctpc, pyuv);
+
+		BTIC4B_Pred_Paeth3J(
+			pyuv[12], pyuv[ 6], pyuv[ 0],
+			pyuv[13], pyuv[ 7], pyuv[ 1],
+			pyuv[14], pyuv[ 8], pyuv[ 2],
+			&(ctx->cy), &(ctx->cu), &(ctx->cv));
+		BTIC4B_Pred_Paeth3J(
+			pyuv[15], pyuv[ 9], pyuv[ 3],
+			pyuv[16], pyuv[10], pyuv[ 4],
+			pyuv[17], pyuv[11], pyuv[ 5],
+			&(ctx->dy), &(ctx->du), &(ctx->dv));
+	}
+}
+
+void BTIC4B_DecUpdatePred_HalfAvgF(BTIC4B_Context *ctx,
+	byte *ct, byte *blks)
+{
+	int pyuv[3*6];
+	byte *ctpa, *ctpb, *ctpc;
+	int xs1;
+
+	xs1=ctx->xsb;
+	ctpa=ct-(xs1+1)*ctx->blksz;
+	if(ctpa>=blks)
+	{
+		ctpb=ct-xs1*ctx->blksz;
+		ctpc=ct-ctx->blksz;
+
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpa, pyuva);
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpb, pyuvb);
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpc, pyuvc);
+
+//		ctx->DecGetBlkPredClrs3(ctx, ctpa, ctpb, ctpc, pyuv);
+
+		BTIC4B_DecGetBlkPredClrsFast(ctx, ctpa, pyuv+ 0);
+		BTIC4B_DecGetBlkPredClrsFast(ctx, ctpb, pyuv+ 6);
+		BTIC4B_DecGetBlkPredClrsFast(ctx, ctpc, pyuv+12);
+
+		ctx->cy=BTIC4B_Pred_HalfAvg(pyuv[12], pyuv[ 6], pyuv[0]);
+		ctx->cu=BTIC4B_Pred_HalfAvg(pyuv[13], pyuv[ 7], pyuv[1]);
+		ctx->cv=BTIC4B_Pred_HalfAvg(pyuv[14], pyuv[ 8], pyuv[2]);
+		ctx->dy=BTIC4B_Pred_HalfAvg(pyuv[15], pyuv[ 9], pyuv[3]);
+		ctx->du=BTIC4B_Pred_HalfAvg(pyuv[16], pyuv[10], pyuv[4]);
+		ctx->dv=BTIC4B_Pred_HalfAvg(pyuv[17], pyuv[11], pyuv[5]);
+	}
+}
+
+void BTIC4B_DecUpdatePred_Paeth3JF(BTIC4B_Context *ctx,
+	byte *ct, byte *blks)
+{
+	int pyuv[3*6];
+//	int pyuvd[6];
+	byte *ctpa, *ctpb, *ctpc;
+	int xs1;
+
+	xs1=ctx->xsb;
+	ctpa=ct-(xs1+1)*ctx->blksz;
+	if(ctpa>=blks)
+	{
+		ctpb=ct-xs1*ctx->blksz;
+		ctpc=ct-ctx->blksz;
+
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpa, pyuva);
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpb, pyuvb);
+//		BTIC4B_DecGetBlkPredClrs(ctx, ctpc, pyuvc);
+
+//		ctx->DecGetBlkPredClrs3(ctx, ctpa, ctpb, ctpc, pyuv);
+
+		BTIC4B_DecGetBlkPredClrsFast(ctx, ctpa, pyuv+ 0);
+		BTIC4B_DecGetBlkPredClrsFast(ctx, ctpb, pyuv+ 6);
+		BTIC4B_DecGetBlkPredClrsFast(ctx, ctpc, pyuv+12);
+
+		BTIC4B_Pred_Paeth3J(
+			pyuv[12], pyuv[ 6], pyuv[ 0],
+			pyuv[13], pyuv[ 7], pyuv[ 1],
+			pyuv[14], pyuv[ 8], pyuv[ 2],
+			&(ctx->cy), &(ctx->cu), &(ctx->cv));
+		BTIC4B_Pred_Paeth3J(
+			pyuv[15], pyuv[ 9], pyuv[ 3],
+			pyuv[16], pyuv[10], pyuv[ 4],
+			pyuv[17], pyuv[11], pyuv[ 5],
+			&(ctx->dy), &(ctx->du), &(ctx->dv));
+	}
+}
+
+force_inline void BTIC4B_DecUpdatePred(
+		BTIC4B_Context *ctx, byte *ct, byte *blks)
+	{ ctx->DecUpdatePred(ctx, ct, blks); }
+
+void BTIC4B_DecUpdatePred_None(BTIC4B_Context *ctx,
+	byte *ct, byte *blks)
+{
+}
+
+void BTIC4B_DecodeSetPredictor(BTIC4B_Context *ctx, int pred)
+{
+	ctx->pred=pred;
+	
+	if(ctx->pred_l8p)
+	{
+		ctx->DecGetBlkPredClrs3=BTIC4B_DecGetBlkPredClrs3Gen;
+		switch(pred)
+		{
+		case 0:
+			ctx->DecUpdatePred=BTIC4B_DecUpdatePred_None;
+			break;
+		case 3:
+			ctx->DecUpdatePred=BTIC4B_DecUpdatePred_HalfAvg;
+			break;
+		case 4:
+			ctx->DecUpdatePred=BTIC4B_DecUpdatePred_Paeth3J;
+			break;
+		default:
+			ctx->DecUpdatePred=BTIC4B_DecUpdatePred_Generic;
+			break;
+		}
+	}
+	else
+	{
+		ctx->DecGetBlkPredClrs3=BTIC4B_DecGetBlkPredClrs3Fast;
+		switch(pred)
+		{
+		case 0:
+			ctx->DecUpdatePred=BTIC4B_DecUpdatePred_None;
+			break;
+		case 3:
+			ctx->DecUpdatePred=BTIC4B_DecUpdatePred_HalfAvgF;
+			break;
+		case 4:
+			ctx->DecUpdatePred=BTIC4B_DecUpdatePred_Paeth3JF;
+			break;
+		default:
+			ctx->DecUpdatePred=BTIC4B_DecUpdatePred_Generic;
+			break;
+		}
+	}
+}
+
+void BTIC4B_DecodeDirtyL8(BTIC4B_Context *ctx)
+{
+	if(!ctx->pred_l8p)
+	{
+		ctx->pred_l8p=1;
+//		ctx->DecGetBlkPredClrs3=BTIC4B_DecGetBlkPredClrs3Gen;
+		BTIC4B_DecodeSetPredictor(ctx, ctx->pred);
 	}
 }
 
@@ -1014,6 +1438,9 @@ int BTIC4B_DecImgBlocks(BTIC4B_Context *ctx,
 
 	memset(opb, 255, 256);
 	oprov=0;
+
+	ctx->pred_l8p=0;
+	BTIC4B_DecodeSetPredictor(ctx, 0);
 
 	ct=blks; lcs=lblks; ret=0; lop0=-1; op=-1;
 	cte=blks+nblk*ctx->blksz;
@@ -1101,12 +1528,14 @@ int BTIC4B_DecImgBlocks(BTIC4B_Context *ctx,
 			ret=1; break;
 
 		case 0x41:
+			BTIC4B_DecodeDirtyL8(ctx);
 			n=BTIC4B_DecReadCountVal(ctx);
 			lcs=lblks+(ct-blks);
 			BTIC4B_DecodeCopyBlocks(ctx, ct, lcs, n);
 			ct+=n*ctx->blksz;
 			break;
 		case 0x42:
+			BTIC4B_DecodeDirtyL8(ctx);
 			n=BTIC4B_DecReadCountVal(ctx);
 			i=BTIC4B_DecReadGenericVal(ctx);
 			j=BTIC4B_DecReadGenericVal(ctx);
@@ -1552,8 +1981,8 @@ BTIC4B_API int BTIC4B_DecodeImgBufferCtx(BTIC4B_Context *ctx,
 		if(!ctx->blksz)
 			ctx->blksz=64;
 		
-		ctx->blks=malloc(ctx->nblk*ctx->blksz);
-		ctx->lblks=malloc(ctx->nblk*ctx->blksz);
+		ctx->blks=malloc(ctx->nblk*ctx->blksz+256);
+		ctx->lblks=malloc(ctx->nblk*ctx->blksz+256);
 	}
 
 	BTIC4B_DecImgBlocks(ctx, csib, csibe-csib,

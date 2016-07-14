@@ -960,13 +960,6 @@ int BTIC4B_EncBlockPriorColorP(BTIC4B_Context *ctx,
 	du=*(s16 *)(blk+12);
 	dv=*(s16 *)(blk+14);
 
-//	dcy=((cy-ctx->cy)*ctx->qfy  +2048)>>12;
-//	dcu=((cu-ctx->cu)*ctx->qfuv +2048)>>12;
-//	dcv=((cv-ctx->cv)*ctx->qfuv +2048)>>12;
-//	ddy=((dy-ctx->dy)*ctx->qfdy +2048)>>12;
-//	ddu=((du-ctx->du)*ctx->qfduv+2048)>>12;
-//	ddv=((dv-ctx->dv)*ctx->qfduv+2048)>>12;
-
 	dcy=((cy-pyc[0])*ctx->qfy  +2048)>>12;
 	dcu=((cu-pyc[1])*ctx->qfuv +2048)>>12;
 	dcv=((cv-pyc[2])*ctx->qfuv +2048)>>12;
@@ -1109,7 +1102,9 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 	if(qf&BTIC4B_QFL_USEPRED)
 	{
 //		BTIC4B_EmitSetParm(ctx, -2, 1);
-		BTIC4B_EmitSetParm(ctx, -2, 2);
+//		BTIC4B_EmitSetParm(ctx, -2, 2);
+//		BTIC4B_EmitSetParm(ctx, -2, 3);
+		BTIC4B_EmitSetParm(ctx, -2, 4);
 	}
 	
 	cs=blks;
@@ -1120,25 +1115,38 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 	while(cs<cse)
 	{
 		blkb=cs;
-		cs+=64;
+		cs+=ctx->blksz;
+
+//		cs1e=cs1+63*ctx->blksz;
+		cs1e=cs+31*ctx->blksz;
+		if(cse<cs1e)cs1e=cse;
 
 		if(blkb[0]==0x00)
 		{
-			cs1=cs; bc=1; cs1e=cs1+63*64;
-			if(cse<cs1e)cs1e=cse;
+			cs1=cs; bc=1; bc2=0;
+//			cs1e=cs1+63*64;
+//			if(cse<cs1e)cs1e=cse;
 			while((cs1<cs1e) && (cs1[0]==blkb[0]))
-				{ cs1+=64; bc++; }
+			{
+				if(BTIC4B_EncBlockPriorColorP(ctx, cs1, blks))
+					{ bc2++; }
+				else
+					{ bc2=0; }
+				if(bc2>1)
+					break;
+				cs1+=ctx->blksz; bc++;
+			}
 		}else
 		{
 			bc=0;
 		}
 
 		cs1=blkb; bc2=0;
-		while((cs1<cse) && (cs1[0]==blkb[0]))
+		while((cs1<cs1e) && (cs1[0]==blkb[0]))
 		{
 			if(!BTIC4B_EncBlockPriorColorP(ctx, cs1, blks))
 				break;
-			cs1+=64; bc2++;
+			cs1+=ctx->blksz; bc2++;
 		}
 		
 //		bc2=0;
@@ -1161,7 +1169,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 				{
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1178,7 +1186,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 						*(s16 *)(cs+ 4), *(s16 *)(cs+ 6),
 						*(s16 *)(cs+ 8));
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1193,7 +1201,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 
 		case 0x01:
 #if 1
-			if(bc2>4)
+			if(bc2>3)
 			{
 				BTIC4B_EncEmitCommand(ctx, 0x21);
 				BTIC4B_EncEmitCount(ctx, bc2);
@@ -1203,7 +1211,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncEmit4B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1218,7 +1226,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 			break;
 		case 0x02:	case 0x03:
 #if 1
-			if(bc2>4)
+			if(bc2>3)
 			{
 				BTIC4B_EncEmitCommand(ctx, 0x20|blkb[0]);
 				BTIC4B_EncEmitCount(ctx, bc2);
@@ -1228,7 +1236,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncEmit8B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1243,7 +1251,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 			break;
 		case 0x04:
 #if 1
-			if(bc2>4)
+			if(bc2>3)
 			{
 				BTIC4B_EncEmitCommand(ctx, 0x24);
 				BTIC4B_EncEmitCount(ctx, bc2);
@@ -1253,7 +1261,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncEmit16B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1268,7 +1276,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 			break;
 		case 0x05:	case 0x06:
 #if 1
-			if(bc2>4)
+			if(bc2>3)
 			{
 				BTIC4B_EncEmitCommand(ctx, 0x20|blkb[0]);
 				BTIC4B_EncEmitCount(ctx, bc2);
@@ -1278,7 +1286,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncEmit32B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1293,7 +1301,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 			break;
 		case 0x07:
 #if 1
-			if(bc2>4)
+			if(bc2>3)
 			{
 				BTIC4B_EncEmitCommand(ctx, 0x27);
 				BTIC4B_EncEmitCount(ctx, bc2);
@@ -1303,7 +1311,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncEmit64B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1330,7 +1338,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncEmit8B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1355,7 +1363,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncEmit16B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1380,7 +1388,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncEmit32B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1406,7 +1414,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncEmit64B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
-					cs+=64;
+					cs+=ctx->blksz;
 				}
 				break;
 			}
@@ -1447,6 +1455,17 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 			BTIC4B_EncUpdatePredPost(ctx, blkb, blks);
 			break;
 
+		case 0x13:
+			BTIC4B_EncEmitCommand(ctx, 0x13);
+			BTIC4B_EncUpdatePred(ctx, blkb, blks);
+			BTIC4B_FastEncYUVDyuv(ctx,
+				blkb[2], (blkb[3]-128)<<1, (blkb[4]-128)<<1,
+				blkb[5], (blkb[6]-128)<<1, (blkb[7]-128)<<1);
+			BTIC4B_EncEmit128B(ctx, blkb+8);
+			BTIC4B_EncEmit32B(ctx, blkb+24);
+			BTIC4B_EncEmit32B(ctx, blkb+28);
+			BTIC4B_EncUpdatePredPost(ctx, blkb, blks);
+			break;
 		case 0x14:
 			BTIC4B_EncEmitCommand(ctx, 0x14);
 			BTIC4B_EncUpdatePred(ctx, blkb, blks);
@@ -1501,7 +1520,6 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 			BTIC4B_EncUpdatePredPost(ctx, blkb, blks);
 			break;
 		case 0x19:
-//			__asm { int 3 }
 			BTIC4B_EncEmitCommand(ctx, 0x19);
 			BTIC4B_EncUpdatePred(ctx, blkb, blks);
 			BTIC4B_FastEncYUVDyuv(ctx,
@@ -1554,6 +1572,28 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 			BTIC4B_EncEmit256B(ctx, blkb+16);
 			BTIC4B_EncEmit64B(ctx, blkb+48);
 			BTIC4B_EncEmit64B(ctx, blkb+56);
+			BTIC4B_EncUpdatePredPost(ctx, blkb, blks);
+			break;
+		case 0x1E:
+			BTIC4B_EncEmitCommand(ctx, 0x1E);
+			BTIC4B_EncUpdatePred(ctx, blkb, blks);
+			BTIC4B_FastEncYUVDyuv(ctx,
+				*(s16 *)(blkb+ 4), *(s16 *)(blkb+ 6), *(s16 *)(blkb+ 8),
+				*(s16 *)(blkb+10), *(s16 *)(blkb+12), *(s16 *)(blkb+14));
+			BTIC4B_EncEmit192B(ctx, blkb+16);
+			BTIC4B_EncEmit96B(ctx, blkb+40);
+			BTIC4B_EncEmit96B(ctx, blkb+52);
+			BTIC4B_EncUpdatePredPost(ctx, blkb, blks);
+			break;
+		case 0x1F:
+			BTIC4B_EncEmitCommand(ctx, 0x1F);
+			BTIC4B_EncUpdatePred(ctx, blkb, blks);
+			BTIC4B_FastEncYUVDyuv(ctx,
+				*(s16 *)(blkb+ 4), *(s16 *)(blkb+ 6), *(s16 *)(blkb+ 8),
+				*(s16 *)(blkb+10), *(s16 *)(blkb+12), *(s16 *)(blkb+14));
+			BTIC4B_EncEmit256B(ctx, blkb+16);
+			BTIC4B_EncEmit192B(ctx, blkb+48);
+			BTIC4B_EncEmit192B(ctx, blkb+72);
 			BTIC4B_EncUpdatePredPost(ctx, blkb, blks);
 			break;
 		default:
@@ -1890,8 +1930,8 @@ BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 		ctx->ysb=(ys+7)>>3;
 		ctx->nblk=ctx->xsb*ctx->ysb;
 		ctx->blksz=64;
-		ctx->blks=malloc(ctx->nblk*ctx->blksz);
-		ctx->lblks=malloc(ctx->nblk*ctx->blksz);
+		ctx->blks=malloc(ctx->nblk*ctx->blksz+256);
+		ctx->lblks=malloc(ctx->nblk*ctx->blksz+256);
 	}
 
 	ct=obuf;
@@ -2112,6 +2152,8 @@ BTIC4B_API void BTIC4B_FreeContext(BTIC4B_Context *ctx)
 		free(ctx->blks);
 	if(ctx->lblks)
 		free(ctx->lblks);
+	if(ctx->pblk)
+		free(ctx->pblk);
 	free(ctx);
 }
 

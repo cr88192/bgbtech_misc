@@ -2,7 +2,8 @@
 
 static int lqtvq_encrice8[16*512];		//0-15=bits, 16-19=len, 20-23='Rk
 
-static int lqtvq_decrice8[16*256];		//0-15=sym, 16-19=len, 20-23='Rk
+//static int lqtvq_decrice8[16*256];		//0-15=sym, 16-19=len, 20-23='Rk
+static u16 lqtvq_decrice8[16*256];		//0-15=sym, 16-19=len, 20-23='Rk
 static byte lqtvq_decriceq8[256];		//Q table
 static byte lqtvq_decricenk8[256];		//Next K Table
 
@@ -91,7 +92,8 @@ void BTIC4B_InitRice(void)
 			k1=lqtvq_decricenk8[(k<<4)|(q&15)];
 			j=(i>>(q+1))&((1<<k)-1);
 			j=j|(q<<k);
-			lqtvq_decrice8[(k<<8)|i]=j|(l<<16)|(k1<<20);
+//			lqtvq_decrice8[(k<<8)|i]=j|(l<<16)|(k1<<20);
+			lqtvq_decrice8[(k<<8)|i]=j|(l<<8)|(k1<<12);
 		}
 	}
 }

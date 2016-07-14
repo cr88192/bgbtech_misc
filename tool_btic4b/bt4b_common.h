@@ -1,3 +1,9 @@
+#if defined(_MSC_VER) || (_M_IX86_FP>=1)
+#define BT4B_XMMINTRIN
+#include <xmmintrin.h>
+#include <emmintrin.h>
+#endif
+
 #ifndef BYTE_T
 #define BYTE_T
 typedef unsigned char byte;
@@ -81,10 +87,21 @@ typedef unsigned int uint;
 
 #define BTIC4B_FCC_BT4B		BTIC4B_FOURCC('B', 'T', '4', 'B')
 
-#define BTIC4B_CLRS_RGBA		0
-#define BTIC4B_CLRS_BGRA		1
-#define BTIC4B_CLRS_RGBX		2
-#define BTIC4B_CLRS_BGRX		3
+#define BTIC4B_CLRS_RGBA		0x00
+#define BTIC4B_CLRS_BGRA		0x01
+#define BTIC4B_CLRS_RGBX		0x02
+#define BTIC4B_CLRS_BGRX		0x03
+#define BTIC4B_CLRS_RGB			0x04
+#define BTIC4B_CLRS_BGR			0x05
+
+#define BTIC4B_CLRS_BC1			0x08
+#define BTIC4B_CLRS_BC3			0x09
+#define BTIC4B_CLRS_BC6			0x0A
+#define BTIC4B_CLRS_BC7			0x0B
+#define BTIC4B_CLRS_BC1MIP		0x0C
+#define BTIC4B_CLRS_BC3MIP		0x0D
+#define BTIC4B_CLRS_BC6MIP		0x0E
+#define BTIC4B_CLRS_BC7MIP		0x0F
 
 #define BTIC4B_CLRT_GDBDR		0
 #define BTIC4B_CLRT_RCT			1
@@ -101,10 +118,10 @@ typedef unsigned int uint;
 #define BTIC4B_QFL_USEPRED		0x0400
 #define BTIC4B_QFL_USEBFQ		0x0800
 
-#define BTIC4B_ERRS_GENERIC	-1
-#define BTIC4B_ERRS_BADFCC	-16
+#define BTIC4B_ERRS_GENERIC		-1
+#define BTIC4B_ERRS_BADFCC		-16
 #define BTIC4B_ERRS_BADIBUFSZ	-17
-#define BTIC4B_ERRS_NOIMAGE	-18
+#define BTIC4B_ERRS_NOIMAGE		-18
 
 typedef struct {
 byte tab[256];
@@ -126,8 +143,9 @@ int xs, ys;
 int xsb, ysb, nblk, blksz;
 int qfl;
 
-byte *blks;
-byte *lblks;
+byte *blks;		//current frame blocks
+byte *lblks;	//last frame blocks
+byte *pblk;		//pixel blocks (mipmap decode)
 
 int cy, cu, cv, dy, du, dv;
 int qfy, qfuv, qfdy, qfduv;
@@ -151,6 +169,7 @@ byte imask;				//ideal mask
 byte pred;				//predictor
 byte imgt;				//image type
 byte clrt;				//colorspace transform
+byte pred_l8p;			//predictor needs to deal with LDR8/Skip
 
 BTIC4B_SmtfState sm_cmd;
 BTIC4B_SmtfState sm_mask;
@@ -164,8 +183,17 @@ int stat_pixbits;
 
 int yuv_cz[8];
 
+void (*DecUpdatePred)(BTIC4B_Context *ctx,
+	byte *ct, byte *blks);
+void (*DecGetBlkPredClrs3)(BTIC4B_Context *ctx,
+	byte *blka, byte *blkb, byte *blkc, int *rcyuv);
+
+// used during image transform
 void (*DecBlock)(BTIC4B_Context *ctx,
 	byte *blkbuf, byte *ibuf, int ystr);
+void (*DecBlockHalf)(BTIC4B_Context *ctx,
+	byte *blkbuf, byte *ibuf, int ystr);
+
 u32 (*ClrDec1)(int cy, int cu, int cv);
 u32 (*ClrDec1A)(int cy, int cu, int cv, int ca);
 void (*ClrDec4)(
@@ -180,7 +208,6 @@ void (*ClrDec4C)(
 	int cu0, int cv0, int cu1, int cv1,
 	int cu2, int cv2, int cu3, int cv3,
 	u32 *rpx0, u32 *rpx1);
-
 void (*ClrDec2T)(int tag,
 	int cy, int cu, int cv,
 	int dy, int du, int dv,
@@ -193,6 +220,18 @@ short bfq_qduv[32];		//duv cutoff
 byte bfq_rqfl[32];		//require flags
 byte bfq_exfl[32];		//exclude flags
 byte bfq_cost[32];		//block cost
+
+//BCn transcode
+void (*BCnEncodeBlockGen)(byte *block,
+	s16 *pxy, s16 *pxa, int *min, int *max,
+	int mcy, int ncy, int mca, int nca);
+void (*BCnEncodeBlockBits32)(byte *block,
+	u32 pxy, u32 pxa, int *min, int *max);
+void (*BCnEncodeBlockBits48)(byte *block,
+	u64 pxy, u64 pxa, int *min, int *max);
+void (*BCnEncodeBlockBits64)(byte *block,
+	u64 pxy, int *min, int *max);
+void (*BCnEncodeBlockFlat)(byte *block, int *avg);
 
 };
 

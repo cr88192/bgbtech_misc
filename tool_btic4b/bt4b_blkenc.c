@@ -1234,6 +1234,39 @@ force_inline void BTIC4B_EncYBits8x4x2(
 	}
 }
 
+force_inline void BTIC4B_EncYBits4x8x2EO(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+4095;
+	static const int lc1=8388608-4095;
+	int *csy;
+	u32 i0, i1;
+	int i;
+
+	csy=ybuf;
+	for(i=0; i<2; i++)
+	{
+		i0=        BTIC4B_SAT2(((csy[31]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[29]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[27]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[25]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[22]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[20]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[18]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[16]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[15]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[13]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[11]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[ 9]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[ 6]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[ 4]-acy)*lsy+lc0)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[ 2]-acy)*lsy+lc1)>>22);
+		i0=(i0<<2)|BTIC4B_SAT2(((csy[ 0]-acy)*lsy+lc0)>>22);
+		*(u32 *)(oblk+i*4)=i0;
+		csy+=32;
+	}
+}
+
 force_inline void BTIC4B_EncYBits8x8x2(
 	byte *oblk, int *ybuf, int lsy, int acy)
 {
@@ -1272,10 +1305,10 @@ force_inline void BTIC4B_EncYBits8x8x2(
 force_inline void BTIC4B_EncYBits8x8x3(
 	byte *oblk, int *ybuf, int lsy, int acy)
 {
-//	static const int lc0=8388608+4095;
-//	static const int lc1=8388608-4095;
-	static const int lc0=8388608+2047;
-	static const int lc1=8388608-2047;
+	static const int lc0=8388608+4095;
+	static const int lc1=8388608-4095;
+//	static const int lc0=8388608+2047;
+//	static const int lc1=8388608-2047;
 	int *csy, *csye;
 	u32 i0, i1;
 	int i;
@@ -1346,6 +1379,35 @@ force_inline void BTIC4B_EncYBits8x8x4(
 		csy+=16;
 	}
 }
+
+
+force_inline void BTIC4B_EncYBits4x8x3EO(
+	byte *oblk, int *ybuf, int lsy, int acy)
+{
+	static const int lc0=8388608+4095;
+	static const int lc1=8388608-4095;
+//	static const int lc0=8388608+2047;
+//	static const int lc1=8388608-2047;
+	int *csy, *csye;
+	u32 i0, i1;
+	int i;
+
+	csy=ybuf; csye=ybuf+64;
+	for(i=0; i<4; i++)
+	{
+		i0=        BTIC4B_SAT3(((csy[15]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[13]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[11]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 9]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 6]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 4]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 2]-acy)*lsy+lc1)>>21);
+		i0=(i0<<3)|BTIC4B_SAT3(((csy[ 0]-acy)*lsy+lc1)>>21);
+		*(u32 *)(oblk+i*3)=i0;
+		csy+=16;
+	}
+}
+
 #endif
 
 void BTIC4B_EncBlock0Inner(
@@ -1609,7 +1671,10 @@ void BTIC4B_EncBlock0Inner(
 				if((dcy<ctx->qdy_8x8x2) && !alexp && ubuf2)
 					{ if(bt<0)bt=0x1B; }
 				if(!alexp && ubuf2)
-					{ if(bt<0)bt=0x19; }
+				{
+//					if(bt<0)bt=0x19;
+					if(bt<0)bt=0x1E;
+				}
 			}
 			if(dcy<ctx->qdy_4x4x2)
 				{ if(bt<0)bt=0x16; }
@@ -1827,8 +1892,8 @@ void BTIC4B_EncBlock0Inner(
 	case 0x1A:
 		*(u32 *)(blkbuf+ 0)=  0x1A|0x00FF0000;
 		BTIC4B_EncYBits8x8x2(blkbuf+16, ybuf, ls0, acy);
-		BTIC4B_EncYBits4x8x2(blkbuf+32, ubuf2, ls1, acu);
-		BTIC4B_EncYBits4x8x2(blkbuf+40, vbuf2, ls2, acv);
+		BTIC4B_EncYBits4x8x2EO(blkbuf+32, ubuf2, ls1, acu);
+		BTIC4B_EncYBits4x8x2EO(blkbuf+40, vbuf2, ls2, acv);
 		break;
 	case 0x1B:
 		*(u32 *)(blkbuf+ 0)=  0x1B|0x00FF0000;
@@ -1847,6 +1912,18 @@ void BTIC4B_EncBlock0Inner(
 		BTIC4B_EncYBits8x8x4(blkbuf+16, ybuf, ls0, acy);
 		BTIC4B_EncUVBits4x4x4(blkbuf+48, ubuf, ls1, acu);
 		BTIC4B_EncUVBits4x4x4(blkbuf+56, vbuf, ls2, acv);
+		break;
+	case 0x1E:
+		*(u32 *)(blkbuf+ 0)=  0x1E|0x00FF0000;
+		BTIC4B_EncYBits8x8x3(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncYBits4x8x3EO(blkbuf+40, ubuf2, ls1, acu);
+		BTIC4B_EncYBits4x8x3EO(blkbuf+52, vbuf2, ls2, acv);
+		break;
+	case 0x1F:
+		*(u32 *)(blkbuf+ 0)=  0x1F|0x00FF0000;
+		BTIC4B_EncYBits8x8x4(blkbuf+16, ybuf, ls0, acy);
+		BTIC4B_EncYBits8x8x3(blkbuf+48, ubuf2, ls1, acu);
+		BTIC4B_EncYBits8x8x3(blkbuf+72, vbuf2, ls2, acv);
 		break;
 	default:
 		break;

@@ -558,6 +558,103 @@ int bt4b_test(char *infile, int qfl)
 //	BTIC1H_Img_SaveTGA("bt4at0.tga", tbuf2, xs, ys);
 }
 
+
+int bt4b_test_bcn(char *infile, int qfl, int clrs)
+{
+	char tb[256];
+	BTIC4B_Context tctx;
+	BTIC4B_Context *ctx;
+	byte *tbuf0, *tbuf1, *tbuf2, *cbuf;
+	byte *cs;
+	double dt, mpxf;
+	int t0, t1, t2, t3, t0e;
+	int xs, ys, xs1, ys1, nf, sz;
+	int i, j, k;
+	
+	tbuf0=BTIC1H_Img_LoadTGA(infile, &xs, &ys);
+	tbuf1=malloc(xs*ys*8);
+	tbuf2=malloc(xs*ys*8);
+	cbuf=malloc(1<<24);
+
+	mpxf=(xs*ys)/1000000.0;
+	
+	ctx=&tctx;
+
+#if 1
+	memset(ctx, 0, sizeof(BTIC4B_Context));
+
+	sz=BTIC4B_EncodeImgBufferCtx(ctx, cbuf, 1<<24,
+		tbuf0, xs, ys, qfl, BTIC4B_CLRS_RGBA);
+	BTIC4B_DumpStatsCtx(ctx);
+
+	dump_bmp("bt4at0_bt4b.bpx", xs, ys,
+		BTIC4B_FCC_BT4B, cbuf, sz);
+
+	printf("sz=%dKiB (%.2fbpp)\n", ((sz+512)>>10), (sz*8.0)/(xs*ys));
+#endif
+
+#if 1
+	memset(ctx, 0, sizeof(BTIC4B_Context));
+
+	printf("Decode Test(BCn):\n");
+	t0=clock(); t1=t0; t0e=t0+(10*CLOCKS_PER_SEC);
+	nf=0;
+	while(t1<t0e)
+	{
+//		BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
+//			tbuf1, xs, ys, BTIC4B_CLRS_BC7MIP);
+		BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
+			tbuf1, xs, ys, clrs);
+
+		nf++;
+		t1=clock();
+		t2=t1-t0;
+		dt=t2/((double)CLOCKS_PER_SEC);
+		printf("%d %.2fs %.2ffps %.2fMpix/s\r", nf, dt,
+			nf/dt, mpxf*(nf/dt));
+	}
+	printf("\n");
+#endif
+
+#if 1
+	memset(ctx, 0, sizeof(BTIC4B_Context));
+	memset(tbuf1, 0, xs*ys*8);
+	memset(tbuf2, 0, xs*ys*8);
+
+//	BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
+//		tbuf2, xs, ys, BTIC4B_CLRS_BC7MIP);
+	BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
+		tbuf2, xs, ys, clrs);
+
+	BTIC4B_BC7_DecodeImage(tbuf2, tbuf1, xs, ys, 4, 0);
+
+	cmp_blkrmse(tbuf0, tbuf1, ctx->blks, xs, ys);
+
+	BTIC1H_Img_SaveTGA("bt4at0.tga", tbuf1, xs, ys);
+	
+	if((clrs==BTIC4B_CLRS_BC1MIP) ||
+		(clrs==BTIC4B_CLRS_BC3MIP) ||
+		(clrs==BTIC4B_CLRS_BC6MIP) ||
+		(clrs==BTIC4B_CLRS_BC7MIP))
+	{
+		cs=tbuf2+((xs+3)>>2)*((ys+3)>>2)*16;
+		xs1=(xs+1)>>1;	ys1=(ys+1)>>1; nf=1;
+		while((xs1>1) || (ys1>1))
+		{
+			BTIC4B_BC7_DecodeImage(cs, tbuf1, xs1, ys1, 4, 0);
+			
+			sprintf(tb, "bt4at0_mip%d.tga", nf);
+			BTIC1H_Img_SaveTGA(tb, tbuf1, xs1, ys1);
+
+			cs+=((xs1+3)>>2)*((ys1+3)>>2)*16;
+			xs1=(xs1+1)>>1;	ys1=(ys1+1)>>1; nf++;
+		}
+	}
+	
+#endif
+}
+
+
 typedef struct {
 short bfq_qdy[32];		//dy cutoff
 short bfq_qduv[32];		//duv cutoff
@@ -778,17 +875,21 @@ int bt4b_help(char *pgm)
 	printf("    -t    Test infile.TGA\n");
 	printf("    -q q  Set Quality Level (Default=90)\n");
 	printf("    -np   Disable Block Prediction\n");
+	printf("    -tc   Test infile.TGA / test decode as BCn\n");
+	printf("    -bc1 -bc3 -bc6 -bc7, -bc1m -bc3m -bc6m -bc7m\n");
+	printf("          Set BCn format used in BCn test\n");
 	return(0);
 }
 
 int main(int argc, char *argv[])
 {
 	char *infile, *outfile;
-	int cmd, q, qfl, dfl;
+	int cmd, q, qfl, dfl, tclrs;
 	int i, j, k;
 	
 	infile=NULL; outfile=NULL; cmd=0; q=90; qfl=0; dfl=0;
 	qfl|=BTIC4B_QFL_USEPRED;
+	tclrs=BTIC4B_CLRS_BC7;
 	
 	for(i=1; i<argc; i++)
 	{
@@ -802,6 +903,8 @@ int main(int argc, char *argv[])
 				cmd=3;
 			if(!strcmp(argv[i], "-tg"))
 				cmd=4;
+			if(!strcmp(argv[i], "-tc"))
+				cmd=5;
 
 			if(!strcmp(argv[i], "-q"))
 			{
@@ -814,6 +917,23 @@ int main(int argc, char *argv[])
 				qfl|=BTIC4B_QFL_USEPRED;
 			if(!strcmp(argv[i], "-np"))
 				qfl&=~BTIC4B_QFL_USEPRED;
+
+			if(!strcmp(argv[i], "-bc1"))
+				tclrs=BTIC4B_CLRS_BC1;
+			if(!strcmp(argv[i], "-bc3"))
+				tclrs=BTIC4B_CLRS_BC3;
+			if(!strcmp(argv[i], "-bc6"))
+				tclrs=BTIC4B_CLRS_BC6;
+			if(!strcmp(argv[i], "-bc7"))
+				tclrs=BTIC4B_CLRS_BC7;
+			if(!strcmp(argv[i], "-bc1m"))
+				tclrs=BTIC4B_CLRS_BC1MIP;
+			if(!strcmp(argv[i], "-bc3m"))
+				tclrs=BTIC4B_CLRS_BC3MIP;
+			if(!strcmp(argv[i], "-bc6m"))
+				tclrs=BTIC4B_CLRS_BC6MIP;
+			if(!strcmp(argv[i], "-bc7m"))
+				tclrs=BTIC4B_CLRS_BC7MIP;
 
 			continue;
 		}
@@ -850,6 +970,14 @@ int main(int argc, char *argv[])
 		if(!infile)
 			infile="yazil0_1.tga";
 		bt4b_test2(infile, q|qfl);
+		return(0);
+	}
+
+	if(cmd==5)
+	{
+		if(!infile)
+			infile="yazil0_1.tga";
+		bt4b_test_bcn(infile, q|qfl, tclrs);
 		return(0);
 	}
 
