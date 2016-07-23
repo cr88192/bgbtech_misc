@@ -4,13 +4,6 @@
  * Conversion Speed will be the priority.
  */
 
-typedef struct {
-byte *cs, *cse;
-byte *ct, *cte;
-u32 win;
-int pos;
-}BGBBTJ_BitStream;
-
 u16 btic4b_bc7_4x1x2to4x1x3[256];
 u64 btic4b_bc7_2x2to4x4x3[256];
 u32 btic4b_bc7_2x2to4x4x2[256];
@@ -134,12 +127,12 @@ void BTIC4B_ConvBlockBC7_Init()
 	}
 }
 
-void BGBBTJ_BitsLE_Clear(BGBBTJ_BitStream *ctx)
+void BTIC4B_BitsLE_Clear(BTIC4B_BitStream *ctx)
 {
-	memset(ctx, 0, sizeof(BGBBTJ_BitStream));
+	memset(ctx, 0, sizeof(BTIC4B_BitStream));
 }
 
-void BGBBTJ_BitsLE_SetupWrite(BGBBTJ_BitStream *ctx, byte *ct, int sz)
+void BTIC4B_BitsLE_SetupWrite(BTIC4B_BitStream *ctx, byte *ct, int sz)
 {
 	ctx->ct=ct;
 	ctx->cte=ct+sz;
@@ -147,14 +140,14 @@ void BGBBTJ_BitsLE_SetupWrite(BGBBTJ_BitStream *ctx, byte *ct, int sz)
 	ctx->pos=0;
 }
 
-void BGBBTJ_BitsLE_ClearSetupWrite(BGBBTJ_BitStream *ctx, byte *ct, int sz)
+void BTIC4B_BitsLE_ClearSetupWrite(BTIC4B_BitStream *ctx, byte *ct, int sz)
 {
-	BGBBTJ_BitsLE_Clear(ctx);
-	BGBBTJ_BitsLE_SetupWrite(ctx, ct, sz);
+	BTIC4B_BitsLE_Clear(ctx);
+	BTIC4B_BitsLE_SetupWrite(ctx, ct, sz);
 }
 
-force_inline void BGBBTJ_BitsLE_WriteBits(
-	BGBBTJ_BitStream *ctx, int v, int n)
+force_inline void BTIC4B_BitsLE_WriteBits(
+	BTIC4B_BitStream *ctx, int v, int n)
 {
 #if defined(X86)||defined(X86_64)
 //	static const mask[5]={
@@ -191,7 +184,7 @@ force_inline void BGBBTJ_BitsLE_WriteBits(
 }
 
 #if 0
-void BGBBTJ_BitsLE_WriteLBits(BGBBTJ_BitStream *ctx, int v, int n)
+void BTIC4B_BitsLE_WriteLBits(BTIC4B_BitStream *ctx, int v, int n)
 {
 	v&=(1<<n)-1;
 	ctx->win|=v<<(ctx->pos);
@@ -206,55 +199,55 @@ void BGBBTJ_BitsLE_WriteLBits(BGBBTJ_BitStream *ctx, int v, int n)
 #endif
 
 #if 0
-void BGBBTJ_BitsLE_WriteBit(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteLBits(ctx, v, 1); }
-void BGBBTJ_BitsLE_Write2Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteLBits(ctx, v, 2); }
-void BGBBTJ_BitsLE_Write3Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteLBits(ctx, v, 3); }
-void BGBBTJ_BitsLE_Write4Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteLBits(ctx, v, 4); }
-void BGBBTJ_BitsLE_Write5Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteLBits(ctx, v, 5); }
-void BGBBTJ_BitsLE_Write6Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteLBits(ctx, v, 6); }
-void BGBBTJ_BitsLE_Write7Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteLBits(ctx, v, 7); }
-// void BGBBTJ_BitsLE_Write8Bits(BGBBTJ_BitStream *ctx, int v)
-//	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 8); }
+void BTIC4B_BitsLE_WriteBit(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteLBits(ctx, v, 1); }
+void BTIC4B_BitsLE_Write2Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteLBits(ctx, v, 2); }
+void BTIC4B_BitsLE_Write3Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteLBits(ctx, v, 3); }
+void BTIC4B_BitsLE_Write4Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteLBits(ctx, v, 4); }
+void BTIC4B_BitsLE_Write5Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteLBits(ctx, v, 5); }
+void BTIC4B_BitsLE_Write6Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteLBits(ctx, v, 6); }
+void BTIC4B_BitsLE_Write7Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteLBits(ctx, v, 7); }
+// void BTIC4B_BitsLE_Write8Bits(BTIC4B_BitStream *ctx, int v)
+//	{ BTIC4B_BitsLE_WriteBits(ctx, v, 8); }
 #endif
 
 #if 1
-default_inline void BGBBTJ_BitsLE_WriteBit(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 1); }
-default_inline void BGBBTJ_BitsLE_Write2Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 2); }
-default_inline void BGBBTJ_BitsLE_Write3Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 3); }
-default_inline void BGBBTJ_BitsLE_Write4Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 4); }
-default_inline void BGBBTJ_BitsLE_Write5Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 5); }
-default_inline void BGBBTJ_BitsLE_Write6Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 6); }
-default_inline void BGBBTJ_BitsLE_Write7Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 7); }
+default_inline void BTIC4B_BitsLE_WriteBit(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 1); }
+default_inline void BTIC4B_BitsLE_Write2Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 2); }
+default_inline void BTIC4B_BitsLE_Write3Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 3); }
+default_inline void BTIC4B_BitsLE_Write4Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 4); }
+default_inline void BTIC4B_BitsLE_Write5Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 5); }
+default_inline void BTIC4B_BitsLE_Write6Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 6); }
+default_inline void BTIC4B_BitsLE_Write7Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 7); }
 #endif
 
-void BGBBTJ_BitsLE_Write10Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 10); }
-void BGBBTJ_BitsLE_Write11Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 11); }
-void BGBBTJ_BitsLE_Write12Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 12); }
-void BGBBTJ_BitsLE_Write14Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 14); }
-void BGBBTJ_BitsLE_Write15Bits(BGBBTJ_BitStream *ctx, int v)
-	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 15); }
-// void BGBBTJ_BitsLE_Write16Bits(BGBBTJ_BitStream *ctx, int v)
-//	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 16); }
+void BTIC4B_BitsLE_Write10Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 10); }
+void BTIC4B_BitsLE_Write11Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 11); }
+void BTIC4B_BitsLE_Write12Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 12); }
+void BTIC4B_BitsLE_Write14Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 14); }
+void BTIC4B_BitsLE_Write15Bits(BTIC4B_BitStream *ctx, int v)
+	{ BTIC4B_BitsLE_WriteBits(ctx, v, 15); }
+// void BTIC4B_BitsLE_Write16Bits(BTIC4B_BitStream *ctx, int v)
+//	{ BTIC4B_BitsLE_WriteBits(ctx, v, 16); }
 
-void BGBBTJ_BitsLE_Write8Bits(BGBBTJ_BitStream *ctx, int v)
+void BTIC4B_BitsLE_Write8Bits(BTIC4B_BitStream *ctx, int v)
 {
 #if defined(X86)||defined(X86_64)
 // #if 0
@@ -268,7 +261,7 @@ void BGBBTJ_BitsLE_Write8Bits(BGBBTJ_BitStream *ctx, int v)
 #endif
 }
 
-void BGBBTJ_BitsLE_Write16Bits(BGBBTJ_BitStream *ctx, int v)
+void BTIC4B_BitsLE_Write16Bits(BTIC4B_BitStream *ctx, int v)
 {
 #if defined(X86)||defined(X86_64)
 //#if 0
@@ -285,7 +278,7 @@ void BGBBTJ_BitsLE_Write16Bits(BGBBTJ_BitStream *ctx, int v)
 #endif
 }
 
-void BGBBTJ_BitsLE_Write24Bits(BGBBTJ_BitStream *ctx, int v)
+void BTIC4B_BitsLE_Write24Bits(BTIC4B_BitStream *ctx, int v)
 {
 #if defined(X86)||defined(X86_64)
 //#if 0
@@ -301,7 +294,7 @@ void BGBBTJ_BitsLE_Write24Bits(BGBBTJ_BitStream *ctx, int v)
 #endif
 }
 
-void BGBBTJ_BitsLE_FlushBits(BGBBTJ_BitStream *ctx)
+void BTIC4B_BitsLE_FlushBits(BTIC4B_BitStream *ctx)
 {
 	while(ctx->pos>0)
 	{
@@ -311,7 +304,7 @@ void BGBBTJ_BitsLE_FlushBits(BGBBTJ_BitStream *ctx)
 	}
 }
 
-void BGBBTJ_BC7_EncodeBlock_VecSwapRGB(int *clra, int *clrb)
+void BTIC4B_BC7_EncodeBlock_VecSwapRGB(int *clra, int *clrb)
 {
 	int t;
 	t=clra[0]; clra[0]=clrb[0]; clrb[0]=t;
@@ -319,7 +312,7 @@ void BGBBTJ_BC7_EncodeBlock_VecSwapRGB(int *clra, int *clrb)
 	t=clra[2]; clra[2]=clrb[2]; clrb[2]=t;
 }
 
-void BGBBTJ_BC7_EncodeBlock_VecSwapRGBA(int *clra, int *clrb)
+void BTIC4B_BC7_EncodeBlock_VecSwapRGBA(int *clra, int *clrb)
 {
 	int t;
 	t=clra[0]; clra[0]=clrb[0]; clrb[0]=t;
@@ -328,10 +321,10 @@ void BGBBTJ_BC7_EncodeBlock_VecSwapRGBA(int *clra, int *clrb)
 	t=clra[3]; clra[3]=clrb[3]; clrb[3]=t;
 }
 
-void BGBBTJ_BC7_EncodeBlock_VecSwapA(int *clra, int *clrb)
+void BTIC4B_BC7_EncodeBlock_VecSwapA(int *clra, int *clrb)
 	{ int t; t=clra[3]; clra[3]=clrb[3]; clrb[3]=t; }
 
-void BGBBTJ_BC7_EncodeBlock_VecInvertPixels(
+void BTIC4B_BC7_EncodeBlock_VecInvertPixels(
 	s16 *pxv, int n, int min, int max)
 {
 	int i, j, k;
@@ -351,7 +344,7 @@ void BTIC4B_BC7_EncodeBlock_Mode4(byte *block,
 	static const char idxtab2[16]=
 		{ 0,0,0,0, 0,1,2,3, 4,5,6,7, 7,7,7,7 };
 	
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
@@ -370,31 +363,31 @@ void BTIC4B_BC7_EncodeBlock_Mode4(byte *block,
 	
 	ixb=1;
 
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 16, 5);
-	BGBBTJ_BitsLE_WriteBits(&bits, 0, 2);
-	BGBBTJ_BitsLE_WriteBits(&bits, ixb, 1);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 16, 5);
+	BTIC4B_BitsLE_WriteBits(&bits, 0, 2);
+	BTIC4B_BitsLE_WriteBits(&bits, ixb, 1);
 
 	if(pxy[0]>=acy)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapRGB(min, max);
-		BGBBTJ_BC7_EncodeBlock_VecInvertPixels(pxy, 16, mcy, ncy);
+		BTIC4B_BC7_EncodeBlock_VecSwapRGB(min, max);
+		BTIC4B_BC7_EncodeBlock_VecInvertPixels(pxy, 16, mcy, ncy);
 	}
 
 	if(pxa[0]>=aca)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapA(min, max);
-		BGBBTJ_BC7_EncodeBlock_VecInvertPixels(pxa, 16, mca, nca);
+		BTIC4B_BC7_EncodeBlock_VecSwapA(min, max);
+		BTIC4B_BC7_EncodeBlock_VecInvertPixels(pxa, 16, mca, nca);
 	}
 
-	BGBBTJ_BitsLE_WriteBits(&bits, (min[0])>>3, 5);
-	BGBBTJ_BitsLE_WriteBits(&bits, (max[0])>>3, 5);
-	BGBBTJ_BitsLE_WriteBits(&bits, (min[1])>>3, 5);
-	BGBBTJ_BitsLE_WriteBits(&bits, (max[1])>>3, 5);
-	BGBBTJ_BitsLE_WriteBits(&bits, (min[2])>>3, 5);
-	BGBBTJ_BitsLE_WriteBits(&bits, (max[2])>>3, 5);
-	BGBBTJ_BitsLE_WriteBits(&bits, (min[3])>>2, 6);
-	BGBBTJ_BitsLE_WriteBits(&bits, (max[3])>>2, 6);
+	BTIC4B_BitsLE_WriteBits(&bits, (min[0])>>3, 5);
+	BTIC4B_BitsLE_WriteBits(&bits, (max[0])>>3, 5);
+	BTIC4B_BitsLE_WriteBits(&bits, (min[1])>>3, 5);
+	BTIC4B_BitsLE_WriteBits(&bits, (max[1])>>3, 5);
+	BTIC4B_BitsLE_WriteBits(&bits, (min[2])>>3, 5);
+	BTIC4B_BitsLE_WriteBits(&bits, (max[2])>>3, 5);
+	BTIC4B_BitsLE_WriteBits(&bits, (min[3])>>2, 6);
+	BTIC4B_BitsLE_WriteBits(&bits, (max[3])>>2, 6);
 
 //	l0=49152/(nca-aca+1);		//Fix-Point Scale (Alpha)
 	l0=32768/(nca-aca+1);		//Fix-Point Scale (Alpha)
@@ -405,40 +398,40 @@ void BTIC4B_BC7_EncodeBlock_Mode4(byte *block,
 	if(ixb)
 	{
 		p0=idxtab[((pxa[0]-aca)*l0+l3a)>>13];
-		BGBBTJ_BitsLE_WriteBit(&bits, p0);
+		BTIC4B_BitsLE_WriteBit(&bits, p0);
 		for(i=1; i<16; i++)
 		{
 			p0=idxtab[((pxa[i]-aca)*l0+l3a)>>13];
-			BGBBTJ_BitsLE_Write2Bits(&bits, p0);
+			BTIC4B_BitsLE_Write2Bits(&bits, p0);
 		}
 
 		p0=idxtab2[((pxy[0]-acy)*l1+l3a)>>13];
-		BGBBTJ_BitsLE_Write2Bits(&bits, p0);
+		BTIC4B_BitsLE_Write2Bits(&bits, p0);
 		for(i=1; i<16; i++)
 		{
 			p0=idxtab2[((pxy[i]-acy)*l1+l3a)>>13];
-			BGBBTJ_BitsLE_Write3Bits(&bits, p0);
+			BTIC4B_BitsLE_Write3Bits(&bits, p0);
 		}
 	}else
 	{
 		p0=idxtab[((pxy[0]-acy)*l1+l3a)>>13];
-		BGBBTJ_BitsLE_WriteBit(&bits, p0);
+		BTIC4B_BitsLE_WriteBit(&bits, p0);
 		for(i=1; i<16; i++)
 		{
 			p0=idxtab[((pxy[i]-acy)*l1+l3a)>>13];
-			BGBBTJ_BitsLE_Write2Bits(&bits, p0);
+			BTIC4B_BitsLE_Write2Bits(&bits, p0);
 		}
 
 		p0=idxtab2[((pxa[0]-aca)*l0+l3a)>>13];
-		BGBBTJ_BitsLE_Write2Bits(&bits, p0);
+		BTIC4B_BitsLE_Write2Bits(&bits, p0);
 		for(i=1; i<16; i++)
 		{
 			p0=idxtab2[((pxa[i]-aca)*l0+l3a)>>13];
-			BGBBTJ_BitsLE_Write3Bits(&bits, p0);
+			BTIC4B_BitsLE_Write3Bits(&bits, p0);
 		}
 	}
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 	memcpy(block, tblock, 16);
 }
 
@@ -452,7 +445,7 @@ void BTIC4B_BC7_EncodeBlock_Mode5(byte *block,
 		{ 0,0,0,0, 0,0,1,1, 2,2,3,3, 3,3,3,3 };
 	
 	byte tblock[24];
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
 	int q0, q1, q2, q3;
@@ -469,21 +462,21 @@ void BTIC4B_BC7_EncodeBlock_Mode5(byte *block,
 	acy=(mcy+ncy)>>1;
 	aca=(mca+nca)>>1;
 	
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-//	BGBBTJ_BitsLE_ClearSetupWrite(&bits, block, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 32, 6);
-	BGBBTJ_BitsLE_WriteBits(&bits, 0, 2);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+//	BTIC4B_BitsLE_ClearSetupWrite(&bits, block, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 32, 6);
+	BTIC4B_BitsLE_WriteBits(&bits, 0, 2);
 
 	if((pxy[0]>=acy) && (ncy>mcy))
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapRGB(min, max);
-		BGBBTJ_BC7_EncodeBlock_VecInvertPixels(pxy, 16, mcy, ncy);
+		BTIC4B_BC7_EncodeBlock_VecSwapRGB(min, max);
+		BTIC4B_BC7_EncodeBlock_VecInvertPixels(pxy, 16, mcy, ncy);
 	}
 
 	if((pxa[0]>=aca) && (nca>mca))
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapA(min, max);
-		BGBBTJ_BC7_EncodeBlock_VecInvertPixels(pxa, 16, mca, nca);
+		BTIC4B_BC7_EncodeBlock_VecSwapA(min, max);
+		BTIC4B_BC7_EncodeBlock_VecInvertPixels(pxa, 16, mca, nca);
 	}
 
 	p0=((min[0])>>1)|(((max[0])>>1)<<7);
@@ -491,19 +484,19 @@ void BTIC4B_BC7_EncodeBlock_Mode5(byte *block,
 	p2=((min[2])>>1)|(((max[2])>>1)<<7);
 	p3=min[3]|(max[3]<<8);
 
-	BGBBTJ_BitsLE_Write14Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p1);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p2);
-	BGBBTJ_BitsLE_Write16Bits(&bits, p3);
+	BTIC4B_BitsLE_Write14Bits(&bits, p0);
+	BTIC4B_BitsLE_Write14Bits(&bits, p1);
+	BTIC4B_BitsLE_Write14Bits(&bits, p2);
+	BTIC4B_BitsLE_Write16Bits(&bits, p3);
 
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[0])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[0])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[1])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[1])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[2])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[2])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, min[3], 8);
-//	BGBBTJ_BitsLE_WriteBits(&bits, max[3], 8);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[0])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[0])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[1])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[1])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[2])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[2])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, min[3], 8);
+//	BTIC4B_BitsLE_WriteBits(&bits, max[3], 8);
 
 //	l0=32768/(nca-aca+1);		//Fix-Point Scale (Alpha)
 //	l1=32768/(ncy-acy+1);		//Fix-Point Scale (Luma)
@@ -519,11 +512,11 @@ void BTIC4B_BC7_EncodeBlock_Mode5(byte *block,
 
 #if 0
 		p0=idxtab[((pxy[0]-acy)*l1+l3a)>>13];
-		BGBBTJ_BitsLE_WriteBit(&bits, p0);
+		BTIC4B_BitsLE_WriteBit(&bits, p0);
 		for(i=1; i<16; i++)
 		{
 			p0=idxtab[((pxy[i]-acy)*l1+l3a)>>13];
-			BGBBTJ_BitsLE_Write2Bits(&bits, p0);
+			BTIC4B_BitsLE_Write2Bits(&bits, p0);
 		}
 #endif
 
@@ -547,12 +540,12 @@ void BTIC4B_BC7_EncodeBlock_Mode5(byte *block,
 		p2=idxtab[((pxy[14]-acy)*l1+l3b)>>13];
 		p3=idxtab[((pxy[15]-acy)*l1+l3a)>>13];
 		q3=p0|(p1<<2)|(p2<<4)|(p3<<6);
-		BGBBTJ_BitsLE_Write15Bits(&bits, q0|(q1<<7));
-		BGBBTJ_BitsLE_Write16Bits(&bits, q2|(q3<<8));
+		BTIC4B_BitsLE_Write15Bits(&bits, q0|(q1<<7));
+		BTIC4B_BitsLE_Write16Bits(&bits, q2|(q3<<8));
 	}else
 	{
-		BGBBTJ_BitsLE_Write15Bits(&bits, 0);
-		BGBBTJ_BitsLE_Write16Bits(&bits, 0);
+		BTIC4B_BitsLE_Write15Bits(&bits, 0);
+		BTIC4B_BitsLE_Write16Bits(&bits, 0);
 	}
 
 	if(nca>mca)
@@ -561,11 +554,11 @@ void BTIC4B_BC7_EncodeBlock_Mode5(byte *block,
 
 #if 0
 		p0=idxtab[((pxa[0]-aca)*l0+l3a)>>13];
-		BGBBTJ_BitsLE_WriteBit(&bits, p0);
+		BTIC4B_BitsLE_WriteBit(&bits, p0);
 		for(i=1; i<16; i++)
 		{
 			p0=idxtab[((pxa[i]-aca)*l0+l3a)>>13];
-			BGBBTJ_BitsLE_Write2Bits(&bits, p0);
+			BTIC4B_BitsLE_Write2Bits(&bits, p0);
 		}
 #endif
 
@@ -589,22 +582,22 @@ void BTIC4B_BC7_EncodeBlock_Mode5(byte *block,
 		p2=idxtab[((pxa[14]-aca)*l0+l3b)>>13];
 		p3=idxtab[((pxa[15]-aca)*l0+l3a)>>13];
 		q3=p0|(p1<<2)|(p2<<4)|(p3<<6);
-		BGBBTJ_BitsLE_Write15Bits(&bits, q0|(q1<<7));
-		BGBBTJ_BitsLE_Write16Bits(&bits, q2|(q3<<8));
+		BTIC4B_BitsLE_Write15Bits(&bits, q0|(q1<<7));
+		BTIC4B_BitsLE_Write16Bits(&bits, q2|(q3<<8));
 	}else
 	{
-		BGBBTJ_BitsLE_Write15Bits(&bits, 0);
-		BGBBTJ_BitsLE_Write16Bits(&bits, 0);
+		BTIC4B_BitsLE_Write15Bits(&bits, 0);
+		BTIC4B_BitsLE_Write16Bits(&bits, 0);
 	}
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 
 #if 1
 	memcpy(block, tblock, 16);
 #endif
 }
 
-void BGBBTJ_BC7_EncodeBlock_Mode6(byte *block,
+void BTIC4B_BC7_EncodeBlock_Mode6(byte *block,
 	s16 *pxy,
 	int *min, int *max,
 	int mcy, int ncy)
@@ -615,7 +608,7 @@ void BGBBTJ_BC7_EncodeBlock_Mode6(byte *block,
 		   8,  9, 10, 11, 12, 13, 14, 15,
 		  15, 15, 15, 15, 15, 15, 15, 15};
 	
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
@@ -627,13 +620,13 @@ void BGBBTJ_BC7_EncodeBlock_Mode6(byte *block,
 
 	acy=(mcy+ncy)>>1;
 
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 64, 7);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 64, 7);
 
 	if(pxy[0]>=acy)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapRGBA(min, max);
-		BGBBTJ_BC7_EncodeBlock_VecInvertPixels(pxy, 16, mcy, ncy);
+		BTIC4B_BC7_EncodeBlock_VecSwapRGBA(min, max);
+		BTIC4B_BC7_EncodeBlock_VecInvertPixels(pxy, 16, mcy, ncy);
 	}
 
 	p0=((min[0])>>1)|(((max[0])>>1)<<7);
@@ -641,21 +634,21 @@ void BGBBTJ_BC7_EncodeBlock_Mode6(byte *block,
 	p2=((min[2])>>1)|(((max[2])>>1)<<7);
 	p3=((min[3])>>1)|(((max[3])>>1)<<7);
 
-	BGBBTJ_BitsLE_Write14Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p1);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p2);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p3);
+	BTIC4B_BitsLE_Write14Bits(&bits, p0);
+	BTIC4B_BitsLE_Write14Bits(&bits, p1);
+	BTIC4B_BitsLE_Write14Bits(&bits, p2);
+	BTIC4B_BitsLE_Write14Bits(&bits, p3);
 
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[0])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[0])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[1])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[1])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[2])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[2])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[3])>>1, 7);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[3])>>1, 7);
-	BGBBTJ_BitsLE_WriteBit(&bits, min[1]);
-	BGBBTJ_BitsLE_WriteBit(&bits, max[1]);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[0])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[0])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[1])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[1])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[2])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[2])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[3])>>1, 7);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[3])>>1, 7);
+	BTIC4B_BitsLE_WriteBit(&bits, min[1]);
+	BTIC4B_BitsLE_WriteBit(&bits, max[1]);
 
 //	l0=49152/(nca-aca+1);		//Fix-Point Scale (Alpha)
 	l1=32768/(ncy-acy+1);		//Fix-Point Scale (Luma)
@@ -669,26 +662,26 @@ void BGBBTJ_BC7_EncodeBlock_Mode6(byte *block,
 	p2=idxtab[((pxy[2]-acy)*l1+l3a)>>12];
 	p3=idxtab[((pxy[3]-acy)*l1+l3b)>>12];
 	if(p0>7)p0=7;
-	BGBBTJ_BitsLE_Write3Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write12Bits(&bits, p1|(p2<<4)|(p3<<8));
+	BTIC4B_BitsLE_Write3Bits(&bits, p0);
+	BTIC4B_BitsLE_Write12Bits(&bits, p1|(p2<<4)|(p3<<8));
 
 	p0=idxtab[((pxy[ 4]-acy)*l1+l3b)>>12];
 	p1=idxtab[((pxy[ 5]-acy)*l1+l3a)>>12];
 	p2=idxtab[((pxy[ 6]-acy)*l1+l3b)>>12];
 	p3=idxtab[((pxy[ 7]-acy)*l1+l3a)>>12];
-	BGBBTJ_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
+	BTIC4B_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
 	p0=idxtab[((pxy[ 8]-acy)*l1+l3a)>>12];
 	p1=idxtab[((pxy[ 9]-acy)*l1+l3b)>>12];
 	p2=idxtab[((pxy[10]-acy)*l1+l3a)>>12];
 	p3=idxtab[((pxy[11]-acy)*l1+l3b)>>12];
-	BGBBTJ_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
+	BTIC4B_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
 	p0=idxtab[((pxy[12]-acy)*l1+l3b)>>12];
 	p1=idxtab[((pxy[13]-acy)*l1+l3a)>>12];
 	p2=idxtab[((pxy[14]-acy)*l1+l3b)>>12];
 	p3=idxtab[((pxy[15]-acy)*l1+l3a)>>12];
-	BGBBTJ_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
+	BTIC4B_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 
 	memcpy(block, tblock, 16);
 }
@@ -702,7 +695,7 @@ void BTIC4B_BC7_EncodeBlock_AutoMode(byte *block,
 //	if(mca==nca)
 	if((nca-mca)<8)
 	{
-		BGBBTJ_BC7_EncodeBlock_Mode6(block,
+		BTIC4B_BC7_EncodeBlock_Mode6(block,
 			pxy, min, max, mcy, ncy);
 		return;
 	}
@@ -725,7 +718,7 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode5(byte *block,
 	static const char idxtab[8]=
 		{ 0,0,1,1, 2,2,3,3 };
 	
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
@@ -733,22 +726,22 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode5(byte *block,
 
 //	return;
 
-//	BGBBTJ_BitsLE_ClearSetupWrite(&bits, block, 16);
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 32, 6);
-	BGBBTJ_BitsLE_WriteBits(&bits, 0, 2);
+//	BTIC4B_BitsLE_ClearSetupWrite(&bits, block, 16);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 32, 6);
+	BTIC4B_BitsLE_WriteBits(&bits, 0, 2);
 
 //	if(((pxy>>45)&7)>=4)
 	if(pxy&4)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapRGB(min, max);
+		BTIC4B_BC7_EncodeBlock_VecSwapRGB(min, max);
 		pxy=~pxy;
 	}
 
 //	if(((pxa>>45)&7)>=4)
 	if(pxa&4)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapA(min, max);
+		BTIC4B_BC7_EncodeBlock_VecSwapA(min, max);
 		pxa=~pxa;
 	}
 
@@ -757,31 +750,31 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode5(byte *block,
 	p2=((min[2])>>1)|(((max[2])>>1)<<7);
 	p3=min[3]|(max[3]<<8);
 
-	BGBBTJ_BitsLE_Write14Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p1);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p2);
-	BGBBTJ_BitsLE_Write16Bits(&bits, p3);
+	BTIC4B_BitsLE_Write14Bits(&bits, p0);
+	BTIC4B_BitsLE_Write14Bits(&bits, p1);
+	BTIC4B_BitsLE_Write14Bits(&bits, p2);
+	BTIC4B_BitsLE_Write16Bits(&bits, p3);
 
 #if 0
-	BGBBTJ_BitsLE_WriteBits(&bits, (min[0])>>1, 7);
-	BGBBTJ_BitsLE_WriteBits(&bits, (max[0])>>1, 7);
-	BGBBTJ_BitsLE_WriteBits(&bits, (min[1])>>1, 7);
-	BGBBTJ_BitsLE_WriteBits(&bits, (max[1])>>1, 7);
-	BGBBTJ_BitsLE_WriteBits(&bits, (min[2])>>1, 7);
-	BGBBTJ_BitsLE_WriteBits(&bits, (max[2])>>1, 7);
-	BGBBTJ_BitsLE_WriteBits(&bits, min[3], 8);
-	BGBBTJ_BitsLE_WriteBits(&bits, max[3], 8);
+	BTIC4B_BitsLE_WriteBits(&bits, (min[0])>>1, 7);
+	BTIC4B_BitsLE_WriteBits(&bits, (max[0])>>1, 7);
+	BTIC4B_BitsLE_WriteBits(&bits, (min[1])>>1, 7);
+	BTIC4B_BitsLE_WriteBits(&bits, (max[1])>>1, 7);
+	BTIC4B_BitsLE_WriteBits(&bits, (min[2])>>1, 7);
+	BTIC4B_BitsLE_WriteBits(&bits, (max[2])>>1, 7);
+	BTIC4B_BitsLE_WriteBits(&bits, min[3], 8);
+	BTIC4B_BitsLE_WriteBits(&bits, max[3], 8);
 #endif
 
 #if 0
 //	p0=idxtab[(pxy>>45)&7];
 	p0=idxtab[pxy&7];
-	BGBBTJ_BitsLE_WriteBit(&bits, p0);
+	BTIC4B_BitsLE_WriteBit(&bits, p0);
 	for(i=1; i<16; i++)
 	{
 //		p0=idxtab[(pxy>>(45-i*3))&7];
 		p0=idxtab[(pxy>>(i*3))&7];
-		BGBBTJ_BitsLE_Write2Bits(&bits, p0);
+		BTIC4B_BitsLE_Write2Bits(&bits, p0);
 	}
 #endif
 
@@ -789,19 +782,19 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode5(byte *block,
 	p0=idxtab[(pxy   )&7];	p1=idxtab[(pxy>>3)&7];
 	p2=idxtab[(pxy>>6)&7];	p3=idxtab[(pxy>>9)&7];
 	p4=p0|(p1<<1)|(p2<<3)|(p3<<5);
-	BGBBTJ_BitsLE_Write7Bits(&bits, p4);
+	BTIC4B_BitsLE_Write7Bits(&bits, p4);
 	p0=idxtab[(pxy>>12)&7];	p1=idxtab[(pxy>>15)&7];
 	p2=idxtab[(pxy>>18)&7];	p3=idxtab[(pxy>>21)&7];
 	p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-	BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+	BTIC4B_BitsLE_Write8Bits(&bits, p4);
 	p0=idxtab[(pxy>>24)&7];	p1=idxtab[(pxy>>27)&7];
 	p2=idxtab[(pxy>>30)&7];	p3=idxtab[(pxy>>33)&7];
 	p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-	BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+	BTIC4B_BitsLE_Write8Bits(&bits, p4);
 	p0=idxtab[(pxy>>36)&7];	p1=idxtab[(pxy>>39)&7];
 	p2=idxtab[(pxy>>42)&7];	p3=idxtab[(pxy>>45)&7];
 	p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-	BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+	BTIC4B_BitsLE_Write8Bits(&bits, p4);
 #endif
 
 	if(min[3]!=max[3])
@@ -809,12 +802,12 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode5(byte *block,
 #if 0
 	//	p0=idxtab[(pxa>>45)&7];
 		p0=idxtab[pxa&7];
-		BGBBTJ_BitsLE_WriteBit(&bits, p0);
+		BTIC4B_BitsLE_WriteBit(&bits, p0);
 		for(i=1; i<16; i++)
 		{
 	//		p0=idxtab[(pxa>>(45-i*3))&7];
 			p0=idxtab[(pxa>>(i*3))&7];
-			BGBBTJ_BitsLE_Write2Bits(&bits, p0);
+			BTIC4B_BitsLE_Write2Bits(&bits, p0);
 		}
 #endif
 
@@ -822,27 +815,27 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode5(byte *block,
 		p0=idxtab[(pxa   )&7];	p1=idxtab[(pxa>>3)&7];
 		p2=idxtab[(pxa>>6)&7];	p3=idxtab[(pxa>>9)&7];
 		p4=p0|(p1<<1)|(p2<<3)|(p3<<5);
-		BGBBTJ_BitsLE_Write7Bits(&bits, p4);
+		BTIC4B_BitsLE_Write7Bits(&bits, p4);
 		p0=idxtab[(pxa>>12)&7];	p1=idxtab[(pxa>>15)&7];
 		p2=idxtab[(pxa>>18)&7];	p3=idxtab[(pxa>>21)&7];
 		p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-		BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+		BTIC4B_BitsLE_Write8Bits(&bits, p4);
 		p0=idxtab[(pxa>>24)&7];	p1=idxtab[(pxa>>27)&7];
 		p2=idxtab[(pxa>>30)&7];	p3=idxtab[(pxa>>33)&7];
 		p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-		BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+		BTIC4B_BitsLE_Write8Bits(&bits, p4);
 		p0=idxtab[(pxa>>36)&7];	p1=idxtab[(pxa>>39)&7];
 		p2=idxtab[(pxa>>42)&7];	p3=idxtab[(pxa>>45)&7];
 		p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-		BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+		BTIC4B_BitsLE_Write8Bits(&bits, p4);
 #endif
 	}else
 	{
-		BGBBTJ_BitsLE_Write15Bits(&bits, 0);
-		BGBBTJ_BitsLE_Write16Bits(&bits, 0);
+		BTIC4B_BitsLE_Write15Bits(&bits, 0);
+		BTIC4B_BitsLE_Write16Bits(&bits, 0);
 	}
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 
 #if 1
 	memcpy(block, tblock, 16);
@@ -854,19 +847,19 @@ void BTIC4B_BC7_EncodeBlockBits64_Mode5(byte *block,
 {
 	static const char idxtab[16]=
 		{ 0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3 };
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
 	int i, j, k, l;
 
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 32, 6);
-	BGBBTJ_BitsLE_WriteBits(&bits, 0, 2);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 32, 6);
+	BTIC4B_BitsLE_WriteBits(&bits, 0, 2);
 
 	if(pxy&4)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapRGB(min, max);
+		BTIC4B_BC7_EncodeBlock_VecSwapRGB(min, max);
 		pxy=~pxy;
 	}
 
@@ -875,23 +868,23 @@ void BTIC4B_BC7_EncodeBlockBits64_Mode5(byte *block,
 	p2=((min[2])>>1)|(((max[2])>>1)<<7);
 	p3=min[3]|(max[3]<<8);
 
-	BGBBTJ_BitsLE_Write14Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p1);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p2);
-	BGBBTJ_BitsLE_Write16Bits(&bits, p3);
+	BTIC4B_BitsLE_Write14Bits(&bits, p0);
+	BTIC4B_BitsLE_Write14Bits(&bits, p1);
+	BTIC4B_BitsLE_Write14Bits(&bits, p2);
+	BTIC4B_BitsLE_Write16Bits(&bits, p3);
 
 	p0=idxtab[pxy&15];
-	BGBBTJ_BitsLE_WriteBit(&bits, p0);
+	BTIC4B_BitsLE_WriteBit(&bits, p0);
 	for(i=1; i<16; i++)
 	{
 		p0=idxtab[(pxy>>(i*4))&15];
-		BGBBTJ_BitsLE_Write2Bits(&bits, p0);
+		BTIC4B_BitsLE_Write2Bits(&bits, p0);
 	}
 
-	BGBBTJ_BitsLE_Write15Bits(&bits, 0);
-	BGBBTJ_BitsLE_Write16Bits(&bits, 0);
+	BTIC4B_BitsLE_Write15Bits(&bits, 0);
+	BTIC4B_BitsLE_Write16Bits(&bits, 0);
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 
 #if 1
 	memcpy(block, tblock, 16);
@@ -901,7 +894,7 @@ void BTIC4B_BC7_EncodeBlockBits64_Mode5(byte *block,
 void BTIC4B_BC7_EncodeBlockBits64_Mode6(byte *block,
 	u64 pxy, int *min, int *max)
 {
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
@@ -911,12 +904,12 @@ void BTIC4B_BC7_EncodeBlockBits64_Mode6(byte *block,
 	int cr, cg, cb, ca, cy;
 	int i, j, k, l;
 
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 64, 7);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 64, 7);
 
 	if(pxy&8)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapRGBA(min, max);
+		BTIC4B_BC7_EncodeBlock_VecSwapRGBA(min, max);
 		pxy=~pxy;
 	}
 
@@ -924,20 +917,20 @@ void BTIC4B_BC7_EncodeBlockBits64_Mode6(byte *block,
 	p1=((min[1])>>1)|(((max[1])>>1)<<7);
 	p2=((min[2])>>1)|(((max[2])>>1)<<7);
 	p3=((min[3])>>1)|(((max[3])>>1)<<7);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p1);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p2);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p3);
-	BGBBTJ_BitsLE_WriteBit(&bits, min[1]);
-	BGBBTJ_BitsLE_WriteBit(&bits, max[1]);
+	BTIC4B_BitsLE_Write14Bits(&bits, p0);
+	BTIC4B_BitsLE_Write14Bits(&bits, p1);
+	BTIC4B_BitsLE_Write14Bits(&bits, p2);
+	BTIC4B_BitsLE_Write14Bits(&bits, p3);
+	BTIC4B_BitsLE_WriteBit(&bits, min[1]);
+	BTIC4B_BitsLE_WriteBit(&bits, max[1]);
 
-	BGBBTJ_BitsLE_Write3Bits(&bits, pxy);
-	BGBBTJ_BitsLE_Write12Bits(&bits, pxy>>4);
-	BGBBTJ_BitsLE_Write16Bits(&bits, pxy>>16);
-	BGBBTJ_BitsLE_Write16Bits(&bits, pxy>>32);
-	BGBBTJ_BitsLE_Write16Bits(&bits, pxy>>48);
+	BTIC4B_BitsLE_Write3Bits(&bits, pxy);
+	BTIC4B_BitsLE_Write12Bits(&bits, pxy>>4);
+	BTIC4B_BitsLE_Write16Bits(&bits, pxy>>16);
+	BTIC4B_BitsLE_Write16Bits(&bits, pxy>>32);
+	BTIC4B_BitsLE_Write16Bits(&bits, pxy>>48);
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 
 	memcpy(block, tblock, 16);
 }
@@ -951,7 +944,7 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode4(byte *block,
 	static const char idxtab2[16]=
 		{ 0,0,0,0, 0,1,2,3, 4,5,6,7, 7,7,7,7 };
 	
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
@@ -971,20 +964,20 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode4(byte *block,
 	
 	ixb=1;
 
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 16, 5);
-	BGBBTJ_BitsLE_WriteBits(&bits, 0, 2);
-	BGBBTJ_BitsLE_WriteBits(&bits, ixb, 1);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 16, 5);
+	BTIC4B_BitsLE_WriteBits(&bits, 0, 2);
+	BTIC4B_BitsLE_WriteBits(&bits, ixb, 1);
 
 	if(pxy&4)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapRGB(min, max);
+		BTIC4B_BC7_EncodeBlock_VecSwapRGB(min, max);
 		pxy=~pxy;
 	}
 
 	if(pxa&4)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapA(min, max);
+		BTIC4B_BC7_EncodeBlock_VecSwapA(min, max);
 		pxa=~pxa;
 	}
 
@@ -992,19 +985,19 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode4(byte *block,
 	p1=((min[1])>>3)|(((max[1])>>3)<<5);
 	p2=((min[2])>>3)|(((max[2])>>3)<<5);
 	p3=((min[3])>>2)|(((max[3])>>2)<<6);
-	BGBBTJ_BitsLE_Write10Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write10Bits(&bits, p1);
-	BGBBTJ_BitsLE_Write10Bits(&bits, p2);
-	BGBBTJ_BitsLE_Write12Bits(&bits, p3);
+	BTIC4B_BitsLE_Write10Bits(&bits, p0);
+	BTIC4B_BitsLE_Write10Bits(&bits, p1);
+	BTIC4B_BitsLE_Write10Bits(&bits, p2);
+	BTIC4B_BitsLE_Write12Bits(&bits, p3);
 
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[0])>>3, 5);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[0])>>3, 5);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[1])>>3, 5);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[1])>>3, 5);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[2])>>3, 5);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[2])>>3, 5);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (min[3])>>2, 6);
-//	BGBBTJ_BitsLE_WriteBits(&bits, (max[3])>>2, 6);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[0])>>3, 5);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[0])>>3, 5);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[1])>>3, 5);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[1])>>3, 5);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[2])>>3, 5);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[2])>>3, 5);
+//	BTIC4B_BitsLE_WriteBits(&bits, (min[3])>>2, 6);
+//	BTIC4B_BitsLE_WriteBits(&bits, (max[3])>>2, 6);
 
 	if(ixb)
 	{
@@ -1013,76 +1006,76 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode4(byte *block,
 			p0=(pxa>>1)&1;			p1=(pxa>>(1*3+1))&3;
 			p2=(pxa>>(2*3+1))&3;	p3=(pxa>>(3*3+1))&3;
 			p4=p0|(p1<<1)|(p2<<3)|(p3<<5);
-			BGBBTJ_BitsLE_Write7Bits(&bits, p4);
+			BTIC4B_BitsLE_Write7Bits(&bits, p4);
 			p0=(pxa>>(4*3+1))&3;	p1=(pxa>>(5*3+1))&3;
 			p2=(pxa>>(6*3+1))&3;	p3=(pxa>>(7*3+1))&3;
 			p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-			BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+			BTIC4B_BitsLE_Write8Bits(&bits, p4);
 			p0=(pxa>>( 8*3+1))&3;	p1=(pxa>>( 9*3+1))&3;
 			p2=(pxa>>(10*3+1))&3;	p3=(pxa>>(11*3+1))&3;
 			p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-			BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+			BTIC4B_BitsLE_Write8Bits(&bits, p4);
 			p0=(pxa>>(12*3+1))&3;	p1=(pxa>>(13*3+1))&3;
 			p2=(pxa>>(14*3+1))&3;	p3=(pxa>>(15*3+1))&3;
 			p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-			BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+			BTIC4B_BitsLE_Write8Bits(&bits, p4);
 		}else
 		{
-			BGBBTJ_BitsLE_Write15Bits(&bits, 0);
-			BGBBTJ_BitsLE_Write16Bits(&bits, 0);
+			BTIC4B_BitsLE_Write15Bits(&bits, 0);
+			BTIC4B_BitsLE_Write16Bits(&bits, 0);
 		}
 
 		p0=(pxy   )&3;
 		p1=pxy>>3;
 		p2=p0|(p1<<2);
-		BGBBTJ_BitsLE_Write11Bits(&bits, p2);
-		BGBBTJ_BitsLE_Write12Bits(&bits, pxy>>12);
-		BGBBTJ_BitsLE_Write12Bits(&bits, pxy>>24);
-		BGBBTJ_BitsLE_Write12Bits(&bits, pxy>>36);
+		BTIC4B_BitsLE_Write11Bits(&bits, p2);
+		BTIC4B_BitsLE_Write12Bits(&bits, pxy>>12);
+		BTIC4B_BitsLE_Write12Bits(&bits, pxy>>24);
+		BTIC4B_BitsLE_Write12Bits(&bits, pxy>>36);
 
 	}else
 	{
 		p0=(pxy>>1)&1;			p1=(pxy>>(1*3+1))&3;
 		p2=(pxy>>(2*3+1))&3;	p3=(pxy>>(3*3+1))&3;
 		p4=p0|(p1<<1)|(p2<<3)|(p3<<5);
-		BGBBTJ_BitsLE_Write7Bits(&bits, p4);
+		BTIC4B_BitsLE_Write7Bits(&bits, p4);
 		p0=(pxy>>(4*3+1))&3;	p1=(pxy>>(5*3+1))&3;
 		p2=(pxy>>(6*3+1))&3;	p3=(pxy>>(7*3+1))&3;
 		p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-		BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+		BTIC4B_BitsLE_Write8Bits(&bits, p4);
 		p0=(pxy>>( 8*3+1))&3;	p1=(pxy>>( 9*3+1))&3;
 		p2=(pxy>>(10*3+1))&3;	p3=(pxy>>(11*3+1))&3;
 		p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-		BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+		BTIC4B_BitsLE_Write8Bits(&bits, p4);
 		p0=(pxy>>(12*3+1))&3;	p1=(pxy>>(13*3+1))&3;
 		p2=(pxy>>(14*3+1))&3;	p3=(pxy>>(15*3+1))&3;
 		p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
-		BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+		BTIC4B_BitsLE_Write8Bits(&bits, p4);
 
 		if((max[3]-min[3])>=8)
 		{
 			p0=(pxa   )&3; p1=pxa>>3; p2=p0|(p1<<2);
-			BGBBTJ_BitsLE_Write11Bits(&bits, p2);
-			BGBBTJ_BitsLE_Write12Bits(&bits, pxa>>12);
-			BGBBTJ_BitsLE_Write12Bits(&bits, pxa>>24);
-			BGBBTJ_BitsLE_Write12Bits(&bits, pxa>>36);
+			BTIC4B_BitsLE_Write11Bits(&bits, p2);
+			BTIC4B_BitsLE_Write12Bits(&bits, pxa>>12);
+			BTIC4B_BitsLE_Write12Bits(&bits, pxa>>24);
+			BTIC4B_BitsLE_Write12Bits(&bits, pxa>>36);
 		}else
 		{
-			BGBBTJ_BitsLE_Write11Bits(&bits, 0);
-			BGBBTJ_BitsLE_Write12Bits(&bits, 0);
-			BGBBTJ_BitsLE_Write12Bits(&bits, 0);
-			BGBBTJ_BitsLE_Write12Bits(&bits, 0);
+			BTIC4B_BitsLE_Write11Bits(&bits, 0);
+			BTIC4B_BitsLE_Write12Bits(&bits, 0);
+			BTIC4B_BitsLE_Write12Bits(&bits, 0);
+			BTIC4B_BitsLE_Write12Bits(&bits, 0);
 		}
 	}
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 	memcpy(block, tblock, 16);
 }
 
 void BTIC4B_BC7_EncodeBlockBits48_Mode6(byte *block,
 	u64 pxy, int *min, int *max)
 {
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
@@ -1092,12 +1085,12 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode6(byte *block,
 	int cr, cg, cb, ca, cy;
 	int i, j, k, l;
 
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 64, 7);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 64, 7);
 
 	if(pxy&4)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapRGBA(min, max);
+		BTIC4B_BC7_EncodeBlock_VecSwapRGBA(min, max);
 		pxy=~pxy;
 	}
 
@@ -1105,12 +1098,12 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode6(byte *block,
 	p1=((min[1])>>1)|(((max[1])>>1)<<7);
 	p2=((min[2])>>1)|(((max[2])>>1)<<7);
 	p3=((min[3])>>1)|(((max[3])>>1)<<7);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p1);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p2);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p3);
-	BGBBTJ_BitsLE_WriteBit(&bits, min[1]);
-	BGBBTJ_BitsLE_WriteBit(&bits, max[1]);
+	BTIC4B_BitsLE_Write14Bits(&bits, p0);
+	BTIC4B_BitsLE_Write14Bits(&bits, p1);
+	BTIC4B_BitsLE_Write14Bits(&bits, p2);
+	BTIC4B_BitsLE_Write14Bits(&bits, p3);
+	BTIC4B_BitsLE_WriteBit(&bits, min[1]);
+	BTIC4B_BitsLE_WriteBit(&bits, max[1]);
 
 	p5=pxy; p6=pxy>>24;
 	p7=p5;
@@ -1121,8 +1114,8 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode6(byte *block,
 //	p2=(pxy>>6)&7;	p3=(pxy>>9)&7;
 	p0=(p0<<1)|(p0>>2);	p1=(p1<<1)|(p1>>2);
 	p2=(p2<<1)|(p2>>2);	p3=(p3<<1)|(p3>>2);
-	BGBBTJ_BitsLE_Write3Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write12Bits(&bits, p1|(p2<<4)|(p3<<8));
+	BTIC4B_BitsLE_Write3Bits(&bits, p0);
+	BTIC4B_BitsLE_Write12Bits(&bits, p1|(p2<<4)|(p3<<8));
 
 	p7=p5>>12;
 //	p7=pxy>>12;
@@ -1132,7 +1125,7 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode6(byte *block,
 //	p2=(pxy>>18)&7;	p3=(pxy>>21)&7;
 	p0=(p0<<1)|(p0>>2);	p1=(p1<<1)|(p1>>2);
 	p2=(p2<<1)|(p2>>2);	p3=(p3<<1)|(p3>>2);
-	BGBBTJ_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
+	BTIC4B_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
 
 	p7=p6;
 //	p7=pxy>>24;
@@ -1142,7 +1135,7 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode6(byte *block,
 //	p2=(pxy>>30)&7;	p3=(pxy>>33)&7;
 	p0=(p0<<1)|(p0>>2);	p1=(p1<<1)|(p1>>2);
 	p2=(p2<<1)|(p2>>2);	p3=(p3<<1)|(p3>>2);
-	BGBBTJ_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
+	BTIC4B_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
 
 	p7=p6>>12;
 //	p7=pxy>>36;
@@ -1152,9 +1145,9 @@ void BTIC4B_BC7_EncodeBlockBits48_Mode6(byte *block,
 //	p2=(pxy>>42)&7;	p3=(pxy>>45)&7;
 	p0=(p0<<1)|(p0>>2);	p1=(p1<<1)|(p1>>2);
 	p2=(p2<<1)|(p2>>2);	p3=(p3<<1)|(p3>>2);
-	BGBBTJ_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
+	BTIC4B_BitsLE_Write16Bits(&bits, p0|(p1<<4)|(p2<<8)|(p3<<12));
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 
 	memcpy(block, tblock, 16);
 }
@@ -1181,23 +1174,23 @@ void BTIC4B_BC7_EncodeBlockBits32_Mode5(byte *block,
 	u32 pxy, u32 pxa,
 	int *min, int *max)
 {
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
 	int i, j, k, l;
 
-//	BGBBTJ_BitsLE_ClearSetupWrite(&bits, block, 16);
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 32, 6);
-	BGBBTJ_BitsLE_WriteBits(&bits, 0, 2);
+//	BTIC4B_BitsLE_ClearSetupWrite(&bits, block, 16);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 32, 6);
+	BTIC4B_BitsLE_WriteBits(&bits, 0, 2);
 
 //	if(((pxy>>30)&3)>1)
 //	if((pxy&3)>1)
 //	if(pxy&1)
 	if(pxy&2)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapRGB(min, max);
+		BTIC4B_BC7_EncodeBlock_VecSwapRGB(min, max);
 		pxy=~pxy;
 	}
 
@@ -1206,7 +1199,7 @@ void BTIC4B_BC7_EncodeBlockBits32_Mode5(byte *block,
 //	if(pxa&1)
 	if(pxa&2)
 	{
-		BGBBTJ_BC7_EncodeBlock_VecSwapA(min, max);
+		BTIC4B_BC7_EncodeBlock_VecSwapA(min, max);
 		pxa=~pxa;
 	}
 
@@ -1215,35 +1208,35 @@ void BTIC4B_BC7_EncodeBlockBits32_Mode5(byte *block,
 	p2=((min[2])>>1)|(((max[2])>>1)<<7);
 	p3=min[3]|(max[3]<<8);
 
-	BGBBTJ_BitsLE_Write14Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p1);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p2);
-	BGBBTJ_BitsLE_Write16Bits(&bits, p3);
+	BTIC4B_BitsLE_Write14Bits(&bits, p0);
+	BTIC4B_BitsLE_Write14Bits(&bits, p1);
+	BTIC4B_BitsLE_Write14Bits(&bits, p2);
+	BTIC4B_BitsLE_Write16Bits(&bits, p3);
 
 #if 0
-	BGBBTJ_BitsLE_Write7Bits(&bits, (min[0])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (max[0])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (min[1])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (max[1])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (min[2])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (max[2])>>1);
-	BGBBTJ_BitsLE_Write8Bits(&bits, min[3]);
-	BGBBTJ_BitsLE_Write8Bits(&bits, max[3]);
+	BTIC4B_BitsLE_Write7Bits(&bits, (min[0])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (max[0])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (min[1])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (max[1])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (min[2])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (max[2])>>1);
+	BTIC4B_BitsLE_Write8Bits(&bits, min[3]);
+	BTIC4B_BitsLE_Write8Bits(&bits, max[3]);
 #endif
 
-	BGBBTJ_BitsLE_WriteBit(&bits, pxy);
-	BGBBTJ_BitsLE_Write6Bits(&bits, (pxy>> 2));
-//	BGBBTJ_BitsLE_Write8Bits(&bits, (pxy>> 8));
-//	BGBBTJ_BitsLE_Write16Bits(&bits, (pxy>>16));
-	BGBBTJ_BitsLE_Write24Bits(&bits, (pxy>> 8));
+	BTIC4B_BitsLE_WriteBit(&bits, pxy);
+	BTIC4B_BitsLE_Write6Bits(&bits, (pxy>> 2));
+//	BTIC4B_BitsLE_Write8Bits(&bits, (pxy>> 8));
+//	BTIC4B_BitsLE_Write16Bits(&bits, (pxy>>16));
+	BTIC4B_BitsLE_Write24Bits(&bits, (pxy>> 8));
 
-	BGBBTJ_BitsLE_WriteBit(&bits, pxa);
-	BGBBTJ_BitsLE_Write6Bits(&bits, (pxa>> 2));
-//	BGBBTJ_BitsLE_Write8Bits(&bits, (pxa>> 8));
-//	BGBBTJ_BitsLE_Write16Bits(&bits, (pxa>>16));
-	BGBBTJ_BitsLE_Write24Bits(&bits, (pxa>> 8));
+	BTIC4B_BitsLE_WriteBit(&bits, pxa);
+	BTIC4B_BitsLE_Write6Bits(&bits, (pxa>> 2));
+//	BTIC4B_BitsLE_Write8Bits(&bits, (pxa>> 8));
+//	BTIC4B_BitsLE_Write16Bits(&bits, (pxa>>16));
+	BTIC4B_BitsLE_Write24Bits(&bits, (pxa>> 8));
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 
 	memcpy(block, tblock, 16);
 }
@@ -1268,44 +1261,44 @@ void BTIC4B_BC7_EncodeBlockFlat_Mode5(byte *block, int *avg)
 #endif
 
 #if 0
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
 	int i, j, k, l;
 
-//	BGBBTJ_BitsLE_ClearSetupWrite(&bits, block, 16);
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
-	BGBBTJ_BitsLE_WriteBits(&bits, 32, 6);
-	BGBBTJ_BitsLE_WriteBits(&bits, 0, 2);
+//	BTIC4B_BitsLE_ClearSetupWrite(&bits, block, 16);
+	BTIC4B_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BTIC4B_BitsLE_WriteBits(&bits, 32, 6);
+	BTIC4B_BitsLE_WriteBits(&bits, 0, 2);
 
 	p0=((avg[0])>>1)|(((avg[0])>>1)<<7);
 	p1=((avg[1])>>1)|(((avg[1])>>1)<<7);
 	p2=((avg[2])>>1)|(((avg[2])>>1)<<7);
 	p3=avg[3]|(avg[3]<<8);
 
-	BGBBTJ_BitsLE_Write14Bits(&bits, p0);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p1);
-	BGBBTJ_BitsLE_Write14Bits(&bits, p2);
-	BGBBTJ_BitsLE_Write16Bits(&bits, p3);
+	BTIC4B_BitsLE_Write14Bits(&bits, p0);
+	BTIC4B_BitsLE_Write14Bits(&bits, p1);
+	BTIC4B_BitsLE_Write14Bits(&bits, p2);
+	BTIC4B_BitsLE_Write16Bits(&bits, p3);
 
 #if 0
-	BGBBTJ_BitsLE_Write7Bits(&bits, (avg[0])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (avg[0])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (avg[1])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (avg[1])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (avg[2])>>1);
-	BGBBTJ_BitsLE_Write7Bits(&bits, (avg[2])>>1);
-	BGBBTJ_BitsLE_Write8Bits(&bits, avg[3]);
-	BGBBTJ_BitsLE_Write8Bits(&bits, avg[3]);
+	BTIC4B_BitsLE_Write7Bits(&bits, (avg[0])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (avg[0])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (avg[1])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (avg[1])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (avg[2])>>1);
+	BTIC4B_BitsLE_Write7Bits(&bits, (avg[2])>>1);
+	BTIC4B_BitsLE_Write8Bits(&bits, avg[3]);
+	BTIC4B_BitsLE_Write8Bits(&bits, avg[3]);
 #endif
 
-	BGBBTJ_BitsLE_Write14Bits(&bits, 0);
-	BGBBTJ_BitsLE_Write16Bits(&bits, 0);
-	BGBBTJ_BitsLE_Write16Bits(&bits, 0);
-	BGBBTJ_BitsLE_Write16Bits(&bits, 0);
+	BTIC4B_BitsLE_Write14Bits(&bits, 0);
+	BTIC4B_BitsLE_Write16Bits(&bits, 0);
+	BTIC4B_BitsLE_Write16Bits(&bits, 0);
+	BTIC4B_BitsLE_Write16Bits(&bits, 0);
 
-	BGBBTJ_BitsLE_FlushBits(&bits);
+	BTIC4B_BitsLE_FlushBits(&bits);
 
 	memcpy(block, tblock, 16);
 #endif
@@ -2903,7 +2896,7 @@ void BTIC4B_ConvImageBC7nMip(BTIC4B_Context *ctx,
 
 
 #if 1
-void BGBBTJ_BitsLE_SetupRead(BGBBTJ_BitStream *ctx, byte *cs, int sz)
+void BTIC4B_BitsLE_SetupRead(BTIC4B_BitStream *ctx, byte *cs, int sz)
 {
 	ctx->cs=cs;
 	ctx->cse=cs+sz;
@@ -2915,13 +2908,13 @@ void BGBBTJ_BitsLE_SetupRead(BGBBTJ_BitStream *ctx, byte *cs, int sz)
 	ctx->cs+=4;
 }
 
-void BGBBTJ_BitsLE_ClearSetupRead(BGBBTJ_BitStream *ctx, byte *ct, int sz)
+void BTIC4B_BitsLE_ClearSetupRead(BTIC4B_BitStream *ctx, byte *ct, int sz)
 {
-	BGBBTJ_BitsLE_Clear(ctx);
-	BGBBTJ_BitsLE_SetupRead(ctx, ct, sz);
+	BTIC4B_BitsLE_Clear(ctx);
+	BTIC4B_BitsLE_SetupRead(ctx, ct, sz);
 }
 
-int BGBBTJ_BitsLE_ReadBits(BGBBTJ_BitStream *ctx, int n)
+int BTIC4B_BitsLE_ReadBits(BTIC4B_BitStream *ctx, int n)
 {
 	int v;
 	
@@ -2935,59 +2928,59 @@ int BGBBTJ_BitsLE_ReadBits(BGBBTJ_BitStream *ctx, int n)
 	return(v);
 }
 
-int BGBBTJ_BitsLE_ReadBit(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 1)); }
-int BGBBTJ_BitsLE_Read2Bits(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 2)); }
-int BGBBTJ_BitsLE_Read3Bits(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 3)); }
-int BGBBTJ_BitsLE_Read4Bits(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 4)); }
-int BGBBTJ_BitsLE_Read5Bits(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 5)); }
-int BGBBTJ_BitsLE_Read6Bits(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 6)); }
-int BGBBTJ_BitsLE_Read7Bits(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 7)); }
-int BGBBTJ_BitsLE_Read8Bits(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 8)); }
+int BTIC4B_BitsLE_ReadBit(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 1)); }
+int BTIC4B_BitsLE_Read2Bits(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 2)); }
+int BTIC4B_BitsLE_Read3Bits(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 3)); }
+int BTIC4B_BitsLE_Read4Bits(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 4)); }
+int BTIC4B_BitsLE_Read5Bits(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 5)); }
+int BTIC4B_BitsLE_Read6Bits(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 6)); }
+int BTIC4B_BitsLE_Read7Bits(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 7)); }
+int BTIC4B_BitsLE_Read8Bits(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 8)); }
 
-int BGBBTJ_BitsLE_Read14Bits(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 14)); }
-int BGBBTJ_BitsLE_Read16Bits(BGBBTJ_BitStream *ctx)
-	{ return(BGBBTJ_BitsLE_ReadBits(ctx, 16)); }
+int BTIC4B_BitsLE_Read14Bits(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 14)); }
+int BTIC4B_BitsLE_Read16Bits(BTIC4B_BitStream *ctx)
+	{ return(BTIC4B_BitsLE_ReadBits(ctx, 16)); }
 
-int BGBBTJ_BitsLE_Peek8Bits(BGBBTJ_BitStream *ctx)
+int BTIC4B_BitsLE_Peek8Bits(BTIC4B_BitStream *ctx)
 {
 	int v;
 	v=(ctx->win>>ctx->pos)&255;
 	return(v);
 }
 
-int bgbbtj_bc7_weights2[4]=
+int btic4b_bc7_weights2[4]=
 	{ 0, 21, 43, 64};
-int bgbbtj_bc7_weights3[8]=
+int btic4b_bc7_weights3[8]=
 	{ 0,  9, 18, 27, 37, 46, 55, 64};
-int bgbbtj_bc7_weights4[16]= 
+int btic4b_bc7_weights4[16]= 
 	{ 0,  4,  9, 13, 17, 21, 26, 30,
 	 34, 38, 43, 47, 51, 55, 60, 64};
 
-int bgbbtj_bc7_interpolate(int e0, int e1, int idx, int prec)
+int btic4b_bc7_interpolate(int e0, int e1, int idx, int prec)
 {
 	int i, w;
 
 	switch(prec)
 	{
 	case 2:
-		w=bgbbtj_bc7_weights2[idx];
+		w=btic4b_bc7_weights2[idx];
 		i=(((64-w)*e0+w*e1+32)>>6);
 		break;
 	case 3:
-		w=bgbbtj_bc7_weights3[idx];
+		w=btic4b_bc7_weights3[idx];
 		i=(((64-w)*e0+w*e1+32)>>6);
 		break;
 	case 4:
-		w=bgbbtj_bc7_weights4[idx];
+		w=btic4b_bc7_weights4[idx];
 		i=(((64-w)*e0+w*e1+32)>>6);
 		break;
 	default:
@@ -2996,8 +2989,8 @@ int bgbbtj_bc7_interpolate(int e0, int e1, int idx, int prec)
 	return(i);
 }
 
-void BGBBTJ_BC7_DecodeBlock_Mode4(
-	BGBBTJ_BitStream *bits,
+void BTIC4B_BC7_DecodeBlock_Mode4(
+	BTIC4B_BitStream *bits,
 	byte *rgba, int xstride, int ystride, int flags)
 {
 	byte blkb[16*4];
@@ -3007,17 +3000,17 @@ void BGBBTJ_BC7_DecodeBlock_Mode4(
 	int p;
 	int i, j, k, l;
 	
-	rot=BGBBTJ_BitsLE_Read2Bits(bits);
-	idxm=BGBBTJ_BitsLE_ReadBit(bits);
+	rot=BTIC4B_BitsLE_Read2Bits(bits);
+	idxm=BTIC4B_BitsLE_ReadBit(bits);
 
-	r0=BGBBTJ_BitsLE_Read5Bits(bits);
-	r1=BGBBTJ_BitsLE_Read5Bits(bits);
-	g0=BGBBTJ_BitsLE_Read5Bits(bits);
-	g1=BGBBTJ_BitsLE_Read5Bits(bits);
-	b0=BGBBTJ_BitsLE_Read5Bits(bits);
-	b1=BGBBTJ_BitsLE_Read5Bits(bits);
-	a0=BGBBTJ_BitsLE_Read6Bits(bits);
-	a1=BGBBTJ_BitsLE_Read6Bits(bits);
+	r0=BTIC4B_BitsLE_Read5Bits(bits);
+	r1=BTIC4B_BitsLE_Read5Bits(bits);
+	g0=BTIC4B_BitsLE_Read5Bits(bits);
+	g1=BTIC4B_BitsLE_Read5Bits(bits);
+	b0=BTIC4B_BitsLE_Read5Bits(bits);
+	b1=BTIC4B_BitsLE_Read5Bits(bits);
+	a0=BTIC4B_BitsLE_Read6Bits(bits);
+	a1=BTIC4B_BitsLE_Read6Bits(bits);
 	
 	r0=(r0<<3)|(r0>>2); g0=(g0<<3)|(g0>>2);
 	b0=(b0<<3)|(b0>>2); a0=(a0<<2)|(a0>>4);
@@ -3028,64 +3021,64 @@ void BGBBTJ_BC7_DecodeBlock_Mode4(
 	{
 		for(i=0; i<4; i++)
 		{
-			clrb[i*4+0]=bgbbtj_bc7_interpolate(r0, r1, i, 2);
-			clrb[i*4+1]=bgbbtj_bc7_interpolate(g0, g1, i, 2);
-			clrb[i*4+2]=bgbbtj_bc7_interpolate(b0, b1, i, 2);
+			clrb[i*4+0]=btic4b_bc7_interpolate(r0, r1, i, 2);
+			clrb[i*4+1]=btic4b_bc7_interpolate(g0, g1, i, 2);
+			clrb[i*4+2]=btic4b_bc7_interpolate(b0, b1, i, 2);
 		}
 
 		for(i=0; i<8; i++)
 		{
-			clrb[i*4+3]=bgbbtj_bc7_interpolate(a0, a1, i, 3);
+			clrb[i*4+3]=btic4b_bc7_interpolate(a0, a1, i, 3);
 		}
 		
-		p=BGBBTJ_BitsLE_ReadBit(bits);
+		p=BTIC4B_BitsLE_ReadBit(bits);
 		blkb[0*4+0]=clrb[p*4+0];
 		blkb[0*4+1]=clrb[p*4+1];
 		blkb[0*4+2]=clrb[p*4+2];
 		for(i=1; i<16; i++)
 		{
-			p=BGBBTJ_BitsLE_Read2Bits(bits);
+			p=BTIC4B_BitsLE_Read2Bits(bits);
 			blkb[i*4+0]=clrb[p*4+0];
 			blkb[i*4+1]=clrb[p*4+1];
 			blkb[i*4+2]=clrb[p*4+2];
 		}
 
-		p=BGBBTJ_BitsLE_Read2Bits(bits);
+		p=BTIC4B_BitsLE_Read2Bits(bits);
 		blkb[0*4+3]=clrb[p*4+3];
 		for(i=1; i<16; i++)
 		{
-			p=BGBBTJ_BitsLE_Read3Bits(bits);
+			p=BTIC4B_BitsLE_Read3Bits(bits);
 			blkb[i*4+3]=clrb[p*4+3];
 		}
 	}else
 	{
 		for(i=0; i<8; i++)
 		{
-			clrb[i*4+0]=bgbbtj_bc7_interpolate(r0, r1, i, 3);
-			clrb[i*4+1]=bgbbtj_bc7_interpolate(g0, g1, i, 3);
-			clrb[i*4+2]=bgbbtj_bc7_interpolate(b0, b1, i, 3);
+			clrb[i*4+0]=btic4b_bc7_interpolate(r0, r1, i, 3);
+			clrb[i*4+1]=btic4b_bc7_interpolate(g0, g1, i, 3);
+			clrb[i*4+2]=btic4b_bc7_interpolate(b0, b1, i, 3);
 		}
 
 		for(i=0; i<4; i++)
 		{
-			clrb[i*4+3]=bgbbtj_bc7_interpolate(a0, a1, i, 2);
+			clrb[i*4+3]=btic4b_bc7_interpolate(a0, a1, i, 2);
 		}
 		
-		p=BGBBTJ_BitsLE_ReadBit(bits);
+		p=BTIC4B_BitsLE_ReadBit(bits);
 		blkb[0*4+3]=clrb[p*4+3];
 		for(i=1; i<16; i++)
 		{
-			p=BGBBTJ_BitsLE_Read2Bits(bits);
+			p=BTIC4B_BitsLE_Read2Bits(bits);
 			blkb[i*4+3]=clrb[p*4+3];
 		}
 
-		p=BGBBTJ_BitsLE_Read2Bits(bits);
+		p=BTIC4B_BitsLE_Read2Bits(bits);
 		blkb[0*4+0]=clrb[p*4+0];
 		blkb[0*4+1]=clrb[p*4+1];
 		blkb[0*4+2]=clrb[p*4+2];
 		for(i=1; i<16; i++)
 		{
-			p=BGBBTJ_BitsLE_Read3Bits(bits);
+			p=BTIC4B_BitsLE_Read3Bits(bits);
 			blkb[i*4+0]=clrb[p*4+0];
 			blkb[i*4+1]=clrb[p*4+1];
 			blkb[i*4+2]=clrb[p*4+2];
@@ -3125,8 +3118,8 @@ void BGBBTJ_BC7_DecodeBlock_Mode4(
 	}
 }
 
-void BGBBTJ_BC7_DecodeBlock_Mode5(
-	BGBBTJ_BitStream *bits,
+void BTIC4B_BC7_DecodeBlock_Mode5(
+	BTIC4B_BitStream *bits,
 	byte *rgba, int xstride, int ystride, int flags)
 {
 	byte blkb[16*4];
@@ -3138,11 +3131,11 @@ void BGBBTJ_BC7_DecodeBlock_Mode5(
 	int i0, i1, i2, i3;
 	int i, j, k, l;
 	
-	rot=BGBBTJ_BitsLE_Read2Bits(bits);
-	p0=BGBBTJ_BitsLE_Read14Bits(bits);
-	p1=BGBBTJ_BitsLE_Read14Bits(bits);
-	p2=BGBBTJ_BitsLE_Read14Bits(bits);
-	p3=BGBBTJ_BitsLE_Read16Bits(bits);
+	rot=BTIC4B_BitsLE_Read2Bits(bits);
+	p0=BTIC4B_BitsLE_Read14Bits(bits);
+	p1=BTIC4B_BitsLE_Read14Bits(bits);
+	p2=BTIC4B_BitsLE_Read14Bits(bits);
+	p3=BTIC4B_BitsLE_Read16Bits(bits);
 	r0=p0&127; r1=(p0>>7);	g0=p1&127; g1=(p1>>7);
 	b0=p2&127; b1=(p2>>7);	a0=p3&255; a1=(p3>>8);
 
@@ -3190,10 +3183,10 @@ void BGBBTJ_BC7_DecodeBlock_Mode5(
 
 	for(i=0; i<4; i++)
 	{
-		clrb[i*4+0]=bgbbtj_bc7_interpolate(r0, r1, i, 2);
-		clrb[i*4+1]=bgbbtj_bc7_interpolate(g0, g1, i, 2);
-		clrb[i*4+2]=bgbbtj_bc7_interpolate(b0, b1, i, 2);
-		clrb[i*4+3]=bgbbtj_bc7_interpolate(a0, a1, i, 2);
+		clrb[i*4+0]=btic4b_bc7_interpolate(r0, r1, i, 2);
+		clrb[i*4+1]=btic4b_bc7_interpolate(g0, g1, i, 2);
+		clrb[i*4+2]=btic4b_bc7_interpolate(b0, b1, i, 2);
+		clrb[i*4+3]=btic4b_bc7_interpolate(a0, a1, i, 2);
 	}
 	
 	if((r0==r1) && (g0==g1) && (b0==b1))
@@ -3205,10 +3198,10 @@ void BGBBTJ_BC7_DecodeBlock_Mode5(
 			blkb[i*4+2]=b0;
 		}
 		if(a0!=a1)
-			{ p=BGBBTJ_BitsLE_ReadBits(bits, 31); }
+			{ p=BTIC4B_BitsLE_ReadBits(bits, 31); }
 	}else
 	{
-		p=BGBBTJ_BitsLE_Read7Bits(bits);
+		p=BTIC4B_BitsLE_Read7Bits(bits);
 		p0=(p&1)*4;			p1=((p>>1)&3)*4;
 		p2=((p>>3)&3)*4;	p3=((p>>5)&3)*4;
 		i0=0*4;		i1=1*4;
@@ -3221,7 +3214,7 @@ void BGBBTJ_BC7_DecodeBlock_Mode5(
 		blkb[i3+1]=clrb[p3+1];	blkb[i3+2]=clrb[p3+2];
 		for(i=1; i<4; i++)
 		{
-			p=BGBBTJ_BitsLE_Read8Bits(bits);
+			p=BTIC4B_BitsLE_Read8Bits(bits);
 			p0=(p&3)*4;			p1=((p>>2)&3)*4;
 			p2=((p>>4)&3)*4;	p3=((p>>6)&3)*4;
 			i0=(i*4+0)*4;		i1=(i*4+1)*4;
@@ -3244,7 +3237,7 @@ void BGBBTJ_BC7_DecodeBlock_Mode5(
 		}
 	}else
 	{
-		p=BGBBTJ_BitsLE_Read7Bits(bits);
+		p=BTIC4B_BitsLE_Read7Bits(bits);
 		p0=(p&1)*4;			p1=((p>>1)&3)*4;
 		p2=((p>>3)&3)*4;	p3=((p>>5)&3)*4;
 		i0=0*4;		i1=1*4;
@@ -3253,7 +3246,7 @@ void BGBBTJ_BC7_DecodeBlock_Mode5(
 		blkb[i2+3]=clrb[p2+3];	blkb[i3+3]=clrb[p3+3];
 		for(i=1; i<4; i++)
 		{
-			p=BGBBTJ_BitsLE_Read8Bits(bits);
+			p=BTIC4B_BitsLE_Read8Bits(bits);
 			p0=(p&3)*4;			p1=((p>>2)&3)*4;
 			p2=((p>>4)&3)*4;	p3=((p>>6)&3)*4;
 			i0=(i*4+0)*4;		i1=(i*4+1)*4;
@@ -3304,8 +3297,8 @@ void BGBBTJ_BC7_DecodeBlock_Mode5(
 	}
 }
 
-void BGBBTJ_BC7_DecodeBlock_Mode6(
-	BGBBTJ_BitStream *bits,
+void BTIC4B_BC7_DecodeBlock_Mode6(
+	BTIC4B_BitStream *bits,
 	byte *rgba, int xstride, int ystride, int flags)
 {
 	byte blkb[16*4];
@@ -3315,34 +3308,34 @@ void BGBBTJ_BC7_DecodeBlock_Mode6(
 	int p;
 	int i, j, k, l;
 	
-	r0=BGBBTJ_BitsLE_Read7Bits(bits);
-	r1=BGBBTJ_BitsLE_Read7Bits(bits);
-	g0=BGBBTJ_BitsLE_Read7Bits(bits);
-	g1=BGBBTJ_BitsLE_Read7Bits(bits);
-	b0=BGBBTJ_BitsLE_Read7Bits(bits);
-	b1=BGBBTJ_BitsLE_Read7Bits(bits);
-	a0=BGBBTJ_BitsLE_Read7Bits(bits);
-	a1=BGBBTJ_BitsLE_Read7Bits(bits);
+	r0=BTIC4B_BitsLE_Read7Bits(bits);
+	r1=BTIC4B_BitsLE_Read7Bits(bits);
+	g0=BTIC4B_BitsLE_Read7Bits(bits);
+	g1=BTIC4B_BitsLE_Read7Bits(bits);
+	b0=BTIC4B_BitsLE_Read7Bits(bits);
+	b1=BTIC4B_BitsLE_Read7Bits(bits);
+	a0=BTIC4B_BitsLE_Read7Bits(bits);
+	a1=BTIC4B_BitsLE_Read7Bits(bits);
 
-	j=BGBBTJ_BitsLE_ReadBit(bits);
-	k=BGBBTJ_BitsLE_ReadBit(bits);
+	j=BTIC4B_BitsLE_ReadBit(bits);
+	k=BTIC4B_BitsLE_ReadBit(bits);
 	r0=(r0<<1)|j; g0=(g0<<1)|j; b0=(b0<<1)|j; a0=(a0<<1)|j;
 	r1=(r1<<1)|k; g1=(g1<<1)|k; b1=(b1<<1)|k; a1=(a1<<1)|k;
 	
 	for(i=0; i<16; i++)
 	{
-		clrb[i*4+0]=bgbbtj_bc7_interpolate(r0, r1, i, 4);
-		clrb[i*4+1]=bgbbtj_bc7_interpolate(g0, g1, i, 4);
-		clrb[i*4+2]=bgbbtj_bc7_interpolate(b0, b1, i, 4);
-		clrb[i*4+3]=bgbbtj_bc7_interpolate(a0, a1, i, 4);
+		clrb[i*4+0]=btic4b_bc7_interpolate(r0, r1, i, 4);
+		clrb[i*4+1]=btic4b_bc7_interpolate(g0, g1, i, 4);
+		clrb[i*4+2]=btic4b_bc7_interpolate(b0, b1, i, 4);
+		clrb[i*4+3]=btic4b_bc7_interpolate(a0, a1, i, 4);
 	}
 		
-	p=BGBBTJ_BitsLE_Read3Bits(bits);
+	p=BTIC4B_BitsLE_Read3Bits(bits);
 	blkb[0*4+0]=clrb[p*4+0]; blkb[0*4+1]=clrb[p*4+1];
 	blkb[0*4+2]=clrb[p*4+2]; blkb[0*4+3]=clrb[p*4+3];
 	for(i=1; i<16; i++)
 	{
-		p=BGBBTJ_BitsLE_Read4Bits(bits);
+		p=BTIC4B_BitsLE_Read4Bits(bits);
 		blkb[i*4+0]=clrb[p*4+0]; blkb[i*4+1]=clrb[p*4+1];
 		blkb[i*4+2]=clrb[p*4+2]; blkb[i*4+3]=clrb[p*4+3];
 	}
@@ -3369,7 +3362,7 @@ void BGBBTJ_BC7_DecodeBlock_Mode6(
 	}
 }
 
-int BGBBTJ_BC7_GetBlockMode(byte *block)
+int BTIC4B_BC7_GetBlockMode(byte *block)
 {
 	int mode;
 	int i;
@@ -3387,11 +3380,11 @@ int BGBBTJ_BC7_GetBlockMode(byte *block)
 	return(mode);
 }
 
-int BGBBTJ_BC7_DecodeBlock_ReadMode(BGBBTJ_BitStream *bits)
+int BTIC4B_BC7_DecodeBlock_ReadMode(BTIC4B_BitStream *bits)
 {
 	int i, j;
 
-	i=BGBBTJ_BitsLE_Peek8Bits(bits);
+	i=BTIC4B_BitsLE_Peek8Bits(bits);
 	if(i)
 	{
 		if(i&15)
@@ -3403,48 +3396,48 @@ int BGBBTJ_BC7_DecodeBlock_ReadMode(BGBBTJ_BitStream *bits)
 			if(i&63)	{ j=(i&16)?4:5; }
 			else		{ j=(i&64)?6:7; }
 		}
-		BGBBTJ_BitsLE_ReadBits(bits, j+1);
+		BTIC4B_BitsLE_ReadBits(bits, j+1);
 		return(j);
 	}
 	return(8);
 }
 
-void BGBBTJ_BC7_DecodeBlock(byte *block,
+void BTIC4B_BC7_DecodeBlock(byte *block,
 	byte *rgba, int xstride, int ystride, int flags)
 {
-	BGBBTJ_BitStream bits;
+	BTIC4B_BitStream bits;
 	int mode;
 
-	BGBBTJ_BitsLE_ClearSetupRead(&bits, block, 16);
-	mode=BGBBTJ_BC7_DecodeBlock_ReadMode(&bits);
+	BTIC4B_BitsLE_ClearSetupRead(&bits, block, 16);
+	mode=BTIC4B_BC7_DecodeBlock_ReadMode(&bits);
 	switch(mode)
 	{
 	case 0:
-//		BGBBTJ_BC7_DecodeBlock_Mode0(&bits, rgba, xstride, ystride, flags);
+//		BTIC4B_BC7_DecodeBlock_Mode0(&bits, rgba, xstride, ystride, flags);
 		break;
 	case 1:
-//		BGBBTJ_BC7_DecodeBlock_Mode1(&bits, rgba, xstride, ystride, flags);
+//		BTIC4B_BC7_DecodeBlock_Mode1(&bits, rgba, xstride, ystride, flags);
 		break;
 	case 2:
-//		BGBBTJ_BC7_DecodeBlock_Mode2(&bits, rgba, xstride, ystride, flags);
+//		BTIC4B_BC7_DecodeBlock_Mode2(&bits, rgba, xstride, ystride, flags);
 		break;
 	case 3:
-//		BGBBTJ_BC7_DecodeBlock_Mode3(&bits, rgba, xstride, ystride, flags);
+//		BTIC4B_BC7_DecodeBlock_Mode3(&bits, rgba, xstride, ystride, flags);
 		break;
 	case 4:
-		BGBBTJ_BC7_DecodeBlock_Mode4(&bits, rgba, xstride, ystride, flags);
+		BTIC4B_BC7_DecodeBlock_Mode4(&bits, rgba, xstride, ystride, flags);
 		break;
 	case 5:
-		BGBBTJ_BC7_DecodeBlock_Mode5(&bits, rgba, xstride, ystride, flags);
+		BTIC4B_BC7_DecodeBlock_Mode5(&bits, rgba, xstride, ystride, flags);
 		break;
 	case 6:
-		BGBBTJ_BC7_DecodeBlock_Mode6(&bits, rgba, xstride, ystride, flags);
+		BTIC4B_BC7_DecodeBlock_Mode6(&bits, rgba, xstride, ystride, flags);
 		break;
 	case 7:
-//		BGBBTJ_BC7_DecodeBlock_Mode7(&bits, rgba, xstride, ystride, flags);
+//		BTIC4B_BC7_DecodeBlock_Mode7(&bits, rgba, xstride, ystride, flags);
 		break;
 	default:
-//		BGBBTJ_BC7_DecodeBlock_Default(&bits, rgba, xstride, ystride, flags);
+//		BTIC4B_BC7_DecodeBlock_Default(&bits, rgba, xstride, ystride, flags);
 		break;
 	}
 }
@@ -3470,7 +3463,7 @@ void BTIC4B_BC7_DecodeImage(byte *block,
 	for(i=0; i<ys1; i++)
 		for(j=0; j<xs1; j++)
 	{
-		BGBBTJ_BC7_DecodeBlock(
+		BTIC4B_BC7_DecodeBlock(
 			block+(i*xs2+j)*16,
 			rgba1+i*4*ystr+j*4*xstr,
 			xstr, ystr, pfb);

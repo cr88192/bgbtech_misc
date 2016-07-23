@@ -202,6 +202,13 @@ int cnt;
 int bits;
 }BTIC4B_SmtfState;
 
+typedef struct {
+byte *cs, *cse;
+byte *ct, *cte;
+u32 win;
+int pos;
+}BTIC4B_BitStream;
+
 typedef struct BTIC4B_Context_s BTIC4B_Context;
 
 struct BTIC4B_Context_s {
