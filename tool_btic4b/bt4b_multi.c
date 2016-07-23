@@ -18,3 +18,4 @@
 #include "bt4b_bitread.c"
 #include "bt4b_decode.c"
 #include "bt4b_shim_bc7.c"
+#include "bt4b_shim_s2tc.c"

@@ -296,6 +296,7 @@ byte *BTIC1H_Img_LoadTGA(
 	fd=fopen(name, "rb");
 	if(!fd)return(NULL);
 	buf=BTIC1H_Img_ReadTGA(fd, w, h);
+	fclose(fd);
 	return(buf);
 }
 
@@ -307,6 +308,7 @@ int BTIC1H_Img_SaveTGA(
 	fd=fopen(name, "wb");
 	if(!fd)return(-1);
 	BTIC1H_Img_StoreTGA(fd, buf, w, h);
+	fclose(fd);
 	return(0);
 }
 

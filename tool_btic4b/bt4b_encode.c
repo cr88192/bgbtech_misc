@@ -834,14 +834,38 @@ force_inline byte *BTIC4B_EncFlushBits(BTIC4B_Context *ctx)
 
 int BTIC4B_SetupContextQf(BTIC4B_Context *ctx, int qf)
 {
-	float qsc, qsc15;
+	float qsc, qsc15, qscc;
 	
 	qsc=(100-(qf&127))/25.0;
 	qsc15=pow(qsc, 1.5);
+	qscc=qsc;
 	
-	qsc*=0.5;
-	qsc15*=0.5;
-	
+	switch(ctx->imgt)
+	{
+	case BTIC4B_IMGT_LDR8:
+	case BTIC4B_IMGT_LDR8A:
+		qsc*=0.5;	qsc15*=0.5;
+		qscc=qsc;
+		break;
+	case BTIC4B_IMGT_LDR10:
+		qsc*=1.0;	qsc15*=1.0;
+		qscc=qsc;
+		break;
+	case BTIC4B_IMGT_LDR12:
+		qsc*=2.5;	qsc15*=2.5;
+		qscc=qsc;
+		break;
+	case BTIC4B_IMGT_HDR16:
+	case BTIC4B_IMGT_HDR16A:
+		qsc*=8.5;	qsc15*=8.5;
+		qscc=qsc*0.75;
+		break;
+	case BTIC4B_IMGT_HDR12:
+		qsc*=0.75;	qsc15*=0.75;
+		qscc=qsc*0.5;
+		break;
+	}
+		
 	ctx->qfl=qf;
 	
 	if(!ctx->blksz)
@@ -892,19 +916,19 @@ int BTIC4B_SetupContextQf(BTIC4B_Context *ctx, int qf)
 	ctx->rk_misc=2;
 
 //	ctx->qy=10*qsc;
-	ctx->qy=8*qsc;
+	ctx->qy=8*qscc;
 //	ctx->qy=6*qsc;
 
 //	ctx->quv=8*qsc;
-	ctx->quv=10*qsc;
+	ctx->quv=10*qscc;
 //	ctx->quv=16*qsc;
 
 //	ctx->qdy=6*qsc;
 //	ctx->qdy=10*qsc;
 //	ctx->qduv=12*qsc;
 
-	ctx->qdy=12*qsc;
-	ctx->qduv=14*qsc;
+	ctx->qdy=12*qscc;
+	ctx->qduv=14*qscc;
 
 //	ctx->qduv=8*qsc;
 //	ctx->qduv=16*qsc;
@@ -1936,8 +1960,16 @@ BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 
 	ct=obuf;
 
-	ctx->imgt=0;
+	ctx->imgt=BTIC4B_IMGT_LDR8A;
 	ctx->clrt=BTIC4B_CLRT_RCT;
+	
+	if((clrs&0x7F)==BTIC4B_CLRS_RGB11F)
+		ctx->imgt=BTIC4B_IMGT_HDR12;
+//		ctx->imgt=BTIC4B_IMGT_HDR16;
+
+	if((clrs&0x7F)==BTIC4B_CLRS_RGB48F)
+//		ctx->imgt=BTIC4B_IMGT_HDR12;
+		ctx->imgt=BTIC4B_IMGT_HDR16;
 	
 	BTIC4B_SetupContextQf(ctx, qfl);
 //	BTIC4B_EncImageBGRA(ctx, ctx->blks, ibuf, xs, ys);
@@ -1967,27 +1999,31 @@ BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 	ct+=sz1;
 
 #if 1
-	ct0=ct+16;
-	sz1=BTIC4B_EncImgAlphaBlocks(ctx,
-		ct0, ctx->blks,
-		(qfl&BTIC4B_QFL_PFRAME)?ctx->lblks:NULL,
-		xs, ys, qfl);
-	if(sz1>0)
+	if((ctx->imgt==BTIC4B_IMGT_LDR8A) ||
+		(ctx->imgt==BTIC4B_IMGT_HDR16A))
 	{
-		if(sz1>=(8192-4))
+		ct0=ct+16;
+		sz1=BTIC4B_EncImgAlphaBlocks(ctx,
+			ct0, ctx->blks,
+			(qfl&BTIC4B_QFL_PFRAME)?ctx->lblks:NULL,
+			xs, ys, qfl);
+		if(sz1>0)
 		{
-			i=sz1+6;
-			*ct++=0x40+(i>>24);	*ct++=(i>>16);
-			*ct++=(i>> 8);		*ct++=(i    );
-			*ct++='A';			*ct++='X';
-		}else
-		{
-			i=sz1+4;
-			*ct++=0x00+(i>>8);	*ct++=(i    );
-			*ct++='A';			*ct++='X';
+			if(sz1>=(8192-4))
+			{
+				i=sz1+6;
+				*ct++=0x40+(i>>24);	*ct++=(i>>16);
+				*ct++=(i>> 8);		*ct++=(i    );
+				*ct++='A';			*ct++='X';
+			}else
+			{
+				i=sz1+4;
+				*ct++=0x00+(i>>8);	*ct++=(i    );
+				*ct++='A';			*ct++='X';
+			}
+			memmove(ct, ct0, sz1);
+			ct+=sz1;
 		}
-		memmove(ct, ct0, sz1);
-		ct+=sz1;
 	}
 #endif
 	

@@ -1,4 +1,4 @@
-
+/* 8x8x3+UV4x4x2 */
 void BTIC4B_DecBlock0BGRA(BTIC4B_Context *ctx,
 	byte *blkbuf, byte *ibuf, int ystr)
 {
@@ -324,17 +324,25 @@ void BTIC4B_DecBlock1BGRA(BTIC4B_Context *ctx,
 		acy, acu, acv, dcy, dcu, dcv,
 		&cr0, &cg0, &cb0, &cr3, &cg3, &cb3);
 
-	cr1=(11*cr0+ 5*cr3)>>4;
-	cg1=(11*cg0+ 5*cg3)>>4;
-	cb1=(11*cb0+ 5*cb3)>>4;
-	cr2=( 5*cr0+11*cr3)>>4;
-	cg2=( 5*cg0+11*cg3)>>4;
-	cb2=( 5*cb0+11*cb3)>>4;
+	ctx->ClrDecPack4(cr0, cg0, cb0,
+		cr3, cg3, cb3, 255, rgbtab);
 
-	rgbtab[0]=0xFF000000|(cr0<<16)|(cg0<<8)|cb0;
-	rgbtab[1]=0xFF000000|(cr1<<16)|(cg1<<8)|cb1;
-	rgbtab[2]=0xFF000000|(cr2<<16)|(cg2<<8)|cb2;
-	rgbtab[3]=0xFF000000|(cr3<<16)|(cg3<<8)|cb3;
+//	cr1=(11*cr0+ 5*cr3)>>4;
+//	cg1=(11*cg0+ 5*cg3)>>4;
+//	cb1=(11*cb0+ 5*cb3)>>4;
+//	cr2=( 5*cr0+11*cr3)>>4;
+//	cg2=( 5*cg0+11*cg3)>>4;
+//	cb2=( 5*cb0+11*cb3)>>4;
+
+//	rgbtab[0]=0xFF000000|(cr0<<16)|(cg0<<8)|cb0;
+//	rgbtab[1]=0xFF000000|(cr1<<16)|(cg1<<8)|cb1;
+//	rgbtab[2]=0xFF000000|(cr2<<16)|(cg2<<8)|cb2;
+//	rgbtab[3]=0xFF000000|(cr3<<16)|(cg3<<8)|cb3;
+
+//	rgbtab[0]=ctx->ClrDecPack1A(cr0, cg0, cb0, 255);
+//	rgbtab[1]=ctx->ClrDecPack1A(cr1, cg1, cb1, 255);
+//	rgbtab[2]=ctx->ClrDecPack1A(cr2, cg2, cb2, 255);
+//	rgbtab[3]=ctx->ClrDecPack1A(cr3, cg3, cb3, 255);
 
 	switch(blkbuf[0]&0x1F)
 	{
@@ -501,21 +509,35 @@ void BTIC4B_DecBlock2BGRA(BTIC4B_Context *ctx,
 		acy, acu, acv, dcy, dcu, dcv,
 		&cr0, &cg0, &cb0, &cr7, &cg7, &cb7);
 
-	cr1=(14*cr0+ 2*cr7)>>4;	cg1=(14*cg0+ 2*cg7)>>4;	cb1=(14*cb0+ 2*cb7)>>4;
-	cr2=(11*cr0+ 5*cr7)>>4;	cg2=(11*cg0+ 5*cg7)>>4;	cb2=(11*cb0+ 5*cb7)>>4;
+//	cr1=(14*cr0+ 2*cr7)>>4;	cg1=(14*cg0+ 2*cg7)>>4;	cb1=(14*cb0+ 2*cb7)>>4;
+//	cr2=(11*cr0+ 5*cr7)>>4;	cg2=(11*cg0+ 5*cg7)>>4;	cb2=(11*cb0+ 5*cb7)>>4;
 	cr3=( 9*cr0+ 7*cr7)>>4;	cg3=( 9*cg0+ 7*cg7)>>4;	cb3=( 9*cb0+ 7*cb7)>>4;
 	cr4=( 7*cr0+ 9*cr7)>>4;	cg4=( 7*cg0+ 9*cg7)>>4;	cb4=( 7*cb0+ 9*cb7)>>4;
-	cr5=( 5*cr0+11*cr7)>>4;	cg5=( 5*cg0+11*cg7)>>4;	cb5=( 5*cb0+11*cb7)>>4;
-	cr6=( 2*cr0+14*cr7)>>4;	cg6=( 2*cg0+14*cg7)>>4;	cb6=( 2*cb0+14*cb7)>>4;
+//	cr5=( 5*cr0+11*cr7)>>4;	cg5=( 5*cg0+11*cg7)>>4;	cb5=( 5*cb0+11*cb7)>>4;
+//	cr6=( 2*cr0+14*cr7)>>4;	cg6=( 2*cg0+14*cg7)>>4;	cb6=( 2*cb0+14*cb7)>>4;
 
-	rgbtab[0]=0xFF000000|(cr0<<16)|(cg0<<8)|cb0;
-	rgbtab[1]=0xFF000000|(cr1<<16)|(cg1<<8)|cb1;
-	rgbtab[2]=0xFF000000|(cr2<<16)|(cg2<<8)|cb2;
-	rgbtab[3]=0xFF000000|(cr3<<16)|(cg3<<8)|cb3;
-	rgbtab[4]=0xFF000000|(cr4<<16)|(cg4<<8)|cb4;
-	rgbtab[5]=0xFF000000|(cr5<<16)|(cg5<<8)|cb5;
-	rgbtab[6]=0xFF000000|(cr6<<16)|(cg6<<8)|cb6;
-	rgbtab[7]=0xFF000000|(cr7<<16)|(cg7<<8)|cb7;
+//	rgbtab[0]=0xFF000000|(cr0<<16)|(cg0<<8)|cb0;
+//	rgbtab[1]=0xFF000000|(cr1<<16)|(cg1<<8)|cb1;
+//	rgbtab[2]=0xFF000000|(cr2<<16)|(cg2<<8)|cb2;
+//	rgbtab[3]=0xFF000000|(cr3<<16)|(cg3<<8)|cb3;
+//	rgbtab[4]=0xFF000000|(cr4<<16)|(cg4<<8)|cb4;
+//	rgbtab[5]=0xFF000000|(cr5<<16)|(cg5<<8)|cb5;
+//	rgbtab[6]=0xFF000000|(cr6<<16)|(cg6<<8)|cb6;
+//	rgbtab[7]=0xFF000000|(cr7<<16)|(cg7<<8)|cb7;
+
+//	rgbtab[0]=ctx->ClrDecPack1(cr0, cg0, cb0);
+//	rgbtab[1]=ctx->ClrDecPack1(cr1, cg1, cb1);
+//	rgbtab[2]=ctx->ClrDecPack1(cr2, cg2, cb2);
+//	rgbtab[3]=ctx->ClrDecPack1(cr3, cg3, cb3);
+//	rgbtab[4]=ctx->ClrDecPack1(cr4, cg4, cb4);
+//	rgbtab[5]=ctx->ClrDecPack1(cr5, cg5, cb5);
+//	rgbtab[6]=ctx->ClrDecPack1(cr6, cg6, cb6);
+//	rgbtab[7]=ctx->ClrDecPack1(cr7, cg7, cb7);
+
+	ctx->ClrDecPack4(cr0, cg0, cb0,
+		cr3, cg3, cb3, 255, rgbtab+0);
+	ctx->ClrDecPack4(cr4, cg4, cb4,
+		cr7, cg7, cb7, 255, rgbtab+4);
 
 	for(i=0; i<4; i++)
 	{
@@ -574,21 +596,22 @@ void BTIC4B_DecBlock3BGRA(BTIC4B_Context *ctx,
 		acy, acu, acv, dcy, dcu, dcv,
 		&cr0, &cg0, &cb0, &crF, &cgF, &cbF);
 
-	cr1=(30*cr0+ 2*crF)>>5;	cg1=(30*cg0+ 2*cgF)>>5;	cb1=(30*cb0+ 2*cbF)>>5;
-	cr2=(28*cr0+ 4*crF)>>5;	cg2=(28*cg0+ 4*cgF)>>5;	cb2=(28*cb0+ 4*cbF)>>5;
+//	cr1=(30*cr0+ 2*crF)>>5;	cg1=(30*cg0+ 2*cgF)>>5;	cb1=(30*cb0+ 2*cbF)>>5;
+//	cr2=(28*cr0+ 4*crF)>>5;	cg2=(28*cg0+ 4*cgF)>>5;	cb2=(28*cb0+ 4*cbF)>>5;
 	cr3=(26*cr0+ 6*crF)>>5;	cg3=(26*cg0+ 6*cgF)>>5;	cb3=(26*cb0+ 6*cbF)>>5;
 	cr4=(23*cr0+ 9*crF)>>5;	cg4=(23*cg0+ 9*cgF)>>5;	cb4=(23*cb0+ 9*cbF)>>5;
-	cr5=(21*cr0+11*crF)>>5;	cg5=(21*cg0+11*cgF)>>5;	cb5=(21*cb0+11*cbF)>>5;
-	cr6=(19*cr0+13*crF)>>5;	cg6=(19*cg0+13*cgF)>>5;	cb6=(19*cb0+13*cbF)>>5;
+//	cr5=(21*cr0+11*crF)>>5;	cg5=(21*cg0+11*cgF)>>5;	cb5=(21*cb0+11*cbF)>>5;
+//	cr6=(19*cr0+13*crF)>>5;	cg6=(19*cg0+13*cgF)>>5;	cb6=(19*cb0+13*cbF)>>5;
 	cr7=(17*cr0+15*crF)>>5;	cg7=(17*cg0+15*cgF)>>5;	cb7=(17*cb0+15*cbF)>>5;
 	cr8=(15*cr0+17*crF)>>5;	cg8=(15*cg0+17*cgF)>>5;	cb8=(15*cb0+17*cbF)>>5;
-	cr9=(13*cr0+19*crF)>>5;	cg9=(13*cg0+19*cgF)>>5;	cb9=(13*cb0+19*cbF)>>5;
-	crA=(11*cr0+21*crF)>>5;	cgA=(11*cg0+21*cgF)>>5;	cbA=(11*cb0+21*cbF)>>5;
+//	cr9=(13*cr0+19*crF)>>5;	cg9=(13*cg0+19*cgF)>>5;	cb9=(13*cb0+19*cbF)>>5;
+//	crA=(11*cr0+21*crF)>>5;	cgA=(11*cg0+21*cgF)>>5;	cbA=(11*cb0+21*cbF)>>5;
 	crB=( 9*cr0+23*crF)>>5;	cgB=( 9*cg0+23*cgF)>>5;	cbB=( 9*cb0+23*cbF)>>5;
 	crC=( 6*cr0+26*crF)>>5;	cgC=( 6*cg0+26*cgF)>>5;	cbC=( 6*cb0+26*cbF)>>5;
-	crD=( 4*cr0+28*crF)>>5;	cgD=( 4*cg0+28*cgF)>>5;	cbD=( 4*cb0+28*cbF)>>5;
-	crE=( 2*cr0+30*crF)>>5;	cgE=( 2*cg0+30*cgF)>>5;	cbE=( 2*cb0+30*cbF)>>5;
+//	crD=( 4*cr0+28*crF)>>5;	cgD=( 4*cg0+28*cgF)>>5;	cbD=( 4*cb0+28*cbF)>>5;
+//	crE=( 2*cr0+30*crF)>>5;	cgE=( 2*cg0+30*cgF)>>5;	cbE=( 2*cb0+30*cbF)>>5;
 
+#if 0
 	rgbtab[ 0]=0xFF000000|(cr0<<16)|(cg0<<8)|cb0;
 	rgbtab[ 1]=0xFF000000|(cr1<<16)|(cg1<<8)|cb1;
 	rgbtab[ 2]=0xFF000000|(cr2<<16)|(cg2<<8)|cb2;
@@ -605,6 +628,36 @@ void BTIC4B_DecBlock3BGRA(BTIC4B_Context *ctx,
 	rgbtab[13]=0xFF000000|(crD<<16)|(cgD<<8)|cbD;
 	rgbtab[14]=0xFF000000|(crE<<16)|(cgE<<8)|cbE;
 	rgbtab[15]=0xFF000000|(crF<<16)|(cgF<<8)|cbF;
+#endif
+
+#if 0
+	rgbtab[ 0]=ctx->ClrDecPack1(cr0, cg0, cb0);
+	rgbtab[ 1]=ctx->ClrDecPack1(cr1, cg1, cb1);
+	rgbtab[ 2]=ctx->ClrDecPack1(cr2, cg2, cb2);
+	rgbtab[ 3]=ctx->ClrDecPack1(cr3, cg3, cb3);
+	rgbtab[ 4]=ctx->ClrDecPack1(cr4, cg4, cb4);
+	rgbtab[ 5]=ctx->ClrDecPack1(cr5, cg5, cb5);
+	rgbtab[ 6]=ctx->ClrDecPack1(cr6, cg6, cb6);
+	rgbtab[ 7]=ctx->ClrDecPack1(cr7, cg7, cb7);
+	rgbtab[ 8]=ctx->ClrDecPack1(cr8, cg8, cb8);
+	rgbtab[ 9]=ctx->ClrDecPack1(cr9, cg9, cb9);
+	rgbtab[10]=ctx->ClrDecPack1(crA, cgA, cbA);
+	rgbtab[11]=ctx->ClrDecPack1(crB, cgB, cbB);
+	rgbtab[12]=ctx->ClrDecPack1(crC, cgC, cbC);
+	rgbtab[13]=ctx->ClrDecPack1(crD, cgD, cbD);
+	rgbtab[14]=ctx->ClrDecPack1(crE, cgE, cbE);
+	rgbtab[15]=ctx->ClrDecPack1(crF, cgF, cbF);
+#endif
+
+	ctx->ClrDecPack4(cr0, cg0, cb0,
+		cr3, cg3, cb3, 255, rgbtab+0);
+	ctx->ClrDecPack4(cr4, cg4, cb4,
+		cr7, cg7, cb7, 255, rgbtab+4);
+	ctx->ClrDecPack4(cr8, cg8, cb8,
+		crB, cgB, cbB, 255, rgbtab+8);
+	ctx->ClrDecPack4(crC, cgC, cbC,
+		crF, cgF, cbF, 255, rgbtab+12);
+
 
 	for(i=0; i<4; i++)
 	{
@@ -2011,34 +2064,28 @@ void BTIC4B_DecBlockEdgeClrs(BTIC4B_Context *ctx,
 	u32 *cs, *ct;
 	int i, j;
 
-#if 0
-	switch(clrs&127)
-	{
-	case BTIC4B_CLRS_RGBA:
-		BTIC4B_DecBlockRGBA(ctx, blkbuf, tbuf, 8*4);
-		break;
-	case BTIC4B_CLRS_BGRA:
-		BTIC4B_DecBlockBGRA(ctx, blkbuf, tbuf, 8*4);
-		break;
-	case BTIC4B_CLRS_RGBX:
-		BTIC4B_DecBlockRGBX(ctx, blkbuf, tbuf, 8*4);
-		break;
-	case BTIC4B_CLRS_BGRX:
-		BTIC4B_DecBlockBGRX(ctx, blkbuf, tbuf, 8*4);
-		break;
-	}
-#endif
-
 	ctx->DecBlock(ctx, blkbuf, tbuf, 8*4);
 //	BTIC4B_DecBlockBGRA(ctx, blkbuf, tbuf, 8*4);
+	if(xf==8)
+	{
+		for(i=0; i<yf; i++)
+		{
+			cs=(u32 *)(tbuf+i*8*4);
+			ct=(u32 *)(ibuf+i*ystr);
+			ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3];
+			ct[4]=cs[4]; ct[5]=cs[5]; ct[6]=cs[6]; ct[7]=cs[7];
+		}
+		return;
+	}
+
 	for(i=0; i<yf; i++)
 	{
 		cs=(u32 *)(tbuf+i*8*4);
 		ct=(u32 *)(ibuf+i*ystr);
-		if(xf==8)
-		{	ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3];
-			ct[4]=cs[4]; ct[5]=cs[5]; ct[6]=cs[6]; ct[7]=cs[7];
-			continue;	}
+//		if(xf==8)
+//		{	ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3];
+//			ct[4]=cs[4]; ct[5]=cs[5]; ct[6]=cs[6]; ct[7]=cs[7];
+//			continue;	}
 		j=xf;
 		if(j>=4)
 		{	ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3];
@@ -2049,6 +2096,96 @@ void BTIC4B_DecBlockEdgeClrs(BTIC4B_Context *ctx,
 		if(j)
 			{ ct[0]=cs[0]; }
 	}
+}
+
+u32 BTIC4B_DecImageClrPack1_LDR8(int cr, int cg, int cb)
+{
+	return(0xFF000000|(cr<<16)|(cg<<8)|cb);
+}
+
+u32 BTIC4B_DecImageClrPack1A_LDR8(int cr, int cg, int cb, int ca)
+{
+	return((ca<<24)|(cr<<16)|(cg<<8)|cb);
+}
+
+u32 BTIC4B_DecImageClrPack1_12R11F(int cr, int cg, int cb)
+{
+	return(((cb>>1)<<22)|(cg<<11)|cr);
+}
+
+u32 BTIC4B_DecImageClrPack1A_12R11F(int cr, int cg, int cb, int ca)
+{
+	return(((cb>>1)<<22)|(cg<<11)|cr);
+}
+
+u32 BTIC4B_DecImageClrPack1_16R11F(int cr, int cg, int cb)
+{
+	return(((cb>>5)<<22)|((cg>>4)<<11)|(cr>>4));
+}
+
+u32 BTIC4B_DecImageClrPack1A_16R11F(int cr, int cg, int cb, int ca)
+{
+	return(((cb>>5)<<22)|((cg>>4)<<11)|(cr>>4));
+}
+
+void BTIC4B_DecImageClrPack4_LDR8(
+	int cr0, int cg0, int cb0,
+	int cr3, int cg3, int cb3,
+	int ca, u32 *tab)
+{
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+	cr1=(11*cr0+ 5*cr3)>>4;
+	cg1=(11*cg0+ 5*cg3)>>4;
+	cb1=(11*cb0+ 5*cb3)>>4;
+	cr2=( 5*cr0+11*cr3)>>4;
+	cg2=( 5*cg0+11*cg3)>>4;
+	cb2=( 5*cb0+11*cb3)>>4;
+
+	tab[0]=(ca<<24)|(cr0<<16)|(cg0<<8)|cb0;
+	tab[1]=(ca<<24)|(cr1<<16)|(cg1<<8)|cb1;
+	tab[2]=(ca<<24)|(cr2<<16)|(cg2<<8)|cb2;
+	tab[3]=(ca<<24)|(cr3<<16)|(cg3<<8)|cb3;
+}
+
+void BTIC4B_DecImageClrPack4_12R11F(
+	int cr0, int cg0, int cb0,
+	int cr3, int cg3, int cb3,
+	int ca, u32 *tab)
+{
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+	cr1=(11*cr0+ 5*cr3)>>4;
+	cg1=(11*cg0+ 5*cg3)>>4;
+	cb1=(11*cb0+ 5*cb3)>>4;
+	cr2=( 5*cr0+11*cr3)>>4;
+	cg2=( 5*cg0+11*cg3)>>4;
+	cb2=( 5*cb0+11*cb3)>>4;
+
+	tab[0]=((cb0>>1)<<22)|(cg0<<11)|cr0;
+	tab[1]=((cb1>>1)<<22)|(cg1<<11)|cr1;
+	tab[2]=((cb2>>1)<<22)|(cg2<<11)|cr2;
+	tab[3]=((cb3>>1)<<22)|(cg3<<11)|cr3;
+}
+
+void BTIC4B_DecImageClrPack4_16R11F(
+	int cr0, int cg0, int cb0,
+	int cr3, int cg3, int cb3,
+	int ca, u32 *tab)
+{
+	int cr1, cg1, cb1;
+	int cr2, cg2, cb2;
+	cr1=(11*cr0+ 5*cr3)>>4;
+	cg1=(11*cg0+ 5*cg3)>>4;
+	cb1=(11*cb0+ 5*cb3)>>4;
+	cr2=( 5*cr0+11*cr3)>>4;
+	cg2=( 5*cg0+11*cg3)>>4;
+	cb2=( 5*cb0+11*cb3)>>4;
+
+	tab[0]=((cb0>>5)<<22)|((cg0>>4)<<11)|(cr0>>4);
+	tab[1]=((cb1>>5)<<22)|((cg1>>4)<<11)|(cr1>>4);
+	tab[2]=((cb2>>5)<<22)|((cg2>>4)<<11)|(cr2>>4);
+	tab[3]=((cb3>>5)<<22)|((cg3>>4)<<11)|(cr3>>4);
 }
 
 u32 BTIC4B_DecImageClr1_GDbDr(int cy, int cu, int cv)
@@ -2602,6 +2739,528 @@ void BTIC4B_DecImageClrDec4C_RCTSW(
 
 #endif
 
+#if 1
+u32 BTIC4B_DecImageClr1_RCT16F_11F(int cy, int cu, int cv)
+{
+	u32 px;
+	int cr, cg, cb;
+	
+	cg=cy-((cu+cv)>>2);
+	cr=cg+cv;	cb=cg+cu;
+	if((cr|cg|cb)>>15)
+	{
+		cr=lqtvq_clamp32767U(cr);
+		cg=lqtvq_clamp32767U(cg);
+		cb=lqtvq_clamp32767U(cb);
+	}
+	
+	cr=cr>>4;	cg=cg>>4;	cb=cb>>5;
+	px=(cb<<22)|(cg<<11)|cr;
+	return(px);
+}
+
+u32 BTIC4B_DecImageClr1A_RCT16F_11F(int cy, int cu, int cv, int ca)
+	{ return(BTIC4B_DecImageClr1_RCT16F_11F(cy, cu, cv)); }
+
+void BTIC4B_DecImageClrDec2T_RCT16F_11F(int tag,
+	int acy, int acu, int acv,
+	int dcy, int dcu, int dcv,
+	int *rr0, int *rg0, int *rb0,
+	int *rr1, int *rg1, int *rb1)
+{
+	int mcy, mcu, mcv;
+	int ncy, ncu, ncv;
+	int cr0, cg0, cb0;
+	int cr3, cg3, cb3;
+
+	mcy=acy-(dcy>>1); ncy=mcy+dcy;
+	mcu=acu-(dcu>>1); ncu=mcu+dcu;
+	mcv=acv-(dcv>>1); ncv=mcv+dcv;
+
+	if(tag&0x40)
+	{
+		cg0=mcy-((mcu+mcv)>>2); cb0=cg0+mcu; cr0=cg0+mcv;
+		cg3=ncy-((ncu+ncv)>>2); cb3=cg3+ncu; cr3=cg3+ncv;
+	}else
+	{
+		cg0=mcy-((acu+acv)>>2); cb0=cg0+acu; cr0=cg0+acv;
+		cg3=ncy-((acu+acv)>>2); cb3=cg3+acu; cr3=cg3+acv;
+	}
+
+	if((cr0|cg0|cb0)>>15)
+	{
+		cr0=lqtvq_clamp32767U(cr0);
+		cg0=lqtvq_clamp32767U(cg0);
+		cb0=lqtvq_clamp32767U(cb0);
+	}
+
+	if((cr3|cg3|cb3)>>15)
+	{
+		cr3=lqtvq_clamp32767U(cr3);
+		cg3=lqtvq_clamp32767U(cg3);
+		cb3=lqtvq_clamp32767U(cb3);
+	}
+	
+	*rr0=cr0;	*rg0=cg0;	*rb0=cb0;
+	*rr1=cr3;	*rg1=cg3;	*rb1=cb3;
+}
+
+void BTIC4B_DecImageClrDec4_RCT16F_11F(
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	u32 *rpx0, u32 *rpx1)
+{
+	u32 px0, px1, px2, px3;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+
+	cg0=cy0-((cu+cv)>>2); cb0=cg0+cu; cr0=cg0+cv;
+	cg1=cy1-((cu+cv)>>2); cb1=cg1+cu; cr1=cg1+cv;
+	cg2=cy2-((cu+cv)>>2); cb2=cg2+cu; cr2=cg2+cv;
+	cg3=cy3-((cu+cv)>>2); cb3=cg3+cu; cr3=cg3+cv;
+	
+	if((cr0|cr1|cr2|cr3)>>15)
+	{
+		cr0=lqtvq_clamp32767U(cr0);
+		cr1=lqtvq_clamp32767U(cr1);
+		cr2=lqtvq_clamp32767U(cr2);
+		cr3=lqtvq_clamp32767U(cr3);
+	}
+
+	if((cg0|cg1|cg2|cg3)>>15)
+	{
+		cg0=lqtvq_clamp32767U(cg0);
+		cg1=lqtvq_clamp32767U(cg1);
+		cg2=lqtvq_clamp32767U(cg2);
+		cg3=lqtvq_clamp32767U(cg3);
+	}
+
+	if((cb0|cb1|cb2|cb3)>>15)
+	{
+		cb0=lqtvq_clamp32767U(cb0);
+		cb1=lqtvq_clamp32767U(cb1);
+		cb2=lqtvq_clamp32767U(cb2);
+		cb3=lqtvq_clamp32767U(cb3);
+	}
+
+//	cr0=(cr0+7)>>4;	cg0=(cg0+7)>>4;	cb0=(cb0+15)>>5;
+//	cr1=(cr1+7)>>4;	cg1=(cg1+7)>>4;	cb1=(cb1+15)>>5;
+//	cr2=(cr2+7)>>4;	cg2=(cg2+7)>>4;	cb2=(cb2+15)>>5;
+//	cr3=(cr3+7)>>4;	cg3=(cg3+7)>>4;	cb3=(cb3+15)>>5;
+	
+	cr0=cr0>>4;	cg0=cg0>>4;	cb0=cb0>>5;
+	cr1=cr1>>4;	cg1=cg1>>4;	cb1=cb1>>5;
+	cr2=cr2>>4;	cg2=cg2>>4;	cb2=cb2>>5;
+	cr3=cr3>>4;	cg3=cg3>>4;	cb3=cb3>>5;
+	px0=(cb0<<22)|(cg0<<11)|cr0;
+	px1=(cb1<<22)|(cg1<<11)|cr1;
+	px2=(cb2<<22)|(cg2<<11)|cr2;
+	px3=(cb3<<22)|(cg3<<11)|cr3;
+	rpx0[0]=px0;	rpx0[1]=px1;
+	rpx1[0]=px2;	rpx1[1]=px3;
+}
+
+void BTIC4B_DecImageClrDec4B_RCT16F_11F(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	u32 *rpx0, u32 *rpx1)
+{
+	u32 px0, px1, px2, px3;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+
+	cg0=cy0-((cu0+cv0)>>2); cb0=cg0+cu0; cr0=cg0+cv0;
+	cg1=cy1-((cu0+cv0)>>2); cb1=cg1+cu0; cr1=cg1+cv0;
+	cg2=cy2-((cu1+cv1)>>2); cb2=cg2+cu1; cr2=cg2+cv1;
+	cg3=cy3-((cu1+cv1)>>2); cb3=cg3+cu1; cr3=cg3+cv1;
+	
+	if((cr0|cr1|cr2|cr3)>>15)
+	{
+		cr0=lqtvq_clamp32767U(cr0);
+		cr1=lqtvq_clamp32767U(cr1);
+		cr2=lqtvq_clamp32767U(cr2);
+		cr3=lqtvq_clamp32767U(cr3);
+	}
+
+	if((cg0|cg1|cg2|cg3)>>15)
+	{
+		cg0=lqtvq_clamp32767U(cg0);
+		cg1=lqtvq_clamp32767U(cg1);
+		cg2=lqtvq_clamp32767U(cg2);
+		cg3=lqtvq_clamp32767U(cg3);
+	}
+
+	if((cb0|cb1|cb2|cb3)>>15)
+	{
+		cb0=lqtvq_clamp32767U(cb0);
+		cb1=lqtvq_clamp32767U(cb1);
+		cb2=lqtvq_clamp32767U(cb2);
+		cb3=lqtvq_clamp32767U(cb3);
+	}
+
+	cr0=cr0>>4;	cg0=cg0>>4;	cb0=cb0>>5;
+	cr1=cr1>>4;	cg1=cg1>>4;	cb1=cb1>>5;
+	cr2=cr2>>4;	cg2=cg2>>4;	cb2=cb2>>5;
+	cr3=cr3>>4;	cg3=cg3>>4;	cb3=cb3>>5;
+
+	px0=(cb0<<22)|(cg0<<11)|cr0;
+	px1=(cb1<<22)|(cg1<<11)|cr1;
+	px2=(cb2<<22)|(cg2<<11)|cr2;
+	px3=(cb3<<22)|(cg3<<11)|cr3;
+	rpx0[0]=px0;	rpx0[1]=px1;
+	rpx1[0]=px2;	rpx1[1]=px3;
+}
+
+void BTIC4B_DecImageClrDec4C_RCT16F_11F(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	int cu2, int cv2, int cu3, int cv3,
+	u32 *rpx0, u32 *rpx1)
+{
+	u32 px0, px1, px2, px3;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+
+	cg0=cy0-((cu0+cv0)>>2); cb0=cg0+cu0; cr0=cg0+cv0;
+	cg1=cy1-((cu1+cv1)>>2); cb1=cg1+cu1; cr1=cg1+cv1;
+	cg2=cy2-((cu2+cv2)>>2); cb2=cg2+cu2; cr2=cg2+cv2;
+	cg3=cy3-((cu3+cv3)>>2); cb3=cg3+cu3; cr3=cg3+cv3;
+	
+	if((cr0|cr1|cr2|cr3)>>8)
+	{
+		cr0=lqtvq_clamp32767U(cr0);
+		cr1=lqtvq_clamp32767U(cr1);
+		cr2=lqtvq_clamp32767U(cr2);
+		cr3=lqtvq_clamp32767U(cr3);
+	}
+
+	if((cg0|cg1|cg2|cg3)>>8)
+	{
+		cg0=lqtvq_clamp32767U(cg0);
+		cg1=lqtvq_clamp32767U(cg1);
+		cg2=lqtvq_clamp32767U(cg2);
+		cg3=lqtvq_clamp32767U(cg3);
+	}
+
+	if((cb0|cb1|cb2|cb3)>>8)
+	{
+		cb0=lqtvq_clamp32767U(cb0);
+		cb1=lqtvq_clamp32767U(cb1);
+		cb2=lqtvq_clamp32767U(cb2);
+		cb3=lqtvq_clamp32767U(cb3);
+	}
+
+	cr0=cr0>>4;	cg0=cg0>>4;	cb0=cb0>>5;
+	cr1=cr1>>4;	cg1=cg1>>4;	cb1=cb1>>5;
+	cr2=cr2>>4;	cg2=cg2>>4;	cb2=cb2>>5;
+	cr3=cr3>>4;	cg3=cg3>>4;	cb3=cb3>>5;
+
+	px0=(cb0<<22)|(cg0<<11)|cr0;
+	px1=(cb1<<22)|(cg1<<11)|cr1;
+	px2=(cb2<<22)|(cg2<<11)|cr2;
+	px3=(cb3<<22)|(cg3<<11)|cr3;
+	rpx0[0]=px0;	rpx0[1]=px1;
+	rpx1[0]=px2;	rpx1[1]=px3;
+}
+
+
+u32 btic4b_pxrgbx2rgb11f(u32 px)
+{
+	u32 px2;
+	int cr, cg, cb;
+	cr=lqtvq_btohf[(px>>16)&255];
+	cg=lqtvq_btohf[(px>> 8)&255];
+	cb=lqtvq_btohf[(px    )&255];
+	cr=cr>>4;	cg=cg>>4;	cb=cb>>5;
+	px2=(cb<<22)|(cg<<11)|cr;
+	return(px2);
+}
+
+u32 BTIC4B_DecImageClr1_RCT_11FB(int cy, int cu, int cv)
+{
+	u32 px0, px1;
+	px0=BTIC4B_DecImageClr1_RCT(cy, cu, cv);
+	px1=btic4b_pxrgbx2rgb11f(px0);
+	return(px1);
+}
+
+u32 BTIC4B_DecImageClr1A_RCT_11FB(int cy, int cu, int cv, int ca)
+{
+	u32 px0, px1;
+	px0=BTIC4B_DecImageClr1A_RCT(cy, cu, cv, ca);
+	px1=btic4b_pxrgbx2rgb11f(px0);
+	return(px1);
+}
+
+void BTIC4B_DecImageClrDec2T_RCT_11FB(int tag,
+	int acy, int acu, int acv,
+	int dcy, int dcu, int dcv,
+	int *rr0, int *rg0, int *rb0,
+	int *rr1, int *rg1, int *rb1)
+{
+	BTIC4B_DecImageClrDec2T_RCT(tag,
+		acy, acu, acv, dcy, dcu, dcv,
+		rr0, rg0, rb0, rr1, rg1, rb1);
+	*rr0=lqtvq_btohf[lqtvq_clamp255(*rr0)];
+	*rg0=lqtvq_btohf[lqtvq_clamp255(*rg0)];
+	*rb0=lqtvq_btohf[lqtvq_clamp255(*rb0)];
+	*rr1=lqtvq_btohf[lqtvq_clamp255(*rr1)];
+	*rg1=lqtvq_btohf[lqtvq_clamp255(*rg1)];
+	*rb1=lqtvq_btohf[lqtvq_clamp255(*rb1)];
+}
+
+
+void BTIC4B_DecImageClrDec4_RCT_11FB(
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	u32 *rpx0, u32 *rpx1)
+{
+	BTIC4B_DecImageClrDec4_RCT(cy0, cy1, cy2, cy3, cu, cv, rpx0, rpx1);
+	rpx0[0]=btic4b_pxrgbx2rgb11f(rpx0[0]);
+	rpx0[1]=btic4b_pxrgbx2rgb11f(rpx0[1]);
+	rpx1[0]=btic4b_pxrgbx2rgb11f(rpx1[0]);
+	rpx1[1]=btic4b_pxrgbx2rgb11f(rpx1[1]);
+}
+
+void BTIC4B_DecImageClrDec4B_RCT_11FB(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	u32 *rpx0, u32 *rpx1)
+{
+	BTIC4B_DecImageClrDec4B_RCT(cy0, cy1, cy2, cy3,
+		cu0, cv0, cu1, cv1, rpx0, rpx1);
+	rpx0[0]=btic4b_pxrgbx2rgb11f(rpx0[0]);
+	rpx0[1]=btic4b_pxrgbx2rgb11f(rpx0[1]);
+	rpx1[0]=btic4b_pxrgbx2rgb11f(rpx1[0]);
+	rpx1[1]=btic4b_pxrgbx2rgb11f(rpx1[1]);
+}
+
+void BTIC4B_DecImageClrDec4C_RCT_11FB(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	int cu2, int cv2, int cu3, int cv3,
+	u32 *rpx0, u32 *rpx1)
+{
+	BTIC4B_DecImageClrDec4C_RCT(cy0, cy1, cy2, cy3,
+		cu0, cv0, cu1, cv1, cu2, cv2, cu3, cv3,
+		rpx0, rpx1);
+	rpx0[0]=btic4b_pxrgbx2rgb11f(rpx0[0]);
+	rpx0[1]=btic4b_pxrgbx2rgb11f(rpx0[1]);
+	rpx1[0]=btic4b_pxrgbx2rgb11f(rpx1[0]);
+	rpx1[1]=btic4b_pxrgbx2rgb11f(rpx1[1]);
+}
+#endif
+
+#if 1
+u32 BTIC4B_DecImageClr1_RCT12F_11F(int cy, int cu, int cv)
+{
+	u32 px;
+	int cr, cg, cb;
+	
+	cg=cy-((cu+cv)>>2);
+	cr=cg+cv;	cb=cg+cu;
+	if((cr|cg|cb)>>11)
+	{
+		cr=lqtvq_clamp2047(cr);
+		cg=lqtvq_clamp2047(cg);
+		cb=lqtvq_clamp2047(cb);
+	}
+	
+	px=((cb>>1)<<22)|(cg<<11)|cr;
+	return(px);
+}
+
+u32 BTIC4B_DecImageClr1A_RCT12F_11F(int cy, int cu, int cv, int ca)
+	{ return(BTIC4B_DecImageClr1_RCT12F_11F(cy, cu, cv)); }
+
+void BTIC4B_DecImageClrDec2T_RCT12F_11F(int tag,
+	int acy, int acu, int acv,
+	int dcy, int dcu, int dcv,
+	int *rr0, int *rg0, int *rb0,
+	int *rr1, int *rg1, int *rb1)
+{
+	int mcy, mcu, mcv;
+	int ncy, ncu, ncv;
+	int cr0, cg0, cb0;
+	int cr3, cg3, cb3;
+
+	mcy=acy-(dcy>>1); ncy=mcy+dcy;
+	mcu=acu-(dcu>>1); ncu=mcu+dcu;
+	mcv=acv-(dcv>>1); ncv=mcv+dcv;
+
+	if(tag&0x40)
+	{
+		cg0=mcy-((mcu+mcv)>>2); cb0=cg0+mcu; cr0=cg0+mcv;
+		cg3=ncy-((ncu+ncv)>>2); cb3=cg3+ncu; cr3=cg3+ncv;
+	}else
+	{
+		cg0=mcy-((acu+acv)>>2); cb0=cg0+acu; cr0=cg0+acv;
+		cg3=ncy-((acu+acv)>>2); cb3=cg3+acu; cr3=cg3+acv;
+	}
+
+	if((cr0|cg0|cb0)>>11)
+	{
+		cr0=lqtvq_clamp2047(cr0);
+		cg0=lqtvq_clamp2047(cg0);
+		cb0=lqtvq_clamp2047(cb0);
+	}
+
+	if((cr3|cg3|cb3)>>11)
+	{
+		cr3=lqtvq_clamp2047(cr3);
+		cg3=lqtvq_clamp2047(cg3);
+		cb3=lqtvq_clamp2047(cb3);
+	}
+	
+	*rr0=cr0;	*rg0=cg0;	*rb0=cb0;
+	*rr1=cr3;	*rg1=cg3;	*rb1=cb3;
+}
+
+void BTIC4B_DecImageClrDec4_RCT12F_11F(
+	int cy0, int cy1, int cy2, int cy3, int cu, int cv,
+	u32 *rpx0, u32 *rpx1)
+{
+	u32 px0, px1, px2, px3;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+
+//	cu=cv;
+
+	cg0=cy0-((cu+cv)>>2); cb0=cg0+cu; cr0=cg0+cv;
+	cg1=cy1-((cu+cv)>>2); cb1=cg1+cu; cr1=cg1+cv;
+	cg2=cy2-((cu+cv)>>2); cb2=cg2+cu; cr2=cg2+cv;
+	cg3=cy3-((cu+cv)>>2); cb3=cg3+cu; cr3=cg3+cv;
+	
+	if((cr0|cr1|cr2|cr3)>>11)
+	{
+		cr0=lqtvq_clamp2047(cr0);
+		cr1=lqtvq_clamp2047(cr1);
+		cr2=lqtvq_clamp2047(cr2);
+		cr3=lqtvq_clamp2047(cr3);
+	}
+
+	if((cg0|cg1|cg2|cg3)>>11)
+	{
+		cg0=lqtvq_clamp2047(cg0);
+		cg1=lqtvq_clamp2047(cg1);
+		cg2=lqtvq_clamp2047(cg2);
+		cg3=lqtvq_clamp2047(cg3);
+	}
+
+	if((cb0|cb1|cb2|cb3)>>11)
+	{
+		cb0=lqtvq_clamp2047(cb0);
+		cb1=lqtvq_clamp2047(cb1);
+		cb2=lqtvq_clamp2047(cb2);
+		cb3=lqtvq_clamp2047(cb3);
+	}
+	
+	px0=((cb0>>1)<<22)|(cg0<<11)|cr0;
+	px1=((cb1>>1)<<22)|(cg1<<11)|cr1;
+	px2=((cb2>>1)<<22)|(cg2<<11)|cr2;
+	px3=((cb3>>1)<<22)|(cg3<<11)|cr3;
+	rpx0[0]=px0;	rpx0[1]=px1;
+	rpx1[0]=px2;	rpx1[1]=px3;
+}
+
+void BTIC4B_DecImageClrDec4B_RCT12F_11F(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	u32 *rpx0, u32 *rpx1)
+{
+	u32 px0, px1, px2, px3;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+
+	cg0=cy0-((cu0+cv0)>>2); cb0=cg0+cu0; cr0=cg0+cv0;
+	cg1=cy1-((cu0+cv0)>>2); cb1=cg1+cu0; cr1=cg1+cv0;
+	cg2=cy2-((cu1+cv1)>>2); cb2=cg2+cu1; cr2=cg2+cv1;
+	cg3=cy3-((cu1+cv1)>>2); cb3=cg3+cu1; cr3=cg3+cv1;
+	
+	if((cr0|cr1|cr2|cr3)>>11)
+	{
+		cr0=lqtvq_clamp2047(cr0);
+		cr1=lqtvq_clamp2047(cr1);
+		cr2=lqtvq_clamp2047(cr2);
+		cr3=lqtvq_clamp2047(cr3);
+	}
+
+	if((cg0|cg1|cg2|cg3)>>11)
+	{
+		cg0=lqtvq_clamp2047(cg0);
+		cg1=lqtvq_clamp2047(cg1);
+		cg2=lqtvq_clamp2047(cg2);
+		cg3=lqtvq_clamp2047(cg3);
+	}
+
+	if((cb0|cb1|cb2|cb3)>>11)
+	{
+		cb0=lqtvq_clamp2047(cb0);
+		cb1=lqtvq_clamp2047(cb1);
+		cb2=lqtvq_clamp2047(cb2);
+		cb3=lqtvq_clamp2047(cb3);
+	}
+
+	px0=((cb0>>1)<<22)|(cg0<<11)|cr0;
+	px1=((cb1>>1)<<22)|(cg1<<11)|cr1;
+	px2=((cb2>>1)<<22)|(cg2<<11)|cr2;
+	px3=((cb3>>1)<<22)|(cg3<<11)|cr3;
+	rpx0[0]=px0;	rpx0[1]=px1;
+	rpx1[0]=px2;	rpx1[1]=px3;
+}
+
+void BTIC4B_DecImageClrDec4C_RCT12F_11F(
+	int cy0, int cy1, int cy2, int cy3,
+	int cu0, int cv0, int cu1, int cv1,
+	int cu2, int cv2, int cu3, int cv3,
+	u32 *rpx0, u32 *rpx1)
+{
+	u32 px0, px1, px2, px3;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+
+	cg0=cy0-((cu0+cv0)>>2); cb0=cg0+cu0; cr0=cg0+cv0;
+	cg1=cy1-((cu1+cv1)>>2); cb1=cg1+cu1; cr1=cg1+cv1;
+	cg2=cy2-((cu2+cv2)>>2); cb2=cg2+cu2; cr2=cg2+cv2;
+	cg3=cy3-((cu3+cv3)>>2); cb3=cg3+cu3; cr3=cg3+cv3;
+	
+	if((cr0|cr1|cr2|cr3)>>11)
+	{
+		cr0=lqtvq_clamp2047(cr0);
+		cr1=lqtvq_clamp2047(cr1);
+		cr2=lqtvq_clamp2047(cr2);
+		cr3=lqtvq_clamp2047(cr3);
+	}
+
+	if((cg0|cg1|cg2|cg3)>>11)
+	{
+		cg0=lqtvq_clamp2047(cg0);
+		cg1=lqtvq_clamp2047(cg1);
+		cg2=lqtvq_clamp2047(cg2);
+		cg3=lqtvq_clamp2047(cg3);
+	}
+
+	if((cb0|cb1|cb2|cb3)>>11)
+	{
+		cb0=lqtvq_clamp2047(cb0);
+		cb1=lqtvq_clamp2047(cb1);
+		cb2=lqtvq_clamp2047(cb2);
+		cb3=lqtvq_clamp2047(cb3);
+	}
+
+	px0=((cb0>>1)<<22)|(cg0<<11)|cr0;
+	px1=((cb1>>1)<<22)|(cg1<<11)|cr1;
+	px2=((cb2>>1)<<22)|(cg2<<11)|cr2;
+	px3=((cb3>>1)<<22)|(cg3<<11)|cr3;
+	rpx0[0]=px0;	rpx0[1]=px1;
+	rpx1[0]=px2;	rpx1[1]=px3;
+}
+#endif
+
 void BTIC4B_DecImageSetupClrsI(BTIC4B_Context *ctx, int clrs)
 {
 	int sw;
@@ -2632,6 +3291,11 @@ void BTIC4B_DecImageSetupClrsI(BTIC4B_Context *ctx, int clrs)
 		ctx->DecBlockHalf=BTIC4B_DecBlockHalfBGRX;
 		sw=0;
 		break;
+	case BTIC4B_CLRS_RGB11F:
+		ctx->DecBlock=BTIC4B_DecBlockBGRX;
+		ctx->DecBlockHalf=BTIC4B_DecBlockHalfBGRX;
+		sw=2;
+		break;
 	}
 	
 //	ctx->DecBlock=DecBlock;
@@ -2641,6 +3305,9 @@ void BTIC4B_DecImageSetupClrsI(BTIC4B_Context *ctx, int clrs)
 	switch(ctx->clrt)
 	{
 	case BTIC4B_CLRT_GDBDR:
+		ctx->ClrDecPack1=BTIC4B_DecImageClrPack1_LDR8;
+		ctx->ClrDecPack1A=BTIC4B_DecImageClrPack1A_LDR8;
+		ctx->ClrDecPack4=BTIC4B_DecImageClrPack4_LDR8;
 		if(sw)
 		{
 			ctx->ClrDec1=BTIC4B_DecImageClr1_GDbDrSW;
@@ -2660,7 +3327,10 @@ void BTIC4B_DecImageSetupClrsI(BTIC4B_Context *ctx, int clrs)
 		}
 		break;
 	case BTIC4B_CLRT_RCT:
-		if(sw)
+		ctx->ClrDecPack1=BTIC4B_DecImageClrPack1_LDR8;
+		ctx->ClrDecPack1A=BTIC4B_DecImageClrPack1A_LDR8;
+		ctx->ClrDecPack4=BTIC4B_DecImageClrPack4_LDR8;
+		if(sw==1)
 		{
 			ctx->ClrDec1=BTIC4B_DecImageClr1_RCTSW;
 			ctx->ClrDec1A=BTIC4B_DecImageClr1A_RCTSW;
@@ -2668,7 +3338,7 @@ void BTIC4B_DecImageSetupClrsI(BTIC4B_Context *ctx, int clrs)
 			ctx->ClrDec4=BTIC4B_DecImageClrDec4_RCTSW;
 			ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_RCTSW;
 			ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_RCTSW;
-		}else
+		}else if(sw==0)
 		{
 			ctx->ClrDec1=BTIC4B_DecImageClr1_RCT;
 			ctx->ClrDec1A=BTIC4B_DecImageClr1A_RCT;
@@ -2676,9 +3346,49 @@ void BTIC4B_DecImageSetupClrsI(BTIC4B_Context *ctx, int clrs)
 			ctx->ClrDec4=BTIC4B_DecImageClrDec4_RCT;
 			ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_RCT;
 			ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_RCT;
+		}else if(sw==2)
+		{
+			if(ctx->imgt==BTIC4B_IMGT_HDR12)
+			{
+				ctx->ClrDecPack1=BTIC4B_DecImageClrPack1_12R11F;
+				ctx->ClrDecPack1A=BTIC4B_DecImageClrPack1A_12R11F;
+				ctx->ClrDecPack4=BTIC4B_DecImageClrPack4_12R11F;
+
+				ctx->ClrDec1=BTIC4B_DecImageClr1_RCT12F_11F;
+				ctx->ClrDec1A=BTIC4B_DecImageClr1A_RCT12F_11F;
+				ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_RCT12F_11F;
+				ctx->ClrDec4=BTIC4B_DecImageClrDec4_RCT12F_11F;
+				ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_RCT12F_11F;
+				ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_RCT12F_11F;
+			}else if((ctx->imgt==BTIC4B_IMGT_HDR16) ||
+				(ctx->imgt==BTIC4B_IMGT_HDR16A))
+			{
+				ctx->ClrDecPack1=BTIC4B_DecImageClrPack1_16R11F;
+				ctx->ClrDecPack1A=BTIC4B_DecImageClrPack1A_16R11F;
+				ctx->ClrDecPack4=BTIC4B_DecImageClrPack4_16R11F;
+
+				ctx->ClrDec1=BTIC4B_DecImageClr1_RCT16F_11F;
+				ctx->ClrDec1A=BTIC4B_DecImageClr1A_RCT16F_11F;
+				ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_RCT16F_11F;
+				ctx->ClrDec4=BTIC4B_DecImageClrDec4_RCT16F_11F;
+				ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_RCT16F_11F;
+				ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_RCT16F_11F;
+			}else
+			{
+				ctx->ClrDec1=BTIC4B_DecImageClr1_RCT_11FB;
+				ctx->ClrDec1A=BTIC4B_DecImageClr1A_RCT_11FB;
+				ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_RCT_11FB;
+				ctx->ClrDec4=BTIC4B_DecImageClrDec4_RCT_11FB;
+				ctx->ClrDec4B=BTIC4B_DecImageClrDec4B_RCT_11FB;
+				ctx->ClrDec4C=BTIC4B_DecImageClrDec4C_RCT_11FB;
+			}
 		}
 		break;
 	default:
+		ctx->ClrDecPack1=BTIC4B_DecImageClrPack1_LDR8;
+		ctx->ClrDecPack1A=BTIC4B_DecImageClrPack1A_LDR8;
+		ctx->ClrDecPack4=BTIC4B_DecImageClrPack4_LDR8;
+
 		ctx->ClrDec1=BTIC4B_DecImageClr1_RCT;
 		ctx->ClrDec1A=BTIC4B_DecImageClr1A_RCT;
 		ctx->ClrDec2T=BTIC4B_DecImageClrDec2T_RCT;
@@ -2740,6 +3450,18 @@ void BTIC4B_ConvImageBC7n(BTIC4B_Context *ctx,
 void BTIC4B_ConvImageBC7nMip(BTIC4B_Context *ctx,
 	byte *iblock, int iblkstr,
 	byte *oblock, int xs, int ys);
+void BTIC4B_ConvImageBC1n(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
+void BTIC4B_ConvImageBC1nMip(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
+void BTIC4B_ConvImageBC3n(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
+void BTIC4B_ConvImageBC3nMip(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
 
 void BTIC4B_DecImageClrs(BTIC4B_Context *ctx,
 	byte *blks, byte *ibuf,
@@ -2751,11 +3473,28 @@ void BTIC4B_DecImageClrs(BTIC4B_Context *ctx,
 	case BTIC4B_CLRS_RGBX:	case BTIC4B_CLRS_BGRX:
 		BTIC4B_DecImageClrsI(ctx, blks, ibuf, xs, ys, clrs);
 		break;
+	case BTIC4B_CLRS_RGB11F:
+		BTIC4B_DecImageClrsI(ctx, blks, ibuf, xs, ys, clrs);
+		break;
+
 	case BTIC4B_CLRS_BC7:
 		BTIC4B_ConvImageBC7n(ctx, blks, ctx->blksz, ibuf, xs, ys);
 		break;
 	case BTIC4B_CLRS_BC7MIP:
 		BTIC4B_ConvImageBC7nMip(ctx, blks, ctx->blksz, ibuf, xs, ys);
+		break;
+
+	case BTIC4B_CLRS_BC1:
+		BTIC4B_ConvImageBC1n(ctx, blks, ctx->blksz, ibuf, xs, ys);
+		break;
+	case BTIC4B_CLRS_BC1MIP:
+		BTIC4B_ConvImageBC1nMip(ctx, blks, ctx->blksz, ibuf, xs, ys);
+		break;
+	case BTIC4B_CLRS_BC3:
+		BTIC4B_ConvImageBC3n(ctx, blks, ctx->blksz, ibuf, xs, ys);
+		break;
+	case BTIC4B_CLRS_BC3MIP:
+		BTIC4B_ConvImageBC3nMip(ctx, blks, ctx->blksz, ibuf, xs, ys);
 		break;
 	}
 }

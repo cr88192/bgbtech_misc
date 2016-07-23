@@ -4,13 +4,28 @@
  * Conversion Speed will be the priority.
  */
 
+#define BTIC4B_ENABLE_S3TC
+
 u32 btic4b_s2tc_2x2to4x4[256];
 byte btic4b_s2tc_4x1to4x1a[256];
 byte btic4b_s2tc_4x1to4x1b[256];
+byte btic4b_s2tc_4x1to4x1c[256];
 byte btic4b_s2tc_4x1x1to4x1[16];
 byte btic4b_s2tc_4x1x3to4x1a[4096];
 byte btic4b_s2tc_4x1x3to4x1b[4096];
 u16 btic4b_s2tc_4x1x3to4x1x3[4096];
+u16 btic4b_s2tc_4x1x2to4x1x3[256];
+byte btic4b_s2tc_2x1x4to2x1[256];
+
+#ifdef BTIC4B_ENABLE_S3TC
+static byte btic4b_s2tc_idxmap2[4]={0, 2, 3, 1};
+static byte btic4b_s2tc_idxmap2b[4]={0, 0, 1, 1};
+static byte btic4b_s2tc_idxmap2to3[4]={0, 3, 6, 1};
+static byte btic4b_s2tc_idxmap3[8]= {0, 2, 3, 4, 5, 6, 7, 1};
+static byte btic4b_s2tc_idxmap3to2[8]= {0, 0, 2, 2, 3, 3, 1, 1};
+static byte btic4b_s2tc_idxmap3to2a[8]={0, 2, 2, 3, 3, 1, 1, 1};
+static byte btic4b_s2tc_idxmap3to2b[8]={0, 0, 0, 2, 2, 3, 3, 1};
+#endif
 
 void BTIC4B_ConvBlockS2TC_Init()
 {
@@ -25,11 +40,20 @@ void BTIC4B_ConvBlockS2TC_Init()
 	
 	for(i=0; i<256; i++)
 	{
-		p0=(i>>6)&3;	p1=(i>>4)&3;
-		p2=(i>>2)&3;	p3=(i>>0)&3;
-//		p0=(p0>=2);		p1=(p1>=2);
-//		p2=(p2>=2);		p3=(p3>=2);
+		p3=(i>>6)&3;	p2=(i>>4)&3;
+		p1=(i>>2)&3;	p0=(i>>0)&3;
 
+#ifdef BTIC4B_ENABLE_S3TC
+		q0=btic4b_s2tc_idxmap2[p0];		q1=btic4b_s2tc_idxmap2[p0];
+		q2=btic4b_s2tc_idxmap2[p1];		q3=btic4b_s2tc_idxmap2[p1];
+		r0=q0|(q1<<2)|(q2<<4)|(q3<<6);
+		r1=q1|(q0<<2)|(q3<<4)|(q2<<6);
+
+		q0=btic4b_s2tc_idxmap2[p2];		q1=btic4b_s2tc_idxmap2[p2];
+		q2=btic4b_s2tc_idxmap2[p3];		q3=btic4b_s2tc_idxmap2[p3];
+		r2=q0|(q1<<2)|(q2<<4)|(q3<<6);
+		r3=q1|(q0<<2)|(q3<<4)|(q2<<6);
+#else
 		q0=(p0>2);		q1=(p0>1);
 		q2=(p1>2);		q3=(p1>1);
 		r0=q0|(q1<<2)|(q2<<4)|(q3<<6);
@@ -39,6 +63,7 @@ void BTIC4B_ConvBlockS2TC_Init()
 		q2=(p3>2);		q3=(p3>1);
 		r2=q0|(q1<<2)|(q2<<4)|(q3<<6);
 		r3=q1|(q0<<2)|(q3<<4)|(q2<<6);
+#endif
 
 		j=r0|(r1<<8)|(r2<<16)|(r3<<24);
 		btic4b_s2tc_2x2to4x4[i]=j;
@@ -46,9 +71,21 @@ void BTIC4B_ConvBlockS2TC_Init()
 
 	for(i=0; i<256; i++)
 	{
-		p0=(i>>6)&3;	p1=(i>>4)&3;
-		p2=(i>>2)&3;	p3=(i>>0)&3;
+		p3=(i>>6)&3;	p2=(i>>4)&3;
+		p1=(i>>2)&3;	p0=(i>>0)&3;
 
+#ifdef BTIC4B_ENABLE_S3TC
+		q0=btic4b_s2tc_idxmap2[p0];		q1=btic4b_s2tc_idxmap2[p1];
+		q2=btic4b_s2tc_idxmap2[p2];		q3=btic4b_s2tc_idxmap2[p3];
+		r0=q0|(q1<<2)|(q2<<4)|(q3<<6);
+		btic4b_s2tc_4x1to4x1a[i]=r0;
+		btic4b_s2tc_4x1to4x1b[i]=r0;
+
+		q0=btic4b_s2tc_idxmap2b[p0];	q1=btic4b_s2tc_idxmap2b[p1];
+		q2=btic4b_s2tc_idxmap2b[p2];	q3=btic4b_s2tc_idxmap2b[p3];
+		r0=q0|(q1<<2)|(q2<<4)|(q3<<6);
+		btic4b_s2tc_4x1to4x1c[i]=r0;
+#else
 		q0=(p0>2);		q1=(p1>1);
 		q2=(p2>2);		q3=(p3>1);
 		r0=q0|(q1<<2)|(q2<<4)|(q3<<6);
@@ -56,24 +93,41 @@ void BTIC4B_ConvBlockS2TC_Init()
 		q0=(p0>1);		q1=(p1>2);
 		q2=(p2>1);		q3=(p3>2);
 		r1=q0|(q1<<2)|(q2<<4)|(q3<<6);
+		
+		r2=r0;
 
 		btic4b_s2tc_4x1to4x1a[i]=r0;
 		btic4b_s2tc_4x1to4x1b[i]=r1;
+		btic4b_s2tc_4x1to4x1c[i]=r2;
+#endif
 	}
 
 	for(i=0; i<16; i++)
 	{
-		p0=(i>>3)&1;	p1=(i>>2)&1;
-		p2=(i>>1)&1;	p3=(i   )&1;
+		p3=(i>>3)&1;	p2=(i>>2)&1;
+		p1=(i>>1)&1;	p0=(i   )&1;
+
 		q0=p0|(p1<<2)|(p2<<4)|(p3<<6);
 		btic4b_s2tc_4x1x1to4x1[i]=q0;
 	}
 
 	for(i=0; i<4096; i++)
 	{
-		p0=(i>>9)&7;	p1=(i>>6)&7;
-		p2=(i>>3)&7;	p3=(i>>0)&7;
+		p3=(i>>9)&7;	p2=(i>>6)&7;
+		p1=(i>>3)&7;	p0=(i>>0)&7;
 
+#ifdef BTIC4B_ENABLE_S3TC
+		q0=btic4b_s2tc_idxmap3to2b[p0];	q1=btic4b_s2tc_idxmap3to2a[p1];
+		q2=btic4b_s2tc_idxmap3to2b[p2];	q3=btic4b_s2tc_idxmap3to2a[p3];
+		r0=q0|(q1<<2)|(q2<<4)|(q3<<6);
+
+		q0=btic4b_s2tc_idxmap3to2a[p0];	q1=btic4b_s2tc_idxmap3to2b[p1];
+		q2=btic4b_s2tc_idxmap3to2a[p2];	q3=btic4b_s2tc_idxmap3to2b[p3];
+		r1=q0|(q1<<2)|(q2<<4)|(q3<<6);
+
+		btic4b_s2tc_4x1x3to4x1a[i]=r0;
+		btic4b_s2tc_4x1x3to4x1b[i]=r1;
+#else
 		q0=(p0>6);		q1=(p1>2);
 		q2=(p2>6);		q3=(p3>2);
 		r0=q0|(q1<<2)|(q2<<4)|(q3<<6);
@@ -84,17 +138,53 @@ void BTIC4B_ConvBlockS2TC_Init()
 
 		btic4b_s2tc_4x1x3to4x1a[i]=r0;
 		btic4b_s2tc_4x1x3to4x1b[i]=r1;
+#endif
 	}
 
 	for(i=0; i<4096; i++)
 	{
-		p0=(i>>9)&7;	p1=(i>>6)&7;
-		p2=(i>>3)&7;	p3=(i>>0)&7;
+		p3=(i>>9)&7;	p2=(i>>6)&7;
+		p1=(i>>3)&7;	p0=(i>>0)&7;
+
+#ifdef BTIC4B_ENABLE_S3TC
+		p0=btic4b_s2tc_idxmap3[p0];	p1=btic4b_s2tc_idxmap3[p1];
+		p2=btic4b_s2tc_idxmap3[p2];	p3=btic4b_s2tc_idxmap3[p3];
+		q0=p0|(p1<<3)|(p2<<6)|(p3<<9);
+		btic4b_s2tc_4x1x3to4x1x3[i]=q0;
+#else
 		p0=(p0>=4);		p1=(p1>=4);
 		p2=(p2>=4);		p3=(p3>=4);
 		q0=p0|(p1<<3)|(p2<<6)|(p3<<9);
 		btic4b_s2tc_4x1x3to4x1x3[i]=q0;
+#endif
 	}
+
+	for(i=0; i<256; i++)
+	{
+		p3=(i>>6)&3;	p2=(i>>4)&3;
+		p1=(i>>2)&3;	p0=(i>>0)&3;
+
+#ifdef BTIC4B_ENABLE_S3TC
+		p0=btic4b_s2tc_idxmap2to3[p0];	p1=btic4b_s2tc_idxmap2to3[p1];
+		p2=btic4b_s2tc_idxmap2to3[p2];	p3=btic4b_s2tc_idxmap2to3[p3];
+		q0=p0|(p1<<3)|(p2<<6)|(p3<<9);
+		btic4b_s2tc_4x1x2to4x1x3[i]=q0;
+#else
+		p0=(p0>=2);		p1=(p1>=2);
+		p2=(p2>=2);		p3=(p3>=2);
+		q0=p0|(p1<<3)|(p2<<6)|(p3<<9);
+		btic4b_s2tc_4x1x2to4x1x3[i]=q0;
+#endif
+	}
+	
+	for(i=0; i<256; i++)
+	{
+		p1=(i>>4)&15;	p0=(i>>0)&15;
+		p0=(p0>=8);		p1=(p1>=8);
+		q0=p0|(p1<<2);
+		btic4b_s2tc_2x1x4to2x1[i]=q0;
+	}
+
 }
 
 void BTIC4B_S2TC_DecodeBlockRGBA(byte *block,
@@ -123,8 +213,35 @@ void BTIC4B_S2TC_DecodeBlockRGBA(byte *block,
 	clr[4]=crb;	clr[5]=cgb;
 	clr[6]=cbb;	clr[7]=255;
 
+#ifdef BTIC4B_ENABLE_S3TC
+	if(cxa>cxb)
+	{
+		clr[ 8]=(cra*11+crb*5)>>4;
+		clr[ 9]=(cga*11+cgb*5)>>4;
+		clr[10]=(cba*11+cbb*5)>>4;
+		clr[11]=255;
+		clr[12]=(cra*5+crb*11)>>4;
+		clr[13]=(cga*5+cgb*11)>>4;
+		clr[14]=(cba*5+cbb*11)>>4;
+		clr[15]=255;
+	}else
+	{
+		clr[ 8]=(cra+crb)>>1;
+		clr[ 9]=(cga+cgb)>>1;
+		clr[10]=(cba+cbb)>>1;
+		clr[11]=255;
+		clr[12]=0;
+		clr[13]=0;
+		clr[14]=0;
+		clr[15]=0;
+	}
+#else
 	clri[2]=(clri[0]+clri[1])>>1;
 	clri[3]=0;
+#endif
+
+//	clri[2]=(clri[0]+clri[1])>>1;
+//	clri[3]=0;
 	
 	if(xstride==4)
 	{
@@ -183,6 +300,13 @@ void BTIC4B_S2TC_DecodeImage(byte *block, int blkstride,
 	int xs1, ys1, xs2, ys2;
 	int i, j;
 	
+	if(pfb==3)
+	{
+		BTIC4B_S2TC_DecodeImage(block+8, blkstride,
+			rgba, xs, ys, stride, 0);
+		return;
+	}
+	
 	xstr=stride; ystr=xs*stride; rgba1=rgba;
 	if(ys<0)
 	{
@@ -213,9 +337,9 @@ force_inline u16 btic4b_s2tc_packrgb(int cr, int cg, int cb)
 
 	if((cr|cg|cb)>>8)
 	{
-		cr=clamp255(cr);
-		cg=clamp255(cg);
-		cb=clamp255(cb);
+		cr=lqtvq_clamp255(cr);
+		cg=lqtvq_clamp255(cg);
+		cb=lqtvq_clamp255(cb);
 	}
 	
 	i=  ((cr<<8)&0xF800) |
@@ -224,6 +348,7 @@ force_inline u16 btic4b_s2tc_packrgb(int cr, int cg, int cb)
 	return(i);
 }
 
+#if 0
 void BTIC4B_ConvBlockAlphaS2TC(byte *iblock,
 	byte *oblock, int flip)
 {
@@ -278,9 +403,10 @@ void BTIC4B_ConvBlockAlphaS2TC(byte *iblock,
 		return;
 	}
 }
+#endif
 
 void BTIC4B_S2TC_EncodeBlockI(byte *block,
-	byte *pxy,
+	s16 *pxy,
 	int *min, int *max,
 	int mcy, int ncy)
 {
@@ -290,37 +416,14 @@ void BTIC4B_S2TC_EncodeBlockI(byte *block,
 	int acy, acya, acyb;
 	int pxa, pxb;
 	
-#if 0
-	avg[0]=(min[0]+max[0])>>1;
-	avg[1]=(min[1]+max[1])>>1;
-	avg[2]=(min[2]+max[2])>>1;
-	min2[0]=(min[0]+avg[0])>>1;
-	min2[1]=(min[1]+avg[1])>>1;
-	min2[2]=(min[2]+avg[2])>>1;
-	max2[0]=(max[0]+avg[0])>>1;
-	max2[1]=(max[1]+avg[1])>>1;
-	max2[2]=(max[2]+avg[2])>>1;
-#endif
-
 	acy=(mcy+ncy)>>1;
 //	acya=(acy+mcy)>>1;
 //	acyb=(acy+ncy)>>1;
 	acya=(3*acy+mcy)>>2;
 	acyb=(3*acy+ncy)>>2;
 
-//	pxa=btic4b_s2tc_packrgb(min2[0], min2[1], min2[2]);
-//	pxb=btic4b_s2tc_packrgb(max2[0], max2[1], max2[2]);
-
 	pxa=btic4b_s2tc_packrgb(min[0], min[1], min[2]);
 	pxb=btic4b_s2tc_packrgb(max[0], max[1], max[2]);
-
-//	pxa=((min2[0]<<8)&0xF800)|
-//		((min2[1]<<3)&0x07E0)|
-//		((min2[2]>>3)&0x001F);
-//	pxb=((max2[0]<<8)&0xF800)|
-//		((max2[1]<<3)&0x07E0)|
-//		((max2[2]>>3)&0x001F);
-
 	block[0]=pxa;	block[1]=pxa>>8;
 	block[2]=pxb;	block[3]=pxb>>8;
 
@@ -337,7 +440,8 @@ void BTIC4B_S2TC_EncodeBlockI(byte *block,
 	p2=((pxy[14]-acyb)>>31)&1;	p3=((pxy[15]-acya)>>31)&1;
 	block[7]=(p0|(p1<<2)|(p2<<4)|(p3<<6))^0x55;
 
-	if(pxa>pxb)
+//	if(pxa>pxb)
+	if(pxa<pxb)
 	{
 		block[0]=pxb;		block[1]=pxb>>8;
 		block[2]=pxa;		block[3]=pxa>>8;
@@ -346,6 +450,419 @@ void BTIC4B_S2TC_EncodeBlockI(byte *block,
 	}
 }
 
+
+void BTIC4B_S2TC_EncodeBlockAlphaI(byte *block,
+	s16 *pxy, int mcy, int ncy)
+{
+	int min2[4], max2[4];
+	int avg[4];
+	int p0, p1, p2, p3;
+	int q0, q1, q2, q3;
+	int acy, acya, acyb;
+	int pxa, pxb;
+	
+	acy=(mcy+ncy)>>1;
+	acya=(3*acy+mcy)>>2;
+	acyb=(3*acy+ncy)>>2;
+
+	block[0]=mcy;
+	block[1]=ncy;
+
+	p0=((pxy[ 0]-acya)>>31)&1;	p1=((pxy[ 1]-acyb)>>31)&1;
+	p2=((pxy[ 2]-acya)>>31)&1;	p3=((pxy[ 3]-acyb)>>31)&1;
+	q0=(p0|(p1<<2)|(p2<<4)|(p3<<6))^0x55;
+	p0=((pxy[ 4]-acyb)>>31)&1;	p1=((pxy[ 5]-acya)>>31)&1;
+	p2=((pxy[ 6]-acyb)>>31)&1;	p3=((pxy[ 7]-acya)>>31)&1;
+	q1=(p0|(p1<<2)|(p2<<4)|(p3<<6))^0x55;
+	p0=((pxy[ 8]-acya)>>31)&1;	p1=((pxy[ 9]-acyb)>>31)&1;
+	p2=((pxy[10]-acya)>>31)&1;	p3=((pxy[11]-acyb)>>31)&1;
+	q2=(p0|(p1<<2)|(p2<<4)|(p3<<6))^0x55;
+	p0=((pxy[12]-acyb)>>31)&1;	p1=((pxy[13]-acya)>>31)&1;
+	p2=((pxy[14]-acyb)>>31)&1;	p3=((pxy[15]-acya)>>31)&1;
+	q3=(p0|(p1<<2)|(p2<<4)|(p3<<6))^0x55;
+
+	q0=btic4b_s2tc_4x1x2to4x1x3[q0];
+	q1=btic4b_s2tc_4x1x2to4x1x3[q1];
+	q2=btic4b_s2tc_4x1x2to4x1x3[q2];
+	q3=btic4b_s2tc_4x1x2to4x1x3[q3];
+
+	btic4b_setu16le(block+ 2, q0|(q1<<12));
+	btic4b_setu32le(block+ 4, (q1>>4)|(q2<<8)|(q3<<20));
+}
+
+
+void BTIC4B_BC1_EncodeBlock(byte *block,
+	s16 *pxy, s16 *pxa,
+	int *min, int *max,
+	int mcy, int ncy,
+	int mca, int nca)
+{
+	BTIC4B_S2TC_EncodeBlockI(block, pxy, min, max, mcy, ncy);
+}
+
+void BTIC4B_BC3_EncodeBlock(byte *block,
+	s16 *pxy, s16 *pxa,
+	int *min, int *max,
+	int mcy, int ncy,
+	int mca, int nca)
+{
+	BTIC4B_S2TC_EncodeBlockAlphaI(block, pxa, mca, nca);
+	BTIC4B_S2TC_EncodeBlockI(block+8, pxy, min, max, mcy, ncy);
+}
+
+void BTIC4B_S2TC_EncodeBlockBits32(byte *block,
+	u32 pxy, int *min, int *max)
+{
+	int p0, p1, p2, p3;
+	int pa, pb, px;
+	pa=btic4b_s2tc_packrgb(min[0], min[1], min[2]);
+	pb=btic4b_s2tc_packrgb(max[0], max[1], max[2]);
+
+	p0=btic4b_s2tc_4x1to4x1a[(pxy    )&0xFF];
+	p1=btic4b_s2tc_4x1to4x1b[(pxy>> 8)&0xFF];
+	p2=btic4b_s2tc_4x1to4x1a[(pxy>>16)&0xFF];
+	p3=btic4b_s2tc_4x1to4x1b[(pxy>>24)&0xFF];
+	px=p0|(p1<<8)|(p2<<16)|(p3<<24);
+
+//	if(pa>pb)
+	if(pa<pb)
+	{
+		btic4b_setu16le(block+0, pb);
+		btic4b_setu16le(block+2, pa);
+		btic4b_setu32le(block+4, px^0x55555555);
+//		btic4b_setu32le(block+4, px);
+	}else
+	{
+		btic4b_setu16le(block+0, pa);
+		btic4b_setu16le(block+2, pb);
+		btic4b_setu32le(block+4, px);
+//		btic4b_setu32le(block+4, px^0x55555555);
+	}
+}
+
+void BTIC4B_S2TC_EncodeBlockBits32T(byte *block,
+	u32 pxy, u32 pxa, int *min, int *max)
+{
+	int p0, p1, p2, p3;
+	int pa, pb, px, pxm;
+	pa=btic4b_s2tc_packrgb(min[0], min[1], min[2]);
+	pb=btic4b_s2tc_packrgb(max[0], max[1], max[2]);
+
+	if(min[3]>=128)
+	{
+		BTIC4B_S2TC_EncodeBlockBits32(block, pxy, min, max);
+		return;
+	}
+
+	px=(pxa|(pxa>>1))&0x55555555;
+	px=px|(px<<1);
+	pxm=~px;
+
+	p0=btic4b_s2tc_4x1to4x1c[(pxy    )&0xFF];
+	p1=btic4b_s2tc_4x1to4x1c[(pxy>> 8)&0xFF];
+	p2=btic4b_s2tc_4x1to4x1c[(pxy>>16)&0xFF];
+	p3=btic4b_s2tc_4x1to4x1c[(pxy>>24)&0xFF];
+	px=p0|(p1<<8)|(p2<<16)|(p3<<24);
+	
+	px|=pxm;
+
+//	if(pa>pb)
+	if(pa<pb)
+	{
+		btic4b_setu16le(block+0, pb);
+		btic4b_setu16le(block+2, pa);
+		btic4b_setu32le(block+4, px^0x55555555);
+//		btic4b_setu32le(block+4, px);
+	}else
+	{
+		btic4b_setu16le(block+0, pa);
+		btic4b_setu16le(block+2, pb);
+		btic4b_setu32le(block+4, px);
+//		btic4b_setu32le(block+4, px^0x55555555);
+	}
+}
+
+void BTIC4B_BC1_EncodeBlockBits32(byte *block,
+	u32 pxy, u32 pxa, int *min, int *max)
+{
+	BTIC4B_S2TC_EncodeBlockBits32T(block, pxy, pxa, min, max);
+}
+
+void BTIC4B_BC3_EncodeBlockBits32(byte *block,
+	u32 pxy, u32 pxa, int *min, int *max)
+{
+	int p0, p1, p2, p3;
+	int pa;
+	
+	if((max[3]-min[3])>=8)
+	{
+		p0=btic4b_s2tc_4x1x2to4x1x3[(pxa    )&0xFF];
+		p1=btic4b_s2tc_4x1x2to4x1x3[(pxa>> 8)&0xFF];
+		p2=btic4b_s2tc_4x1x2to4x1x3[(pxa>>16)&0xFF];
+		p3=btic4b_s2tc_4x1x2to4x1x3[(pxa>>24)&0xFF];
+		pa=min[3]|(max[3]<<8);
+		btic4b_setu16le(block+ 0, pa);
+		btic4b_setu16le(block+ 2, p0|(p1<<12));
+		btic4b_setu32le(block+ 4, (p1>>4)|(p2<<8)|(p3<<20));
+	}else
+	{
+		pxa=max[3]|(max[3]<<8);
+		btic4b_setu32le(block+ 0, pxa);
+		btic4b_setu32le(block+ 4, 0);
+	}
+
+	BTIC4B_S2TC_EncodeBlockBits32(block+8, pxy, min, max);
+}
+
+void BTIC4B_BC1_EncodeBlockBits48(byte *block,
+	u64 pxy, u64 pxa, int *min, int *max)
+{
+	u32 px, pxa2;
+	int p0, p1, p2, p3;
+
+	if(min[3]<128)
+	{
+		p0=btic4b_bc7_4x1x3to4x1x2a[(pxy    )&0xFFF];
+		p1=btic4b_bc7_4x1x3to4x1x2b[(pxy>>12)&0xFFF];
+		p2=btic4b_bc7_4x1x3to4x1x2a[(pxy>>24)&0xFFF];
+		p3=btic4b_bc7_4x1x3to4x1x2b[(pxy>>36)&0xFFF];
+		px=p0|(p1<<8)|(p2<<16)|(p3<<24);
+
+		p0=btic4b_bc7_4x1x3to4x1x2a[(pxa    )&0xFFF];
+		p1=btic4b_bc7_4x1x3to4x1x2b[(pxa>>12)&0xFFF];
+		p2=btic4b_bc7_4x1x3to4x1x2a[(pxa>>24)&0xFFF];
+		p3=btic4b_bc7_4x1x3to4x1x2b[(pxa>>36)&0xFFF];
+		pxa2=p0|(p1<<8)|(p2<<16)|(p3<<24);
+
+		BTIC4B_S2TC_EncodeBlockBits32T(block, px, pxa2, min, max);
+	}else
+	{
+		p0=btic4b_s2tc_4x1x3to4x1a[(pxy    )&0xFFF];
+		p1=btic4b_s2tc_4x1x3to4x1b[(pxy>>12)&0xFFF];
+		p2=btic4b_s2tc_4x1x3to4x1a[(pxy>>24)&0xFFF];
+		p3=btic4b_s2tc_4x1x3to4x1b[(pxy>>36)&0xFFF];
+		px=p0|(p1<<8)|(p2<<16)|(p3<<24);
+		BTIC4B_S2TC_EncodeBlockBits32(block, px, min, max);
+	}
+}
+
+void BTIC4B_BC3_EncodeBlockBits48(byte *block,
+	u64 pxy, u64 pxa, int *min, int *max)
+{
+	u32 px;
+	int p0, p1, p2, p3;
+	int pa;
+	
+	if((max[3]-min[3])>=8)
+	{
+		p0=btic4b_s2tc_4x1x3to4x1x3[(pxa    )&0xFFF];
+		p1=btic4b_s2tc_4x1x3to4x1x3[(pxa>>12)&0xFFF];
+		p2=btic4b_s2tc_4x1x3to4x1x3[(pxa>>24)&0xFFF];
+		p3=btic4b_s2tc_4x1x3to4x1x3[(pxa>>36)&0xFFF];
+		pa=min[3]|(max[3]<<8);
+		btic4b_setu16le(block+ 0, pa);
+		btic4b_setu16le(block+ 0, p0|(p1<<12));
+		btic4b_setu32le(block+ 4, (p1>>4)|(p2<<8)|(p3<<20));
+	}else
+	{
+		pxa=max[3]|(max[3]<<8);
+		btic4b_setu32le(block+ 0, pxa);
+		btic4b_setu32le(block+ 4, 0);
+	}
+
+//	BTIC4B_BC1_EncodeBlockBits48(block+8, pxy, 0, min, max);
+	p0=btic4b_s2tc_4x1x3to4x1a[(pxy    )&0xFFF];
+	p1=btic4b_s2tc_4x1x3to4x1b[(pxy>>12)&0xFFF];
+	p2=btic4b_s2tc_4x1x3to4x1a[(pxy>>24)&0xFFF];
+	p3=btic4b_s2tc_4x1x3to4x1b[(pxy>>36)&0xFFF];
+	px=p0|(p1<<8)|(p2<<16)|(p3<<24);
+	BTIC4B_S2TC_EncodeBlockBits32(block, px, min, max);
+}
+
+void BTIC4B_BC1_EncodeBlockBits64(byte *block,
+	u64 pxy, int *min, int *max)
+{
+	u32 px;
+	int p0, p1, p2, p3;
+	int p4, p5, p6, p7;
+
+	p0=btic4b_s2tc_2x1x4to2x1[(pxy    )&0xFF];
+	p1=btic4b_s2tc_2x1x4to2x1[(pxy>> 8)&0xFF];
+	p2=btic4b_s2tc_2x1x4to2x1[(pxy>>16)&0xFF];
+	p3=btic4b_s2tc_2x1x4to2x1[(pxy>>24)&0xFF];
+	p4=btic4b_s2tc_2x1x4to2x1[(pxy>>32)&0xFF];
+	p5=btic4b_s2tc_2x1x4to2x1[(pxy>>40)&0xFF];
+	p6=btic4b_s2tc_2x1x4to2x1[(pxy>>48)&0xFF];
+	p7=btic4b_s2tc_2x1x4to2x1[(pxy>>56)&0xFF];
+	px=	(p0    )|(p1<< 4)|(p2<< 8)|(p3<<12)|
+		(p4<<16)|(p5<<20)|(p6<<24)|(p7<<28);
+	BTIC4B_S2TC_EncodeBlockBits32(block, px, min, max);
+}
+
+void BTIC4B_BC3_EncodeBlockBits64(byte *block,
+	u64 pxy, int *min, int *max)
+{
+	int pxa;
+	pxa=max[3]|(max[3]<<8);
+	btic4b_setu32le(block+ 0, pxa);
+	btic4b_setu32le(block+ 4, 0);
+	BTIC4B_BC1_EncodeBlockBits64(block+8, pxy, min, max);
+}
+
+void BTIC4B_BC1_EncodeBlockFlat(byte *block, int *avg)
+{
+	u32 px;
+	int pxa;
+	
+	px=0x00000000;
+	if(avg[3]<128)
+		{ px=0xFFFFFFFF; }
+
+	pxa=btic4b_s2tc_packrgb(avg[0], avg[1], avg[2]);
+	btic4b_setu16le(block+0, pxa);
+	btic4b_setu16le(block+2, pxa);
+	btic4b_setu32le(block+4, px);
+}
+
+void BTIC4B_BC3_EncodeBlockFlat(byte *block, int *avg)
+{
+	int pxa;
+	pxa=avg[3]|(avg[3]<<8);
+	btic4b_setu32le(block+ 0, pxa);
+	btic4b_setu32le(block+ 4, 0);
+	pxa=btic4b_s2tc_packrgb(avg[0], avg[1], avg[2]);
+	btic4b_setu16le(block+ 8, pxa);
+	btic4b_setu16le(block+10, pxa);
+	btic4b_setu32le(block+12, 0);
+}
+
+void BTIC4B_ConvImageBC1n(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys)
+{
+	BTIC4B_ConvBlockS2TC_Init();
+
+	ctx->BCnEncodeBlockGen=BTIC4B_BC1_EncodeBlock;
+	ctx->BCnEncodeBlockBits32=BTIC4B_BC1_EncodeBlockBits32;
+	ctx->BCnEncodeBlockBits48=BTIC4B_BC1_EncodeBlockBits48;
+	ctx->BCnEncodeBlockBits64=BTIC4B_BC1_EncodeBlockBits64;
+	ctx->BCnEncodeBlockFlat=BTIC4B_BC1_EncodeBlockFlat;
+
+	BTIC4B_ConvImageBC7_AI(ctx,
+		iblock, iblkstr, oblock, 8, xs, ys);
+}
+
+void BTIC4B_ConvImageBC1nMip(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys)
+{
+//	byte *pblk;
+	byte *ct;
+	int xs1, ys1, xs2, ys2;
+	
+	BTIC4B_ConvBlockS2TC_Init();
+
+	ctx->BCnEncodeBlockGen=BTIC4B_BC1_EncodeBlock;
+	ctx->BCnEncodeBlockBits32=BTIC4B_BC1_EncodeBlockBits32;
+	ctx->BCnEncodeBlockBits48=BTIC4B_BC1_EncodeBlockBits48;
+	ctx->BCnEncodeBlockBits64=BTIC4B_BC1_EncodeBlockBits64;
+	ctx->BCnEncodeBlockFlat=BTIC4B_BC1_EncodeBlockFlat;
+
+	ct=oblock; xs1=xs; ys1=ys;
+	BTIC4B_ConvImageBC7_AI(ctx,
+		iblock, iblkstr, ct, 8, xs1, ys1);
+	ct+=((xs1+3)>>2)*((ys1+3)>>2)*8;
+	xs1=(xs1+1)>>1;		ys1=(ys1+1)>>1;
+	if(!ctx->pblk)
+		ctx->pblk=malloc(xs1*ys1*16);
+
+	BTIC4B_ConvImageBC7_BI(ctx,
+		iblock, iblkstr, ct, 8, ctx->pblk, xs1, ys1);
+	ct+=((xs1+3)>>2)*((ys1+3)>>2)*8;
+	xs1=(xs1+1)>>1;		ys1=(ys1+1)>>1;
+	
+	while((xs1>=4) && (ys1>=4))
+	{
+		BTIC4B_ConvImageBC7_CI(ctx,
+			ctx->pblk, ct, 8, ctx->pblk, xs1, ys1);
+		ct+=((xs1+3)>>2)*((ys1+3)>>2)*8;
+		xs1=(xs1+1)>>1;		ys1=(ys1+1)>>1;
+	}
+
+	xs2=xs1; ys2=ys1;
+	while((xs2>1) || (ys2>1))
+	{
+		BTIC4B_ConvImageBC7_CI(ctx,
+			ctx->pblk, ct, 8, ctx->pblk, xs1, ys1);
+		ct+=((xs2+3)>>2)*((ys2+3)>>2)*8;
+		xs2=(xs2+1)>>1;		ys2=(ys2+1)>>1;
+	}
+}
+
+void BTIC4B_ConvImageBC3n(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys)
+{
+	BTIC4B_ConvBlockS2TC_Init();
+
+	ctx->BCnEncodeBlockGen=BTIC4B_BC3_EncodeBlock;
+	ctx->BCnEncodeBlockBits32=BTIC4B_BC3_EncodeBlockBits32;
+	ctx->BCnEncodeBlockBits48=BTIC4B_BC3_EncodeBlockBits48;
+	ctx->BCnEncodeBlockBits64=BTIC4B_BC3_EncodeBlockBits64;
+	ctx->BCnEncodeBlockFlat=BTIC4B_BC3_EncodeBlockFlat;
+
+	BTIC4B_ConvImageBC7_AI(ctx,
+		iblock, iblkstr, oblock, 16, xs, ys);
+}
+
+void BTIC4B_ConvImageBC3nMip(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys)
+{
+//	byte *pblk;
+	byte *ct;
+	int xs1, ys1, xs2, ys2;
+	
+	BTIC4B_ConvBlockS2TC_Init();
+
+	ctx->BCnEncodeBlockGen=BTIC4B_BC3_EncodeBlock;
+	ctx->BCnEncodeBlockBits32=BTIC4B_BC3_EncodeBlockBits32;
+	ctx->BCnEncodeBlockBits48=BTIC4B_BC3_EncodeBlockBits48;
+	ctx->BCnEncodeBlockBits64=BTIC4B_BC3_EncodeBlockBits64;
+	ctx->BCnEncodeBlockFlat=BTIC4B_BC3_EncodeBlockFlat;
+
+	ct=oblock; xs1=xs; ys1=ys;
+	BTIC4B_ConvImageBC7_AI(ctx,
+		iblock, iblkstr, ct, 16, xs1, ys1);
+	ct+=((xs1+3)>>2)*((ys1+3)>>2)*16;
+	xs1=(xs1+1)>>1;		ys1=(ys1+1)>>1;
+	if(!ctx->pblk)
+		ctx->pblk=malloc(xs1*ys1*16);
+
+	BTIC4B_ConvImageBC7_BI(ctx,
+		iblock, iblkstr, ct, 16, ctx->pblk, xs1, ys1);
+	ct+=((xs1+3)>>2)*((ys1+3)>>2)*16;
+	xs1=(xs1+1)>>1;		ys1=(ys1+1)>>1;
+	
+	while((xs1>=4) && (ys1>=4))
+	{
+		BTIC4B_ConvImageBC7_CI(ctx,
+			ctx->pblk, ct, 16, ctx->pblk, xs1, ys1);
+		ct+=((xs1+3)>>2)*((ys1+3)>>2)*16;
+		xs1=(xs1+1)>>1;		ys1=(ys1+1)>>1;
+	}
+
+	xs2=xs1; ys2=ys1;
+	while((xs2>1) || (ys2>1))
+	{
+		BTIC4B_ConvImageBC7_CI(ctx,
+			ctx->pblk, ct, 16, ctx->pblk, xs1, ys1);
+		ct+=((xs2+3)>>2)*((ys2+3)>>2)*16;
+		xs2=(xs2+1)>>1;		ys2=(ys2+1)>>1;
+	}
+}
+
+#if 0
 void BTIC4B_DecodeBlockMB2B_RGBI(
 	BTIC4B_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip);
@@ -693,3 +1210,4 @@ void BTIC4B_ConvImageS2TCn(byte *iblock, int iblkstr,
 		break;
 	}
 }
+#endif

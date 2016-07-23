@@ -1,5 +1,6 @@
 #include "bt4b_multi.c"
 #include "bt1h_targa.c"
+#include "bt4b_dump_hdr.c"
 
 float calc_rmse(byte *ibuf0, byte *ibuf1, int xs, int ys)
 {
@@ -341,12 +342,37 @@ byte *BufBmpGetImg(byte *buf,
 	return(buf+ofs);
 }
 
+char *bt4b_getext(char *str)
+{
+	char *s;
+	
+	s=str+strlen(str);
+	while((s>str) && (*s!='.') && (*s!='/') && (*s!='\\'))
+		s--;
+	return(s);
+}
+
 int bt4b_encode(char *infile, char *outfile, int qfl)
 {
 	byte *cbuf, *ibuf;
-	int xs, ys, sz;
+	char *ext;
+	int xs, ys, sz, clrs;
 
-	ibuf=BTIC1H_Img_LoadTGA(infile, &xs, &ys);
+	ext=bt4b_getext(infile);
+	if(!strcmp(ext, ".tga") || !strcmp(ext, ".TGA"))
+	{
+		ibuf=BTIC1H_Img_LoadTGA(infile, &xs, &ys);
+		clrs=BTIC4B_CLRS_RGBA;
+	}else if(!strcmp(ext, ".hdr") || !strcmp(ext, ".HDR"))
+	{
+		ibuf=BTIC4B_Img_LoadHDR_R11F(infile, &xs, &ys);
+		clrs=BTIC4B_CLRS_RGB11F;
+	}else
+	{
+		ibuf=NULL;
+	}
+
+//	ibuf=BTIC1H_Img_LoadTGA(infile, &xs, &ys);
 	if(!ibuf)
 	{
 		printf("Failed Load TGA %s\n", infile);
@@ -355,7 +381,7 @@ int bt4b_encode(char *infile, char *outfile, int qfl)
 	
 	cbuf=malloc(1<<24);
 	sz=BTIC4B_EncodeImgBmpBuffer(cbuf, 1<<24,
-		ibuf, xs, ys, qfl, BTIC4B_CLRS_RGBA);
+		ibuf, xs, ys, qfl, clrs);
 	if(sz<0)
 	{
 		printf("Encode Failed %d\n", sz);
@@ -408,19 +434,39 @@ int bt4b_decode(char *infile, char *outfile, int dfl)
 	return(0);
 }
 
-int bt4b_test(char *infile, int qfl)
+int bt4b_test(char *infile, int qfl, int tclrs)
 {
 	BTIC4B_Context tctx;
 	BTIC4B_Context *ctx;
 	byte *tbuf0, *tbuf1, *tbuf2, *cbuf;
+	char *ext;
 	double dt, mpxf;
+	int p0, p1, p2, p3;
 	int t0, t1, t2, t3, t0e;
-	int xs, ys, nf, sz;
+	int xs, ys, nf, sz, tclrse, tclrsi;
 	int i, j, k;
 	
-//	tbuf0=BTIC1H_Img_LoadTGA("DSC00602_1.tga", &xs, &ys);
-//	tbuf0=BTIC1H_Img_LoadTGA("yazil0_1.tga", &xs, &ys);
-	tbuf0=BTIC1H_Img_LoadTGA(infile, &xs, &ys);
+	ext=bt4b_getext(infile);
+	if(!strcmp(ext, ".tga") || !strcmp(ext, ".TGA"))
+	{
+//		tbuf0=BTIC1H_Img_LoadTGA("DSC00602_1.tga", &xs, &ys);
+//		tbuf0=BTIC1H_Img_LoadTGA("yazil0_1.tga", &xs, &ys);
+		tbuf0=BTIC1H_Img_LoadTGA(infile, &xs, &ys);
+		tclrsi=BTIC4B_CLRS_RGBA;
+	}else if(!strcmp(ext, ".hdr") || !strcmp(ext, ".HDR"))
+	{
+		tbuf0=BTIC4B_Img_LoadHDR_RGBE(infile, &xs, &ys);
+		tclrsi=BTIC4B_CLRS_RGB8E8;
+	}else
+	{
+		tbuf0=NULL;
+	}
+	
+	if(!tbuf0)
+	{
+		printf("bt4b_test: failed load %s\n", infile);
+		return(-1);
+	}
 	
 //	tbuf0=malloc(xs*ys*4);
 	tbuf1=malloc(xs*ys*8);
@@ -485,14 +531,107 @@ int bt4b_test(char *infile, int qfl)
 #endif
 
 #if 1
+
+#if 1
+	BTIC4B_InitScTables();
+
+	tclrse=tclrs;
+	switch(tclrs)
+	{
+	case BTIC4B_CLRS_BGRA:
+	case BTIC4B_CLRS_BGRX:
+		for(i=0; i<ys; i++)
+			for(j=0; j<xs; j++)
+		{
+			t0=tbuf0[(i*xs+j)*4+0];
+			t1=tbuf0[(i*xs+j)*4+1];
+			t2=tbuf0[(i*xs+j)*4+2];
+			t3=tbuf0[(i*xs+j)*4+3];
+			tbuf1[(i*xs+j)*4+0]=t2;
+			tbuf1[(i*xs+j)*4+1]=t1;
+			tbuf1[(i*xs+j)*4+2]=t0;
+			tbuf1[(i*xs+j)*4+3]=t3;
+		}
+		break;
+	case BTIC4B_CLRS_RGB11F:
+
+		if(tclrsi==BTIC4B_CLRS_RGB8E8)
+		{
+			for(i=0; i<ys; i++)
+				for(j=0; j<xs; j++)
+			{
+				k=(i*xs+j)*4;
+				t0=*(u32 *)(tbuf0+k);
+				t3=btic4b_img_rgbetor11f(t0);
+				*(u32 *)(tbuf1+k)=t3;
+			}
+			break;
+		}
+
+		if((tclrsi==BTIC4B_CLRS_RGBA) ||
+			(tclrsi==BTIC4B_CLRS_RGBX))
+		{
+#if 0
+			tclrse=BTIC4B_CLRS_RGB48F;
+			for(i=0; i<ys; i++)
+				for(j=0; j<xs; j++)
+			{
+				t0=tbuf0[(i*xs+j)*4+0];		t1=tbuf0[(i*xs+j)*4+1];
+				t2=tbuf0[(i*xs+j)*4+2];		t0=btic4f_btohf(t0);
+				t1=btic4f_btohf(t1);		t2=btic4f_btohf(t2);
+				((u16 *)tbuf1)[(i*xs+j)*3+0]=t0;
+				((u16 *)tbuf1)[(i*xs+j)*3+1]=t1;
+				((u16 *)tbuf1)[(i*xs+j)*3+2]=t2;
+			}
+			break;
+#endif
+
+#if 1
+			for(i=0; i<ys; i++)
+				for(j=0; j<xs; j++)
+			{
+				t0=tbuf0[(i*xs+j)*4+0];		t1=tbuf0[(i*xs+j)*4+1];
+				t2=tbuf0[(i*xs+j)*4+2];		t0=btic4f_btohf(t0)>>4;
+				t1=btic4f_btohf(t1)>>4;		t2=btic4f_btohf(t2)>>5;
+				t0&=0x7FF;	t1&=0x7FF;	t2&=0x3FF;
+				t3=(t2<<22)|(t1<<11)|t0;
+				k=(i*xs+j)*4;
+				*(u32 *)(tbuf1+k)=t3;
+			}
+			break;
+#endif
+		}
+	break;
+
+	case BTIC4B_CLRS_RGBA:
+	case BTIC4B_CLRS_RGBX:
+		for(i=0; i<ys; i++)
+			for(j=0; j<xs; j++)
+		{
+			t0=tbuf0[(i*xs+j)*4+0];
+			t1=tbuf0[(i*xs+j)*4+1];
+			t2=tbuf0[(i*xs+j)*4+2];
+			t3=tbuf0[(i*xs+j)*4+3];
+			tbuf1[(i*xs+j)*4+0]=t0;
+			tbuf1[(i*xs+j)*4+1]=t1;
+			tbuf1[(i*xs+j)*4+2]=t2;
+			tbuf1[(i*xs+j)*4+3]=t3;
+		}
+		break;
+	}
+#endif
+
 	memset(ctx, 0, sizeof(BTIC4B_Context));
 //	ctx->blks=tbuf2;
 
 //	sz=BTIC4B_EncodeImgBufferCtx(ctx, cbuf, 1<<24, tbuf0, xs, ys, 40, 0);
 //	sz=BTIC4B_EncodeImgBufferCtx(ctx, cbuf, 1<<24, tbuf0, xs, ys, 60, 0);
-	sz=BTIC4B_EncodeImgBufferCtx(ctx, cbuf, 1<<24,
-		tbuf0, xs, ys, qfl, BTIC4B_CLRS_RGBA);
+//	sz=BTIC4B_EncodeImgBufferCtx(ctx, cbuf, 1<<24,
+//		tbuf0, xs, ys, qfl, BTIC4B_CLRS_RGBA);
 //	sz=BTIC4B_EncodeImgBufferCtx(ctx, cbuf, 1<<24, tbuf0, xs, ys, 85, 0);
+
+	sz=BTIC4B_EncodeImgBufferCtx(ctx, cbuf, 1<<24,
+		tbuf1, xs, ys, qfl, tclrse);
 
 //	BTIC4B_SetupContextQf(ctx, 75);
 //	BTIC4B_SetupContextQf(ctx, 40);
@@ -522,8 +661,11 @@ int bt4b_test(char *infile, int qfl)
 //			tbuf2, NULL, xs, ys);
 //		BTIC4B_DecImageBGRA(tbuf2, tbuf1, xs, ys);
 
+//		BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
+//			tbuf1, xs, ys, BTIC4B_CLRS_RGBA);
+
 		BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
-			tbuf1, xs, ys, BTIC4B_CLRS_RGBA);
+			tbuf1, xs, ys, tclrs);
 
 		nf++;
 		t1=clock();
@@ -540,8 +682,62 @@ int bt4b_test(char *infile, int qfl)
 	memset(tbuf1, 0, xs*ys*8);
 	memset(tbuf2, 0, xs*ys*8);
 
+//	BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
+//		tbuf1, xs, ys, BTIC4B_CLRS_RGBA);
+
 	BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
-		tbuf1, xs, ys, BTIC4B_CLRS_RGBA);
+		tbuf1, xs, ys, tclrs);
+	
+	if(tclrs==BTIC4B_CLRS_RGB11F)
+	{
+		BTIC4B_Img_SaveHDR_R11F("bt4at0_h0.hdr", tbuf1, xs, ys);
+		BTIC4B_Img_SaveTGA_R11F("bt4at0_h0.tga", tbuf1, xs, ys);
+		BTIC4B_Img_SaveTGA_R11F_RGB("bt4at0_h0rgb.tga", tbuf1, xs, ys);
+		BTIC4B_Img_SaveTGA_R11F_E("bt4at0_h0e.tga", tbuf1, xs, ys);
+	}
+	
+	switch(tclrs)
+	{
+	case BTIC4B_CLRS_BGRA:
+	case BTIC4B_CLRS_BGRX:
+		for(i=0; i<ys; i++)
+			for(j=0; j<xs; j++)
+		{
+			t0=tbuf1[(i*xs+j)*4+0];
+			t1=tbuf1[(i*xs+j)*4+2];
+			tbuf1[(i*xs+j)*4+0]=t1;
+			tbuf1[(i*xs+j)*4+2]=t0;
+		}
+		break;
+	case BTIC4B_CLRS_RGB11F:
+		for(i=0; i<ys; i++)
+			for(j=0; j<xs; j++)
+		{
+			k=(i*xs+j)*4;
+			t3=*(u32 *)(tbuf1+k);
+			t0=((t3    )&0x7FF)<<4;
+			t1=((t3>>11)&0x7FF)<<4;
+			t2=((t3>>22)&0x3FF)<<5;
+
+//			t2=0;
+
+//			tbuf1[(i*xs+j)*4+0]=t0>>7;
+//			tbuf1[(i*xs+j)*4+1]=t1>>7;
+//			tbuf1[(i*xs+j)*4+2]=t2>>7;
+
+			tbuf1[(i*xs+j)*4+0]=btic4f_hftob(t0);
+			tbuf1[(i*xs+j)*4+1]=btic4f_hftob(t1);
+			tbuf1[(i*xs+j)*4+2]=btic4f_hftob(t2);
+
+			tbuf1[(i*xs+j)*4+3]=255;
+		}
+		break;
+	
+	case BTIC4B_CLRS_RGBA:
+	case BTIC4B_CLRS_RGBX:
+		break;
+	}
+		
 	cmp_blkrmse(tbuf0, tbuf1, ctx->blks, xs, ys);
 
 //	BTIC4B_DecImgBlocks(ctx, cbuf, sz,
@@ -552,10 +748,7 @@ int bt4b_test(char *infile, int qfl)
 	BTIC1H_Img_SaveTGA("bt4at0.tga", tbuf1, xs, ys);
 #endif
 
-//	BTIC4B_DecImageBGRA(tbuf1, tbuf2, xs, ys);
-//	cmp_rmse(tbuf0, tbuf2, xs, ys);
-
-//	BTIC1H_Img_SaveTGA("bt4at0.tga", tbuf2, xs, ys);
+	return(0);
 }
 
 
@@ -579,6 +772,8 @@ int bt4b_test_bcn(char *infile, int qfl, int clrs)
 	mpxf=(xs*ys)/1000000.0;
 	
 	ctx=&tctx;
+
+//	qfl|=BTIC4B_QFL_OPTBCN;
 
 #if 1
 	memset(ctx, 0, sizeof(BTIC4B_Context));
@@ -626,7 +821,21 @@ int bt4b_test_bcn(char *infile, int qfl, int clrs)
 	BTIC4B_DecodeImgBufferCtx(ctx, cbuf, sz,
 		tbuf2, xs, ys, clrs);
 
-	BTIC4B_BC7_DecodeImage(tbuf2, tbuf1, xs, ys, 4, 0);
+	switch(clrs)
+	{
+	case BTIC4B_CLRS_BC7:
+	case BTIC4B_CLRS_BC7MIP:
+		BTIC4B_BC7_DecodeImage(tbuf2, tbuf1, xs, ys, 4, 0);
+		break;
+	case BTIC4B_CLRS_BC1:
+	case BTIC4B_CLRS_BC1MIP:
+		BTIC4B_S2TC_DecodeImage(tbuf2, 8, tbuf1, xs, ys, 4, 1);
+		break;
+	case BTIC4B_CLRS_BC3:
+	case BTIC4B_CLRS_BC3MIP:
+		BTIC4B_S2TC_DecodeImage(tbuf2, 16, tbuf1, xs, ys, 4, 3);
+		break;
+	}
 
 	cmp_blkrmse(tbuf0, tbuf1, ctx->blks, xs, ys);
 
@@ -641,7 +850,21 @@ int bt4b_test_bcn(char *infile, int qfl, int clrs)
 		xs1=(xs+1)>>1;	ys1=(ys+1)>>1; nf=1;
 		while((xs1>1) || (ys1>1))
 		{
-			BTIC4B_BC7_DecodeImage(cs, tbuf1, xs1, ys1, 4, 0);
+			switch(clrs)
+			{
+			case BTIC4B_CLRS_BC7:
+			case BTIC4B_CLRS_BC7MIP:
+				BTIC4B_BC7_DecodeImage(cs, tbuf1, xs1, ys1, 4, 0);
+				break;
+			case BTIC4B_CLRS_BC1:
+			case BTIC4B_CLRS_BC1MIP:
+				BTIC4B_S2TC_DecodeImage(cs, 8, tbuf1, xs, ys, 4, 1);
+				break;
+			case BTIC4B_CLRS_BC3:
+			case BTIC4B_CLRS_BC3MIP:
+				BTIC4B_S2TC_DecodeImage(cs, 16, tbuf1, xs, ys, 4, 3);
+				break;
+			}
 			
 			sprintf(tb, "bt4at0_mip%d.tga", nf);
 			BTIC1H_Img_SaveTGA(tb, tbuf1, xs1, ys1);
@@ -652,6 +875,8 @@ int bt4b_test_bcn(char *infile, int qfl, int clrs)
 	}
 	
 #endif
+
+	return(0);
 }
 
 
@@ -878,18 +1103,20 @@ int bt4b_help(char *pgm)
 	printf("    -tc   Test infile.TGA / test decode as BCn\n");
 	printf("    -bc1 -bc3 -bc6 -bc7, -bc1m -bc3m -bc6m -bc7m\n");
 	printf("          Set BCn format used in BCn test\n");
+	printf("    -Obcn Optimize output for fast BCn transcoding\n");
 	return(0);
 }
 
 int main(int argc, char *argv[])
 {
 	char *infile, *outfile;
-	int cmd, q, qfl, dfl, tclrs;
+	int cmd, q, qfl, dfl, tclrs, tclrs2;
 	int i, j, k;
 	
 	infile=NULL; outfile=NULL; cmd=0; q=90; qfl=0; dfl=0;
 	qfl|=BTIC4B_QFL_USEPRED;
 	tclrs=BTIC4B_CLRS_BC7;
+	tclrs2=BTIC4B_CLRS_RGBA;
 	
 	for(i=1; i<argc; i++)
 	{
@@ -918,6 +1145,9 @@ int main(int argc, char *argv[])
 			if(!strcmp(argv[i], "-np"))
 				qfl&=~BTIC4B_QFL_USEPRED;
 
+			if(!strcmp(argv[i], "-Obcn"))
+				qfl|=BTIC4B_QFL_OPTBCN;
+
 			if(!strcmp(argv[i], "-bc1"))
 				tclrs=BTIC4B_CLRS_BC1;
 			if(!strcmp(argv[i], "-bc3"))
@@ -934,6 +1164,17 @@ int main(int argc, char *argv[])
 				tclrs=BTIC4B_CLRS_BC6MIP;
 			if(!strcmp(argv[i], "-bc7m"))
 				tclrs=BTIC4B_CLRS_BC7MIP;
+
+			if(!strcmp(argv[i], "-rgba"))
+				tclrs2=BTIC4B_CLRS_RGBA;
+			if(!strcmp(argv[i], "-bgra"))
+				tclrs2=BTIC4B_CLRS_BGRA;
+			if(!strcmp(argv[i], "-rgbx"))
+				tclrs2=BTIC4B_CLRS_RGBX;
+			if(!strcmp(argv[i], "-bgrx"))
+				tclrs2=BTIC4B_CLRS_BGRX;
+			if(!strcmp(argv[i], "-rgb11f"))
+				tclrs2=BTIC4B_CLRS_RGB11F;
 
 			continue;
 		}
@@ -961,7 +1202,7 @@ int main(int argc, char *argv[])
 	{
 		if(!infile)
 			infile="yazil0_1.tga";
-		bt4b_test(infile, q|qfl);
+		bt4b_test(infile, q|qfl, tclrs2);
 		return(0);
 	}
 

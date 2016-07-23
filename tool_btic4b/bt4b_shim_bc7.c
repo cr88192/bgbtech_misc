@@ -17,6 +17,8 @@ u32 btic4b_bc7_2x2to4x4x2[256];
 u16 btic4b_bc7_4x1x1to4x1x3[16];
 byte btic4b_bc7_4x1x1to4x1x2[16];
 byte btic4b_bc7_4x1x3to4x1x2[4096];
+byte btic4b_bc7_4x1x3to4x1x2a[4096];
+byte btic4b_bc7_4x1x3to4x1x2b[4096];
 
 byte btic4b_bc7_swap4x1x2[256];
 
@@ -102,6 +104,33 @@ void BTIC4B_ConvBlockBC7_Init()
 //		r0=(q0<<6)|(q1<<4)|(q2<<2)|q3;
 		r0=(q3<<6)|(q2<<4)|(q1<<2)|q0;
 		btic4b_bc7_4x1x1to4x1x2[i]=r0;
+	}
+
+
+	for(i=0; i<4096; i++)
+	{
+		p3=(i>>9)&7;	p2=(i>>6)&7;
+		p1=(i>>3)&7;	p0=(i>>0)&7;
+
+		q0=(p0+1)>>1;	q1=(p1-1)>>1;
+		q2=(p2+1)>>1;	q3=(p3-1)>>1;
+		q0=(q0<0)?0:((q0>3)?3:q0);	q1=(q1<0)?0:((q1>3)?3:q1);
+		q2=(q2<0)?0:((q2>3)?3:q2);	q3=(q3<0)?0:((q3>3)?3:q3);
+		r0=q0|(q1<<2)|(q2<<4)|(q3<<6);
+
+		q0=(p0-1)>>1;	q1=(p1+1)>>1;
+		q2=(p2-1)>>1;	q3=(p3+1)>>1;
+		q0=(q0<0)?0:((q0>3)?3:q0);	q1=(q1<0)?0:((q1>3)?3:q1);
+		q2=(q2<0)?0:((q2>3)?3:q2);	q3=(q3<0)?0:((q3>3)?3:q3);
+		r1=q0|(q1<<2)|(q2<<4)|(q3<<6);
+
+		q0=p0>>1;	q1=p1>>1;
+		q2=p2>>1;	q3=p3>>1;
+		r2=q0|(q1<<2)|(q2<<4)|(q3<<6);
+
+		btic4b_bc7_4x1x3to4x1x2a[i]=r0;
+		btic4b_bc7_4x1x3to4x1x2b[i]=r1;
+		btic4b_bc7_4x1x3to4x1x2[i]=r2;
 	}
 }
 
@@ -212,6 +241,10 @@ default_inline void BGBBTJ_BitsLE_Write7Bits(BGBBTJ_BitStream *ctx, int v)
 	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 7); }
 #endif
 
+void BGBBTJ_BitsLE_Write10Bits(BGBBTJ_BitStream *ctx, int v)
+	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 10); }
+void BGBBTJ_BitsLE_Write11Bits(BGBBTJ_BitStream *ctx, int v)
+	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 11); }
 void BGBBTJ_BitsLE_Write12Bits(BGBBTJ_BitStream *ctx, int v)
 	{ BGBBTJ_BitsLE_WriteBits(ctx, v, 12); }
 void BGBBTJ_BitsLE_Write14Bits(BGBBTJ_BitStream *ctx, int v)
@@ -319,6 +352,7 @@ void BTIC4B_BC7_EncodeBlock_Mode4(byte *block,
 		{ 0,0,0,0, 0,1,2,3, 4,5,6,7, 7,7,7,7 };
 	
 	BGBBTJ_BitStream bits;
+	byte tblock[24];
 
 	int p0, p1, p2, p3, p4, p5, p6, p7;
 	int l0, l1, l2, l3a, l3b;
@@ -336,7 +370,7 @@ void BTIC4B_BC7_EncodeBlock_Mode4(byte *block,
 	
 	ixb=1;
 
-	BGBBTJ_BitsLE_ClearSetupWrite(&bits, block, 16);
+	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
 	BGBBTJ_BitsLE_WriteBits(&bits, 16, 5);
 	BGBBTJ_BitsLE_WriteBits(&bits, 0, 2);
 	BGBBTJ_BitsLE_WriteBits(&bits, ixb, 1);
@@ -405,6 +439,7 @@ void BTIC4B_BC7_EncodeBlock_Mode4(byte *block,
 	}
 
 	BGBBTJ_BitsLE_FlushBits(&bits);
+	memcpy(block, tblock, 16);
 }
 
 void BTIC4B_BC7_EncodeBlock_Mode5(byte *block,
@@ -907,6 +942,143 @@ void BTIC4B_BC7_EncodeBlockBits64_Mode6(byte *block,
 	memcpy(block, tblock, 16);
 }
 
+
+void BTIC4B_BC7_EncodeBlockBits48_Mode4(byte *block,
+	u64 pxy, u64 pxa, int *min, int *max)
+{
+	static const char idxtab[16]=
+		{ 0,0,0,0, 0,0,1,1, 2,2,3,3, 3,3,3,3 };
+	static const char idxtab2[16]=
+		{ 0,0,0,0, 0,1,2,3, 4,5,6,7, 7,7,7,7 };
+	
+	BGBBTJ_BitStream bits;
+	byte tblock[24];
+
+	int p0, p1, p2, p3, p4, p5, p6, p7;
+//	int l0, l1, l2, l3a, l3b;
+//	int avg[4], acy, aca;
+//	int acr, acg, acb;
+	int ixb;
+	int cr, cg, cb, ca, cy;
+	int i, j, k, l;
+
+//	avg[0]=(min[0]+max[0])>>1;
+//	avg[1]=(min[1]+max[1])>>1;
+//	avg[2]=(min[2]+max[2])>>1;
+//	avg[3]=(min[3]+max[3])>>1;	
+//	acy=(mcy+ncy)>>1;
+//	aca=(mca+nca)>>1;
+	
+	ixb=1;
+
+	BGBBTJ_BitsLE_ClearSetupWrite(&bits, tblock, 16);
+	BGBBTJ_BitsLE_WriteBits(&bits, 16, 5);
+	BGBBTJ_BitsLE_WriteBits(&bits, 0, 2);
+	BGBBTJ_BitsLE_WriteBits(&bits, ixb, 1);
+
+	if(pxy&4)
+	{
+		BGBBTJ_BC7_EncodeBlock_VecSwapRGB(min, max);
+		pxy=~pxy;
+	}
+
+	if(pxa&4)
+	{
+		BGBBTJ_BC7_EncodeBlock_VecSwapA(min, max);
+		pxa=~pxa;
+	}
+
+	p0=((min[0])>>3)|(((max[0])>>3)<<5);
+	p1=((min[1])>>3)|(((max[1])>>3)<<5);
+	p2=((min[2])>>3)|(((max[2])>>3)<<5);
+	p3=((min[3])>>2)|(((max[3])>>2)<<6);
+	BGBBTJ_BitsLE_Write10Bits(&bits, p0);
+	BGBBTJ_BitsLE_Write10Bits(&bits, p1);
+	BGBBTJ_BitsLE_Write10Bits(&bits, p2);
+	BGBBTJ_BitsLE_Write12Bits(&bits, p3);
+
+//	BGBBTJ_BitsLE_WriteBits(&bits, (min[0])>>3, 5);
+//	BGBBTJ_BitsLE_WriteBits(&bits, (max[0])>>3, 5);
+//	BGBBTJ_BitsLE_WriteBits(&bits, (min[1])>>3, 5);
+//	BGBBTJ_BitsLE_WriteBits(&bits, (max[1])>>3, 5);
+//	BGBBTJ_BitsLE_WriteBits(&bits, (min[2])>>3, 5);
+//	BGBBTJ_BitsLE_WriteBits(&bits, (max[2])>>3, 5);
+//	BGBBTJ_BitsLE_WriteBits(&bits, (min[3])>>2, 6);
+//	BGBBTJ_BitsLE_WriteBits(&bits, (max[3])>>2, 6);
+
+	if(ixb)
+	{
+		if((max[3]-min[3])>=8)
+		{
+			p0=(pxa>>1)&1;			p1=(pxa>>(1*3+1))&3;
+			p2=(pxa>>(2*3+1))&3;	p3=(pxa>>(3*3+1))&3;
+			p4=p0|(p1<<1)|(p2<<3)|(p3<<5);
+			BGBBTJ_BitsLE_Write7Bits(&bits, p4);
+			p0=(pxa>>(4*3+1))&3;	p1=(pxa>>(5*3+1))&3;
+			p2=(pxa>>(6*3+1))&3;	p3=(pxa>>(7*3+1))&3;
+			p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
+			BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+			p0=(pxa>>( 8*3+1))&3;	p1=(pxa>>( 9*3+1))&3;
+			p2=(pxa>>(10*3+1))&3;	p3=(pxa>>(11*3+1))&3;
+			p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
+			BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+			p0=(pxa>>(12*3+1))&3;	p1=(pxa>>(13*3+1))&3;
+			p2=(pxa>>(14*3+1))&3;	p3=(pxa>>(15*3+1))&3;
+			p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
+			BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+		}else
+		{
+			BGBBTJ_BitsLE_Write15Bits(&bits, 0);
+			BGBBTJ_BitsLE_Write16Bits(&bits, 0);
+		}
+
+		p0=(pxy   )&3;
+		p1=pxy>>3;
+		p2=p0|(p1<<2);
+		BGBBTJ_BitsLE_Write11Bits(&bits, p2);
+		BGBBTJ_BitsLE_Write12Bits(&bits, pxy>>12);
+		BGBBTJ_BitsLE_Write12Bits(&bits, pxy>>24);
+		BGBBTJ_BitsLE_Write12Bits(&bits, pxy>>36);
+
+	}else
+	{
+		p0=(pxy>>1)&1;			p1=(pxy>>(1*3+1))&3;
+		p2=(pxy>>(2*3+1))&3;	p3=(pxy>>(3*3+1))&3;
+		p4=p0|(p1<<1)|(p2<<3)|(p3<<5);
+		BGBBTJ_BitsLE_Write7Bits(&bits, p4);
+		p0=(pxy>>(4*3+1))&3;	p1=(pxy>>(5*3+1))&3;
+		p2=(pxy>>(6*3+1))&3;	p3=(pxy>>(7*3+1))&3;
+		p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
+		BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+		p0=(pxy>>( 8*3+1))&3;	p1=(pxy>>( 9*3+1))&3;
+		p2=(pxy>>(10*3+1))&3;	p3=(pxy>>(11*3+1))&3;
+		p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
+		BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+		p0=(pxy>>(12*3+1))&3;	p1=(pxy>>(13*3+1))&3;
+		p2=(pxy>>(14*3+1))&3;	p3=(pxy>>(15*3+1))&3;
+		p4=p0|(p1<<2)|(p2<<4)|(p3<<6);
+		BGBBTJ_BitsLE_Write8Bits(&bits, p4);
+
+		if((max[3]-min[3])>=8)
+		{
+			p0=(pxa   )&3; p1=pxa>>3; p2=p0|(p1<<2);
+			BGBBTJ_BitsLE_Write11Bits(&bits, p2);
+			BGBBTJ_BitsLE_Write12Bits(&bits, pxa>>12);
+			BGBBTJ_BitsLE_Write12Bits(&bits, pxa>>24);
+			BGBBTJ_BitsLE_Write12Bits(&bits, pxa>>36);
+		}else
+		{
+			BGBBTJ_BitsLE_Write11Bits(&bits, 0);
+			BGBBTJ_BitsLE_Write12Bits(&bits, 0);
+			BGBBTJ_BitsLE_Write12Bits(&bits, 0);
+			BGBBTJ_BitsLE_Write12Bits(&bits, 0);
+		}
+	}
+
+	BGBBTJ_BitsLE_FlushBits(&bits);
+	memcpy(block, tblock, 16);
+}
+
 void BTIC4B_BC7_EncodeBlockBits48_Mode6(byte *block,
 	u64 pxy, int *min, int *max)
 {
@@ -993,6 +1165,12 @@ void BTIC4B_BC7_EncodeBlockBits48_AutoMode(byte *block,
 	if((max[3]-min[3])<8)
 	{
 		BTIC4B_BC7_EncodeBlockBits48_Mode6(block, pxy, min, max);
+		return;
+	}
+
+	if((max[1]-min[1])>32)
+	{
+		BTIC4B_BC7_EncodeBlockBits48_Mode4(block, pxy, pxa, min, max);
 		return;
 	}
 	
@@ -1187,7 +1365,7 @@ void BTIC4B_BC7_EncodeBlockBits64Px(BTIC4B_Context *ctx,
 /* Convert MetaBlock to 2x2 BC7 blocks */
 void BTIC4B_ConvBlockSpecialBC7_A(
 	BTIC4B_Context *ctx, byte *iblock,
-	byte *oblock, int obystr, int tfl)
+	byte *oblock, int obxstr, int obystr, int tfl)
 {
 	u32 tblk[64];
 	s16 yblk[64], ablk[64];
@@ -1320,7 +1498,7 @@ void BTIC4B_ConvBlockSpecialBC7_A(
 //			yblk, ablk,
 //			min, max, mcy, ncy, mca, nca);
 		ctx->BCnEncodeBlockGen(
-			oblock+(y*obystr)+(x*16), yblk, ablk,
+			oblock+(y*obystr)+(x*obxstr), yblk, ablk,
 			min, max, mcy, ncy, mca, nca);
 	}
 }
@@ -1535,6 +1713,56 @@ static u32 btic4b_bcn_4x4x1to4x4x2(int v)
 	return(p2);
 }
 
+static byte btic4b_bcn_4x4x2to2x2x2(u32 px)
+{
+	u32 px1;
+	int p0, p1, p2, p3;
+
+	p0=(((px    )&3)+((px>> 2)&3)+((px>> 8)&3)+((px>>10)&3))>>2;
+	p1=(((px>> 4)&3)+((px>> 6)&3)+((px>>12)&3)+((px>>14)&3))>>2;
+	p2=(((px>>16)&3)+((px>>18)&3)+((px>>24)&3)+((px>>26)&3))>>2;
+	p3=(((px>>20)&3)+((px>>22)&3)+((px>>28)&3)+((px>>30)&3))>>2;
+	px1=p0|(p1<<2)|(p2<<4)|(p3<<6);
+	return(px1);
+}
+
+static byte btic4b_bcn_4x8x2to2x2x2(u32 pxa, u32 pxb)
+{
+	u32 px1;
+	int p0, p1, p2, p3, p4, p5, p6, p7;
+
+	p0=(((pxa    )&3)+((pxa>> 2)&3)+((pxa>> 8)&3)+((pxa>>10)&3))>>2;
+	p1=(((pxa>> 4)&3)+((pxa>> 6)&3)+((pxa>>12)&3)+((pxa>>14)&3))>>2;
+	p2=(((pxa>>16)&3)+((pxa>>18)&3)+((pxa>>24)&3)+((pxa>>26)&3))>>2;
+	p3=(((pxa>>20)&3)+((pxa>>22)&3)+((pxa>>28)&3)+((pxa>>30)&3))>>2;
+	p4=(((pxb    )&3)+((pxb>> 2)&3)+((pxb>> 8)&3)+((pxb>>10)&3))>>2;
+	p5=(((pxb>> 4)&3)+((pxb>> 6)&3)+((pxb>>12)&3)+((pxb>>14)&3))>>2;
+	p6=(((pxb>>16)&3)+((pxb>>18)&3)+((pxb>>24)&3)+((pxb>>26)&3))>>2;
+	p7=(((pxb>>20)&3)+((pxb>>22)&3)+((pxb>>28)&3)+((pxb>>30)&3))>>2;
+	p0=(p0+p1)>>1;	p1=(p2+p3)>>1;
+	p2=(p4+p5)>>1;	p3=(p6+p7)>>1;
+	px1=p0|(p1<<2)|(p2<<4)|(p3<<6);
+	return(px1);
+}
+
+static byte btic4b_bcn_4x8x3to2x2x2(u32 pxa, u32 pxb, u32 pxc, u32 pxd)
+{
+	u32 px1;
+	int p0, p1, p2, p3, p4, p5, p6, p7;
+	p0=(((pxa    )&7)+((pxa>> 3)&7)+((pxa>>12)&7)+((pxa>>15)&7))>>2;
+	p1=(((pxa>> 6)&7)+((pxa>> 9)&7)+((pxa>>18)&7)+((pxa>>21)&7))>>2;
+	p2=(((pxb    )&7)+((pxb>> 3)&7)+((pxb>>12)&7)+((pxb>>15)&7))>>2;
+	p3=(((pxb>> 6)&7)+((pxb>> 9)&7)+((pxb>>18)&7)+((pxb>>21)&7))>>2;
+	p4=(((pxc    )&7)+((pxc>> 3)&7)+((pxc>>12)&7)+((pxc>>15)&7))>>2;
+	p5=(((pxc>> 6)&7)+((pxc>> 9)&7)+((pxc>>18)&7)+((pxc>>21)&7))>>2;
+	p6=(((pxd    )&7)+((pxd>> 3)&7)+((pxd>>12)&7)+((pxd>>15)&7))>>2;
+	p7=(((pxd>> 6)&7)+((pxd>> 9)&7)+((pxd>>18)&7)+((pxd>>21)&7))>>2;
+	p0=(p0+p1)>>2;	p1=(p2+p3)>>2;
+	p2=(p4+p5)>>2;	p3=(p6+p7)>>2;
+	px1=p0|(p1<<2)|(p2<<4)|(p3<<6);
+	return(px1);
+}
+
 void BTIC4B_DecBlockTab1b(BTIC4B_Context *ctx,
 	byte *blkbuf, u32 *tab)
 {
@@ -1697,7 +1925,7 @@ void BTIC4B_DecBlockYuvTab2b1b(BTIC4B_Context *ctx,
 
 void BTIC4B_ConvBlockBC7_A(
 	BTIC4B_Context *ctx, byte *iblock,
-	byte *oblock, int obystr, int tfl)
+	byte *oblock, int obxstr, int obystr, int tfl)
 {
 	static const u32 pbtab_2x2x1[16]={
 		0x00000000, 0x00000F0F, 0x0000F0F0, 0x0000FFFF,
@@ -1723,6 +1951,7 @@ void BTIC4B_ConvBlockBC7_A(
 	byte *ct0, *ct1, *ct2, *ct3;
 	u32 pxtab[16];
 	int avg[4], ytab[4], utab[4], vtab[4];
+	int p0, p1, p2, p3, p4, p5, p6, p7;
 	u32 pxy0, pxy1, pxy2, pxy3;
 	u32 px, pxy, pxu, pxv;
 	u64 li;
@@ -1742,22 +1971,23 @@ void BTIC4B_ConvBlockBC7_A(
 //		BTIC4B_BC7_EncodeBlockFlat_Mode5(oblock+obystr+16, avg);
 
 		ctx->BCnEncodeBlockFlat(oblock   , avg);
-		ctx->BCnEncodeBlockFlat(oblock+16, avg);
+		ctx->BCnEncodeBlockFlat(oblock+obxstr, avg);
 		ctx->BCnEncodeBlockFlat(oblock+obystr   , avg);
-		ctx->BCnEncodeBlockFlat(oblock+obystr+16, avg);
+		ctx->BCnEncodeBlockFlat(oblock+obystr+obxstr, avg);
 		return;
 	}
 	
 	if(iblock[1]&0x1F)
 	{
-		BTIC4B_ConvBlockSpecialBC7_A(ctx, iblock, oblock, obystr, tfl);
+		BTIC4B_ConvBlockSpecialBC7_A(ctx, iblock, oblock,
+			obxstr, obystr, tfl);
 		return;
 	}
 
 	ct0=oblock;
-	ct1=oblock+16;
+	ct1=oblock+obxstr;
 	ct2=oblock+obystr;
-	ct3=oblock+obystr+16;
+	ct3=oblock+obystr+obxstr;
 	switch(iblock[0]&0x1F)
 	{
 	case 0x01:
@@ -2034,8 +2264,8 @@ void BTIC4B_ConvBlockBC7_A(
 		break;
 	case 0x11:
 		BTIC4B_DecBlockTab1b(ctx, iblock, pxtab);
-		pxy0=*(u32 *)(iblock+16);	pxy1=*(u32 *)(iblock+19);
-		pxy2=*(u32 *)(iblock+22);	pxy3=*(u32 *)(iblock+25);
+		pxy0=*(u32 *)(iblock+16);	pxy1=*(u32 *)(iblock+20);
+		pxy2=*(u32 *)(iblock+24);	pxy3=*(u32 *)(iblock+28);
 		li=	((((u64)pxy0)    )&0x000000000000FFFF)|
 			((((u64)pxy1)<<16)&0x00000000FFFF0000)|
 			((((u64)pxy2)<<32)&0x0000FFFF00000000)|
@@ -2048,8 +2278,8 @@ void BTIC4B_ConvBlockBC7_A(
 			((((u64)pxy3)<<32)&0xFFFF000000000000);
 		BTIC4B_BC7_EncodeBlockBits64Px(ctx, ct1,
 			li, pxtab[0], pxtab[1]);
-		pxy0=*(u32 *)(iblock+28);	pxy1=*(u32 *)(iblock+31);
-		pxy2=*(u32 *)(iblock+34);	pxy3=*(u32 *)(iblock+37);
+		pxy0=*(u32 *)(iblock+32);	pxy1=*(u32 *)(iblock+36);
+		pxy2=*(u32 *)(iblock+40);	pxy3=*(u32 *)(iblock+44);
 		li=	((((u64)pxy0)    )&0x000000000000FFFF)|
 			((((u64)pxy1)<<16)&0x00000000FFFF0000)|
 			((((u64)pxy2)<<32)&0x0000FFFF00000000)|
@@ -2103,6 +2333,29 @@ void BTIC4B_ConvBlockBC7_A(
 #endif
 
 #if 1
+	case 0x16:
+		pxy=*(u32 *)(iblock+16);
+		pxu=*(u32 *)(iblock+20);
+		pxv=*(u32 *)(iblock+24);
+		pxu=btic4b_bcn_4x4x2to2x2x2(pxu);
+		pxv=btic4b_bcn_4x4x2to2x2x2(pxv);
+		BTIC4B_DecBlockTab1b4(ctx, iblock, pxtab, pxu, pxv);
+		i=((pxy    )&0x0F)|((pxy>> 4)&0xF0);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct0,
+			btic4b_bc7_2x2to4x4x2[i], 0, pxtab[0], pxtab[1]);
+		i=((pxy>> 4)&0x0F)|((pxy>> 8)&0xF0);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct1,
+			btic4b_bc7_2x2to4x4x2[i], 0, pxtab[2], pxtab[3]);
+		i=((pxy>>16)&0x0F)|((pxy>>20)&0xF0);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct2,
+			btic4b_bc7_2x2to4x4x2[i], 0, pxtab[4], pxtab[5]);
+		i=((pxy>>20)&0x0F)|((pxy>>24)&0xF0);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct3,
+			btic4b_bc7_2x2to4x4x2[i], 0, pxtab[6], pxtab[7]);
+		break;
+#endif
+
+#if 1
 	case 0x17:
 		pxy0=*(u32 *)(iblock+16);	pxy1=*(u32 *)(iblock+20);
 		pxy2=*(u32 *)(iblock+24);	pxy3=*(u32 *)(iblock+28);
@@ -2127,8 +2380,196 @@ void BTIC4B_ConvBlockBC7_A(
 		break;
 #endif
 
+#if 1
+	case 0x18:
+		pxy0=*(u32 *)(iblock+16);	pxy1=*(u32 *)(iblock+20);
+		pxy2=*(u32 *)(iblock+24);	pxy3=*(u32 *)(iblock+28);
+		pxu=*(u32 *)(iblock+32);	pxv=*(u32 *)(iblock+36);
+		pxu=btic4b_bcn_4x4x2to2x2x2(pxu);
+		pxv=btic4b_bcn_4x4x2to2x2x2(pxv);
+		BTIC4B_DecBlockTab1b4(ctx, iblock, pxtab, pxu, pxv);
+		px=	((pxy0    )&0x000000FF)|((pxy0>> 8)&0x0000FF00)|
+			((pxy1<<16)&0x00FF0000)|((pxy1<< 8)&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct0,
+			px, 0, pxtab[0], pxtab[1]);
+		px=	((pxy0>> 8)&0x000000FF)|((pxy0>>16)&0x0000FF00)|
+			((pxy1<< 8)&0x00FF0000)|((pxy1    )&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct1,
+			px, 0, pxtab[2], pxtab[3]);
+		px=	((pxy2    )&0x000000FF)|((pxy2>> 8)&0x0000FF00)|
+			((pxy3<<16)&0x00FF0000)|((pxy3<< 8)&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct2,
+			px, 0, pxtab[4], pxtab[5]);
+		px=	((pxy2>> 8)&0x000000FF)|((pxy2>>16)&0x0000FF00)|
+			((pxy3<< 8)&0x00FF0000)|((pxy3    )&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct3,
+			px, 0, pxtab[6], pxtab[7]);
+		break;
+#endif
+
+#if 1
+	case 0x1A:
+		pxy0=*(u32 *)(iblock+32);	pxy1=*(u32 *)(iblock+36);
+		pxu=btic4b_bcn_4x8x2to2x2x2(pxy0, pxy1);
+		pxy0=*(u32 *)(iblock+40);	pxy1=*(u32 *)(iblock+44);
+		pxv=btic4b_bcn_4x8x2to2x2x2(pxy0, pxy1);
+
+		pxy0=*(u32 *)(iblock+16);	pxy1=*(u32 *)(iblock+20);
+		pxy2=*(u32 *)(iblock+24);	pxy3=*(u32 *)(iblock+28);
+
+		BTIC4B_DecBlockTab1b4(ctx, iblock, pxtab, pxu, pxv);
+		px=	((pxy0    )&0x000000FF)|((pxy0>> 8)&0x0000FF00)|
+			((pxy1<<16)&0x00FF0000)|((pxy1<< 8)&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct0,
+			px, 0, pxtab[0], pxtab[1]);
+		px=	((pxy0>> 8)&0x000000FF)|((pxy0>>16)&0x0000FF00)|
+			((pxy1<< 8)&0x00FF0000)|((pxy1    )&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct1,
+			px, 0, pxtab[2], pxtab[3]);
+		px=	((pxy2    )&0x000000FF)|((pxy2>> 8)&0x0000FF00)|
+			((pxy3<<16)&0x00FF0000)|((pxy3<< 8)&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct2,
+			px, 0, pxtab[4], pxtab[5]);
+		px=	((pxy2>> 8)&0x000000FF)|((pxy2>>16)&0x0000FF00)|
+			((pxy3<< 8)&0x00FF0000)|((pxy3    )&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct3,
+			px, 0, pxtab[6], pxtab[7]);
+		break;
+#endif
+
+#if 1
+	case 0x1B:
+		pxy0=*(u32 *)(iblock+32);	pxy1=*(u32 *)(iblock+36);
+		pxy2=*(u32 *)(iblock+40);	pxy3=*(u32 *)(iblock+44);
+		pxy0=btic4b_bcn_4x4x2to2x2x2(pxy0);
+		pxy1=btic4b_bcn_4x4x2to2x2x2(pxy1);
+		pxy2=btic4b_bcn_4x4x2to2x2x2(pxy2);
+		pxy3=btic4b_bcn_4x4x2to2x2x2(pxy3);
+		pxu=((pxy0    )&0x0000000F)|((pxy1<< 4)&0x000000F0)|
+			((pxy0<< 4)&0x00000F00)|((pxy1<< 8)&0x0000F000)|
+			((pxy2<<16)&0x000F0000)|((pxy2<<20)&0x00F00000)|
+			((pxy3<<20)&0x0F000000)|((pxy3<<24)&0xF0000000);
+		pxu=btic4b_bcn_4x4x2to2x2x2(pxu);
+
+		pxy0=*(u32 *)(iblock+48);	pxy1=*(u32 *)(iblock+52);
+		pxy2=*(u32 *)(iblock+56);	pxy3=*(u32 *)(iblock+60);
+		pxy0=btic4b_bcn_4x4x2to2x2x2(pxy0);
+		pxy1=btic4b_bcn_4x4x2to2x2x2(pxy1);
+		pxy2=btic4b_bcn_4x4x2to2x2x2(pxy2);
+		pxy3=btic4b_bcn_4x4x2to2x2x2(pxy3);
+		pxv=((pxy0    )&0x0000000F)|((pxy1<< 4)&0x000000F0)|
+			((pxy0<< 4)&0x00000F00)|((pxy1<< 8)&0x0000F000)|
+			((pxy2<<16)&0x000F0000)|((pxy2<<20)&0x00F00000)|
+			((pxy3<<20)&0x0F000000)|((pxy3<<24)&0xF0000000);
+		pxv=btic4b_bcn_4x4x2to2x2x2(pxv);
+
+		pxy0=*(u32 *)(iblock+16);	pxy1=*(u32 *)(iblock+20);
+		pxy2=*(u32 *)(iblock+24);	pxy3=*(u32 *)(iblock+28);
+//		pxu=*(u32 *)(iblock+32);	pxv=*(u32 *)(iblock+36);
+//		pxu=btic4b_bcn_4x4x2to2x2x2(pxu);
+//		pxv=btic4b_bcn_4x4x2to2x2x2(pxv);
+		BTIC4B_DecBlockTab1b4(ctx, iblock, pxtab, pxu, pxv);
+		px=	((pxy0    )&0x000000FF)|((pxy0>> 8)&0x0000FF00)|
+			((pxy1<<16)&0x00FF0000)|((pxy1<< 8)&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct0,
+			px, 0, pxtab[0], pxtab[1]);
+		px=	((pxy0>> 8)&0x000000FF)|((pxy0>>16)&0x0000FF00)|
+			((pxy1<< 8)&0x00FF0000)|((pxy1    )&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct1,
+			px, 0, pxtab[2], pxtab[3]);
+		px=	((pxy2    )&0x000000FF)|((pxy2>> 8)&0x0000FF00)|
+			((pxy3<<16)&0x00FF0000)|((pxy3<< 8)&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct2,
+			px, 0, pxtab[4], pxtab[5]);
+		px=	((pxy2>> 8)&0x000000FF)|((pxy2>>16)&0x0000FF00)|
+			((pxy3<< 8)&0x00FF0000)|((pxy3    )&0xFF000000);
+		BTIC4B_BC7_EncodeBlockBits32Px(ctx, ct3,
+			px, 0, pxtab[6], pxtab[7]);
+		break;
+#endif
+
+#if 1
+	case 0x1C:
+		pxu=*(u32 *)(iblock+40);	pxv=*(u32 *)(iblock+44);
+		pxu=btic4b_bcn_4x4x2to2x2x2(pxu);
+		pxv=btic4b_bcn_4x4x2to2x2x2(pxv);
+		BTIC4B_DecBlockTab1b4(ctx, iblock, pxtab, pxu, pxv);
+
+		pxy0=*(u32 *)(iblock+16);	pxy1=*(u32 *)(iblock+19);
+		pxy2=*(u32 *)(iblock+22);	pxy3=*(u32 *)(iblock+25);
+		li=	((((u64)pxy0)    )&0x000000000FFF)|
+			((((u64)pxy1)<<12)&0x000000FFF000)|
+			((((u64)pxy2)<<24)&0x000FFF000000)|
+			((((u64)pxy3)<<36)&0xFFF000000000);
+		BTIC4B_BC7_EncodeBlockBits48Px(ctx, ct0,
+			li, 0, pxtab[0], pxtab[1]);
+		li=	((((u64)pxy0)>>12)&0x000000000FFF)|
+			((((u64)pxy1)    )&0x000000FFF000)|
+			((((u64)pxy2)<<12)&0x000FFF000000)|
+			((((u64)pxy3)<<24)&0xFFF000000000);
+		BTIC4B_BC7_EncodeBlockBits48Px(ctx, ct1,
+			li, 0, pxtab[2], pxtab[3]);
+		pxy0=*(u32 *)(iblock+28);	pxy1=*(u32 *)(iblock+31);
+		pxy2=*(u32 *)(iblock+34);	pxy3=*(u32 *)(iblock+37);
+		li=	((((u64)pxy0)    )&0x000000000FFF)|
+			((((u64)pxy1)<<12)&0x000000FFF000)|
+			((((u64)pxy2)<<24)&0x000FFF000000)|
+			((((u64)pxy3)<<36)&0xFFF000000000);
+		BTIC4B_BC7_EncodeBlockBits48Px(ctx, ct2,
+			li, 0, pxtab[4], pxtab[5]);
+		li=	((((u64)pxy0)>>12)&0x000000000FFF)|
+			((((u64)pxy1)    )&0x000000FFF000)|
+			((((u64)pxy2)<<12)&0x000FFF000000)|
+			((((u64)pxy3)<<24)&0xFFF000000000);
+		BTIC4B_BC7_EncodeBlockBits48Px(ctx, ct3,
+			li, 0, pxtab[6], pxtab[7]);
+		break;
+#endif
+
+#if 1
+	case 0x1E:
+		pxy0=*(u32 *)(iblock+40);		pxy1=*(u32 *)(iblock+43);
+		pxy2=*(u32 *)(iblock+46);		pxy3=*(u32 *)(iblock+49);
+		pxu=btic4b_bcn_4x8x3to2x2x2(pxy0, pxy1, pxy2, pxy3);
+		pxy0=*(u32 *)(iblock+52);		pxy1=*(u32 *)(iblock+55);
+		pxy2=*(u32 *)(iblock+58);		pxy3=*(u32 *)(iblock+61);
+		pxv=btic4b_bcn_4x8x3to2x2x2(pxy0, pxy1, pxy2, pxy3);
+
+		BTIC4B_DecBlockTab1b4(ctx, iblock, pxtab, pxu, pxv);
+		pxy0=*(u32 *)(iblock+16);	pxy1=*(u32 *)(iblock+19);
+		pxy2=*(u32 *)(iblock+22);	pxy3=*(u32 *)(iblock+25);
+		li=	((((u64)pxy0)    )&0x000000000FFF)|
+			((((u64)pxy1)<<12)&0x000000FFF000)|
+			((((u64)pxy2)<<24)&0x000FFF000000)|
+			((((u64)pxy3)<<36)&0xFFF000000000);
+		BTIC4B_BC7_EncodeBlockBits48Px(ctx, ct0,
+			li, 0, pxtab[0], pxtab[1]);
+		li=	((((u64)pxy0)>>12)&0x000000000FFF)|
+			((((u64)pxy1)    )&0x000000FFF000)|
+			((((u64)pxy2)<<12)&0x000FFF000000)|
+			((((u64)pxy3)<<24)&0xFFF000000000);
+		BTIC4B_BC7_EncodeBlockBits48Px(ctx, ct1,
+			li, 0, pxtab[2], pxtab[3]);
+		pxy0=*(u32 *)(iblock+28);	pxy1=*(u32 *)(iblock+31);
+		pxy2=*(u32 *)(iblock+34);	pxy3=*(u32 *)(iblock+37);
+		li=	((((u64)pxy0)    )&0x000000000FFF)|
+			((((u64)pxy1)<<12)&0x000000FFF000)|
+			((((u64)pxy2)<<24)&0x000FFF000000)|
+			((((u64)pxy3)<<36)&0xFFF000000000);
+		BTIC4B_BC7_EncodeBlockBits48Px(ctx, ct2,
+			li, 0, pxtab[4], pxtab[5]);
+		li=	((((u64)pxy0)>>12)&0x000000000FFF)|
+			((((u64)pxy1)    )&0x000000FFF000)|
+			((((u64)pxy2)<<12)&0x000FFF000000)|
+			((((u64)pxy3)<<24)&0xFFF000000000);
+		BTIC4B_BC7_EncodeBlockBits48Px(ctx, ct3,
+			li, 0, pxtab[6], pxtab[7]);
+		break;
+#endif
+
 	default:
-		BTIC4B_ConvBlockSpecialBC7_A(ctx, iblock, oblock, obystr, tfl);
+		BTIC4B_ConvBlockSpecialBC7_A(ctx,
+			iblock, oblock, obxstr, obystr, tfl);
 		break;
 	}
 }
@@ -2310,7 +2751,7 @@ void BTIC4B_ConvImageBC7_AI(BTIC4B_Context *ctx,
 	byte *iblock, int iblkstr,
 	byte *oblock, int oblkstr, int xs, int ys)
 {
-	int xs1, ys1;
+	int xs1, ys1, obystr;
 	int i, j, k0, k1, tfl;
 
 	BTIC4B_ConvBlockBC7_Init();
@@ -2323,6 +2764,8 @@ void BTIC4B_ConvImageBC7_AI(BTIC4B_Context *ctx,
 	}
 	
 	xs1=(xs+7)>>3; ys1=(ys+7)>>3;
+	obystr=(tfl&1)?(-2*xs1*oblkstr):(2*xs1*oblkstr);
+
 	for(i=0; i<ys1; i++)
 		for(j=0; j<xs1; j++)
 	{
@@ -2330,14 +2773,16 @@ void BTIC4B_ConvImageBC7_AI(BTIC4B_Context *ctx,
 		k1=(tfl&1)?((2*ys1-i*2-1)*2*xs1+j*2):(i*2*2*xs1+j*2);
 		BTIC4B_ConvBlockBC7_A(ctx,
 			iblock+k0*iblkstr,
-			oblock+k1*16, (tfl&1)?(-2*xs1*16):(2*xs1*16),
+			oblock+k1*oblkstr,
+			oblkstr,
+			obystr,
 			tfl);
 	}
 }
 
 void BTIC4B_ConvImageBC7_BI(BTIC4B_Context *ctx,
 	byte *iblock, int iblkstr,
-	byte *oblock, byte *pblock,
+	byte *oblock, int oblkstr, byte *pblock,
 	int xs, int ys)
 {
 	int xs1, ys1;
@@ -2362,14 +2807,14 @@ void BTIC4B_ConvImageBC7_BI(BTIC4B_Context *ctx,
 		k2=k1;
 		BTIC4B_ConvBlockBC7_B(ctx,
 			iblock+k0*iblkstr,
-			oblock+k1*16,
+			oblock+k1*oblkstr,
 			pblock+k2*16,
 			tfl);
 	}
 }
 
 void BTIC4B_ConvImageBC7_CI(BTIC4B_Context *ctx,
-	byte *ipblock, byte *oblock, byte *pblock,
+	byte *ipblock, byte *oblock, int oblkstr, byte *pblock,
 	int xs, int ys)
 {
 	int xs1, ys1;
@@ -2387,7 +2832,7 @@ void BTIC4B_ConvImageBC7_CI(BTIC4B_Context *ctx,
 		k1=i*xs1+j;
 		BTIC4B_ConvBlockBC7_C(ctx,
 			ipblock+k0*16, xs1*2*16,
-			oblock+k1*16,
+			oblock+k1*oblkstr,
 			pblock+k1*16,
 			tfl);
 	}
@@ -2434,14 +2879,14 @@ void BTIC4B_ConvImageBC7nMip(BTIC4B_Context *ctx,
 		ctx->pblk=malloc(xs1*ys1*16);
 
 	BTIC4B_ConvImageBC7_BI(ctx,
-		iblock, iblkstr, ct, ctx->pblk, xs1, ys1);
+		iblock, iblkstr, ct, 16, ctx->pblk, xs1, ys1);
 	ct+=((xs1+3)>>2)*((ys1+3)>>2)*16;
 	xs1=(xs1+1)>>1;		ys1=(ys1+1)>>1;
 	
 	while((xs1>=4) && (ys1>=4))
 	{
 		BTIC4B_ConvImageBC7_CI(ctx,
-			ctx->pblk, ct, ctx->pblk, xs1, ys1);
+			ctx->pblk, ct, 16, ctx->pblk, xs1, ys1);
 		ct+=((xs1+3)>>2)*((ys1+3)>>2)*16;
 		xs1=(xs1+1)>>1;		ys1=(ys1+1)>>1;
 	}
@@ -2450,7 +2895,7 @@ void BTIC4B_ConvImageBC7nMip(BTIC4B_Context *ctx,
 	while((xs2>1) || (ys2>1))
 	{
 		BTIC4B_ConvImageBC7_CI(ctx,
-			ctx->pblk, ct, ctx->pblk, xs1, ys1);
+			ctx->pblk, ct, 16, ctx->pblk, xs1, ys1);
 		ct+=((xs2+3)>>2)*((ys2+3)>>2)*16;
 		xs2=(xs2+1)>>1;		ys2=(ys2+1)>>1;
 	}

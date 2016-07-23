@@ -29,6 +29,25 @@ typedef signed long long s64;
 typedef unsigned int uint;
 #endif
 
+#if defined(__x86_64__) || defined(_M_X64)
+#ifndef X86_64
+#define X86_64
+#endif
+#endif
+
+#if defined(__i386__) || defined(_M_IX86)
+#ifndef X86
+#define X86
+#endif
+#endif
+
+#if defined(__arm__) || defined(_M_ARM)
+#ifndef ARM
+#define ARM
+#endif
+#endif
+
+
 #if !defined(LITTLEENDIAN) && !defined(BIGENDIAN)
 #if defined(X86) || defined(X86_64) || defined(ARM)
 #define LITTLEENDIAN
@@ -87,13 +106,14 @@ typedef unsigned int uint;
 
 #define BTIC4B_FCC_BT4B		BTIC4B_FOURCC('B', 'T', '4', 'B')
 
-#define BTIC4B_CLRS_RGBA		0x00
-#define BTIC4B_CLRS_BGRA		0x01
-#define BTIC4B_CLRS_RGBX		0x02
-#define BTIC4B_CLRS_BGRX		0x03
-#define BTIC4B_CLRS_RGB			0x04
-#define BTIC4B_CLRS_BGR			0x05
-
+#define BTIC4B_CLRS_RGBA		0x00	//R, G, B, A
+#define BTIC4B_CLRS_BGRA		0x01	//B, G, R, A
+#define BTIC4B_CLRS_RGBX		0x02	//R, G, B, x
+#define BTIC4B_CLRS_BGRX		0x03	//B, G, R, x
+#define BTIC4B_CLRS_RGB			0x04	//R, G, B
+#define BTIC4B_CLRS_BGR			0x05	//B, G, R
+#define BTIC4B_CLRS_RGB11F		0x06	//B10.G11.R11 (UF16)
+#define BTIC4B_CLRS_RGB48F		0x07	//RGB48 (F16)
 #define BTIC4B_CLRS_BC1			0x08
 #define BTIC4B_CLRS_BC3			0x09
 #define BTIC4B_CLRS_BC6			0x0A
@@ -102,10 +122,19 @@ typedef unsigned int uint;
 #define BTIC4B_CLRS_BC3MIP		0x0D
 #define BTIC4B_CLRS_BC6MIP		0x0E
 #define BTIC4B_CLRS_BC7MIP		0x0F
+#define BTIC4B_CLRS_RGB8E8		0x10	//RGB8_E8
 
 #define BTIC4B_CLRT_GDBDR		0
 #define BTIC4B_CLRT_RCT			1
 #define BTIC4B_CLRT_YCBCR		2
+
+#define BTIC4B_IMGT_LDR8		0
+#define BTIC4B_IMGT_LDR8A		1
+#define BTIC4B_IMGT_LDR10		2
+#define BTIC4B_IMGT_LDR12		3
+#define BTIC4B_IMGT_HDR16		4
+#define BTIC4B_IMGT_HDR16A		5
+#define BTIC4B_IMGT_HDR12		6
 
 #ifdef _MSC_VER
 #define BTIC4B_DBGTRAP		__debugbreak();
@@ -117,11 +146,52 @@ typedef unsigned int uint;
 #define BTIC4B_QFL_IFRAME		0x0200
 #define BTIC4B_QFL_USEPRED		0x0400
 #define BTIC4B_QFL_USEBFQ		0x0800
+#define BTIC4B_QFL_OPTBCN		0x1000
 
 #define BTIC4B_ERRS_GENERIC		-1
 #define BTIC4B_ERRS_BADFCC		-16
 #define BTIC4B_ERRS_BADIBUFSZ	-17
 #define BTIC4B_ERRS_NOIMAGE		-18
+
+#if defined(X86)||defined(X86_64)||defined(ARM)
+#define btic4b_getu16le(ptr)		(*(u16 *)(ptr))
+#define btic4b_getu32le(ptr)		(*(u32 *)(ptr))
+#define btic4b_getu64le(ptr)		(*(u64 *)(ptr))
+#define btic4b_gets16le(ptr)		(*(s16 *)(ptr))
+#define btic4b_gets32le(ptr)		(*(s32 *)(ptr))
+#define btic4b_gets64le(ptr)		(*(s64 *)(ptr))
+#define btic4b_setu16le(ptr, val)	(*(u16 *)(ptr))=(val)
+#define btic4b_setu32le(ptr, val)	(*(u32 *)(ptr))=(val)
+#define btic4b_setu64le(ptr, val)	(*(u64 *)(ptr))=(val)
+#define btic4b_sets16le(ptr, val)	(*(s16 *)(ptr))=(val)
+#define btic4b_sets32le(ptr, val)	(*(s32 *)(ptr))=(val)
+#define btic4b_sets64le(ptr, val)	(*(s64 *)(ptr))=(val)
+#else
+default_inline u16 btic4b_getu16le(byte *ptr)
+	{ return(ptr[0]|(ptr[1]<<8)); }
+default_inline u32 btic4b_getu32le(byte *ptr)
+	{ return(ptr[0]|(ptr[1]<<8)|(ptr[2]<<16)|(ptr[3]<<24)); }
+default_inline u64 btic4b_getu64le(byte *ptr)
+	{ return(btic4b_getu32le(ptr)|(((u64)btic4b_getu32le(ptr+4))<<32)); }
+default_inline s16 btic4b_gets16le(byte *ptr)
+	{ return(ptr[0]|(ptr[1]<<8)); }
+default_inline s32 btic4b_gets32le(byte *ptr)
+	{ return(ptr[0]|(ptr[1]<<8)|(ptr[2]<<16)|(ptr[3]<<24)); }
+default_inline s64 btic4b_gets64le(byte *ptr)
+	{ return(btic4b_getu32le(ptr)|(((s64)btic4b_gets32le(ptr+4))<<32)); }
+default_inline void btic4b_setu16le(byte *ptr, u16 val)
+	{ ptr[0]=val; ptr[1]=val>>8; }
+default_inline void btic4b_setu32le(byte *ptr, u32 val)
+	{ ptr[0]=val; ptr[1]=val>>8; ptr[2]=val>>16; ptr[3]=val>>24; }
+default_inline void btic4b_setu64le(byte *ptr, u64 val)
+	{ btic4b_setu32le(ptr, val); btic4b_setu32le(ptr+4, val>>32); }
+default_inline void btic4b_sets16le(byte *ptr, s16 val)
+	{ btic4b_setu16le(ptr, (u16)val); }
+default_inline void btic4b_sets32le(byte *ptr, s32 val)
+	{ btic4b_setu32le(ptr, (u32)val); }
+default_inline void btic4b_sets64le(byte *ptr, s64 val)
+	{ btic4b_setu64le(ptr, (u64)val); }
+#endif
 
 typedef struct {
 byte tab[256];
@@ -213,6 +283,14 @@ void (*ClrDec2T)(int tag,
 	int dy, int du, int dv,
 	int *rr0, int *rg0, int *rb0,
 	int *rr1, int *rg1, int *rb1);
+
+u32 (*ClrDecPack1)(int cr, int cg, int cb);
+u32 (*ClrDecPack1A)(int cr, int cg, int cb, int ca);
+
+void (*ClrDecPack4)(
+	int cr0, int cg0, int cb0,
+	int cr1, int cg1, int cb1,
+	int ca, u32 *tab);
 
 //block format query
 short bfq_qdy[32];		//dy cutoff
