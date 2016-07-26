@@ -947,6 +947,122 @@ void BTIC4B_SplitIbufRGB444_12R11F(
 	mcyuv[3]=255;	ncyuv[3]=255;
 }
 
+
+u32 btic4b_img_rgbevtor16(int fb, int eb)
+{
+	int cb;
+	if(fb)
+		{ while(!(fb>>10)) { fb<<=1; eb--; } }
+	else
+		{ eb=0; }
+	cb=(eb<<10)|(fb&0x3FF);
+	return(cb);
+}
+
+void BTIC4B_SplitIbufRGB444_16RGB8E8(
+	BTIC4B_Context *ctx,
+	byte *ibuf, int ystr,
+	int *ybuf, int *ubuf, int *vbuf,
+	int *mcyuv, int *ncyuv)
+{
+	byte *cs0, *cs1;
+	int *cty0, *cty1, *ctu0, *ctu1, *ctv0, *ctv1;
+	int i0, i1, i2, i3;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+	int ce0, ce1, ce2, ce3;
+	int cy0, cy1, cy2, cy3;
+	int cu0, cu1, cu2, cu3;
+	int cv0, cv1, cv2, cv3;
+	int mcy, mcu, mcv, ncy, ncu, ncv;
+	int cr, cg, cb;
+	int cy, cu, cv;
+	
+	int i, j, k;
+	
+	mcy= 32767; mcu= 32767; mcv= 32767;
+	ncy=-32767; ncu=-32767; ncv=-32767;
+//	ctu=ubuf;	ctv=vbuf;
+	cty0=ybuf;	cty1=ybuf+8;
+	ctu0=ubuf;	ctu1=ubuf+8;
+	ctv0=vbuf;	ctv1=vbuf+8;
+	for(i=0; i<4; i++)
+	{
+		cs0=ibuf+(i*2+0)*ystr;
+		cs1=ibuf+(i*2+1)*ystr;
+		for(j=0; j<4; j++)
+		{
+			i0=((u32 *)cs0)[0];		i1=((u32 *)cs0)[1];
+			i2=((u32 *)cs1)[0];		i3=((u32 *)cs1)[1];
+			cs0+=8;		cs1+=8;
+
+			cb0=(i0>>16)&255;	cg0=(i0>> 8)&255;	cr0=(i0)&255;
+			cb1=(i1>>16)&255;	cg1=(i1>> 8)&255;	cr1=(i1)&255;
+			cb2=(i2>>16)&255;	cg2=(i2>> 8)&255;	cr2=(i2)&255;
+			cb3=(i3>>16)&255;	cg3=(i3>> 8)&255;	cr3=(i3)&255;
+			ce0=(i0>>24)&255;	ce1=(i1>>24)&255;
+			ce2=(i2>>24)&255;	ce3=(i3>>24)&255;
+	
+			cr0=btic4b_img_rgbevtor16(cr0<<3, ce0);
+			cr1=btic4b_img_rgbevtor16(cr1<<3, ce1);
+			cr2=btic4b_img_rgbevtor16(cr2<<3, ce2);
+			cr3=btic4b_img_rgbevtor16(cr3<<3, ce3);
+			cg0=btic4b_img_rgbevtor16(cg0<<3, ce0);
+			cg1=btic4b_img_rgbevtor16(cg1<<3, ce1);
+			cg2=btic4b_img_rgbevtor16(cg2<<3, ce2);
+			cg3=btic4b_img_rgbevtor16(cg3<<3, ce3);
+			cb0=btic4b_img_rgbevtor16(cb0<<3, ce0);
+			cb1=btic4b_img_rgbevtor16(cb1<<3, ce1);
+			cb2=btic4b_img_rgbevtor16(cb2<<3, ce2);
+			cb3=btic4b_img_rgbevtor16(cb3<<3, ce3);
+			
+//			cb0=cb0<<1;	cb1=cb1<<1;	cb2=cb2<<1;	cb3=cb3<<1;
+
+			cy0=(2*cg0+cr0+cb0)>>2;
+			cy1=(2*cg1+cr1+cb1)>>2;
+			cy2=(2*cg2+cr2+cb2)>>2;
+			cy3=(2*cg3+cr3+cb3)>>2;
+
+			cu0=cb0-cg0; cv0=cr0-cg0;
+			cu1=cb1-cg1; cv1=cr1-cg1;
+			cu2=cb2-cg2; cv2=cr2-cg2;
+			cu3=cb3-cg3; cv3=cr3-cg3;
+
+			cty0[0]=cy0; 	cty0[1]=cy1;
+			cty1[0]=cy2; 	cty1[1]=cy3;
+			ctu0[0]=cu0; 	ctu0[1]=cu1;
+			ctu1[0]=cu2; 	ctu1[1]=cu3;
+			ctv0[0]=cv0; 	ctv0[1]=cv1;
+			ctv1[0]=cv2; 	ctv1[1]=cv3;
+			cty0+=2;		cty1+=2;
+			ctu0+=2;		ctu1+=2;
+			ctv0+=2;		ctv1+=2;
+
+			mcy=lqtvq_fmin(mcy, cy0);	mcy=lqtvq_fmin(mcy, cy3);
+			mcy=lqtvq_fmin(mcy, cy1);	mcy=lqtvq_fmin(mcy, cy2);
+			ncy=lqtvq_fmax(ncy, cy0);	ncy=lqtvq_fmax(ncy, cy3);
+			ncy=lqtvq_fmax(ncy, cy1);	ncy=lqtvq_fmax(ncy, cy2);
+			mcu=lqtvq_fmin(mcu, cu0);	mcu=lqtvq_fmin(mcu, cu3);
+			mcu=lqtvq_fmin(mcu, cu1);	mcu=lqtvq_fmin(mcu, cu2);
+			mcv=lqtvq_fmin(mcv, cv0);	mcv=lqtvq_fmin(mcv, cv3);
+			mcv=lqtvq_fmin(mcv, cv1);	mcv=lqtvq_fmin(mcv, cv2);
+			ncu=lqtvq_fmax(ncu, cu0);	ncu=lqtvq_fmax(ncu, cu3);
+			ncu=lqtvq_fmax(ncu, cu1);	ncu=lqtvq_fmax(ncu, cu2);
+			ncv=lqtvq_fmax(ncv, cv0);	ncv=lqtvq_fmax(ncv, cv3);
+			ncv=lqtvq_fmax(ncv, cv1);	ncv=lqtvq_fmax(ncv, cv2);
+		}
+		cty0+=8;	cty1+=8;
+		ctu0+=8;	ctu1+=8;
+		ctv0+=8;	ctv1+=8;
+	}
+	
+	mcyuv[0]=mcy;	mcyuv[1]=mcu;	mcyuv[2]=mcv;
+	ncyuv[0]=ncy;	ncyuv[1]=ncu;	ncyuv[2]=ncv;
+	mcyuv[3]=255;	ncyuv[3]=255;
+}
+
+
 int lqtvq_fsctab[256];
 u16 lqtvq_btohf[256];
 byte lqtvq_hftob[2048];
@@ -2627,6 +2743,36 @@ void BTIC4B_EncBlockRGB48F(BTIC4B_Context *ctx,
 		mcyuv, ncyuv);
 }
 
+void BTIC4B_EncBlockRGB_16RGB8E8(BTIC4B_Context *ctx,
+	byte *blkbuf, byte *ibuf, int ystr)
+{
+	int ybuf[64], ubuf[64], vbuf[64];
+	int ubuf2[16], vbuf2[16];
+	int mcyuv[4], ncyuv[4];
+	int cu, cv;
+	int i0, i1;
+	int i, j, k;
+
+	BTIC4B_SplitIbufRGB444_16RGB8E8(ctx, ibuf, ystr,
+		ybuf, ubuf, vbuf, mcyuv, ncyuv);
+
+	for(i=0; i<4; i++)
+		for(j=0; j<4; j++)
+	{
+		i0=i*16+j*2;
+		i1=i*4+j;
+		
+		cu=(ubuf[i0+0]+ubuf[i0+1]+ubuf[i0+8]+ubuf[i0+9])>>2;
+		cv=(vbuf[i0+0]+vbuf[i0+1]+vbuf[i0+8]+vbuf[i0+9])>>2;
+		ubuf2[i1]=cu;
+		vbuf2[i1]=cv;
+	}
+
+	BTIC4B_EncBlock0Inner(ctx, blkbuf,
+		ybuf, ubuf2, vbuf2, ubuf, vbuf,
+		mcyuv, ncyuv);
+}
+
 #if 1
 void BTIC4B_EncImageBGRA(BTIC4B_Context *ctx,
 	byte *blks, byte *ibuf, int xs, int ys)
@@ -2695,6 +2841,10 @@ void BTIC4B_EncImageClrs(BTIC4B_Context *ctx,
 	case BTIC4B_CLRS_RGB48F:
 		EncBlock=BTIC4B_EncBlockRGB48F;
 		xstr=6;
+		break;
+	case BTIC4B_CLRS_RGB8E8:
+		EncBlock=BTIC4B_EncBlockRGB_16RGB8E8;
+		xstr=4;
 		break;
 
 	default:

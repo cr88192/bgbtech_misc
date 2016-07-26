@@ -363,6 +363,10 @@ int bt4b_encode(char *infile, char *outfile, int qfl)
 	{
 		ibuf=BTIC1H_Img_LoadTGA(infile, &xs, &ys);
 		clrs=BTIC4B_CLRS_RGBA;
+		
+		if(BTIC4B_Img_CheckRGBeP(ibuf, xs, ys))
+			clrs=BTIC4B_CLRS_RGB8E8;
+		
 	}else if(!strcmp(ext, ".hdr") || !strcmp(ext, ".HDR"))
 	{
 		ibuf=BTIC4B_Img_LoadHDR_R11F(infile, &xs, &ys);
@@ -453,6 +457,9 @@ int bt4b_test(char *infile, int qfl, int tclrs)
 //		tbuf0=BTIC1H_Img_LoadTGA("yazil0_1.tga", &xs, &ys);
 		tbuf0=BTIC1H_Img_LoadTGA(infile, &xs, &ys);
 		tclrsi=BTIC4B_CLRS_RGBA;
+
+		if(BTIC4B_Img_CheckRGBeP(tbuf0, xs, ys))
+			tclrsi=BTIC4B_CLRS_RGB8E8;
 	}else if(!strcmp(ext, ".hdr") || !strcmp(ext, ".HDR"))
 	{
 		tbuf0=BTIC4B_Img_LoadHDR_RGBE(infile, &xs, &ys);

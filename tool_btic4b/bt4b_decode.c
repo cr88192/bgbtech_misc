@@ -1970,6 +1970,9 @@ BTIC4B_API int BTIC4B_DecodeImgBufferCtx(BTIC4B_Context *ctx,
 	if(!csib)
 		return(BTIC4B_ERRS_NOIMAGE);
 
+	if((clrfl&0xFF)==0xFF)
+		return(0);
+
 	if(!ctx->blks)
 	{
 		ctx->xs=xs;
@@ -2029,13 +2032,19 @@ BTIC4B_API int BTIC4B_DecodeImgBmpBufferCtx(BTIC4B_Context *ctx,
 		if(fcc && (fcc!=BTIC4B_FCC_BT4B))
 			return(BTIC4B_ERRS_BADFCC);
 
-		if(*rxs)*rxs=xs;
-		if(*rys)*rys=ys;
+		if((fcc==BTIC4B_FCC_BT4B) && ((clrfl&0xFF)==0xFF))
+		{
+			BTIC4B_DecodeImgBufferCtx(ctx,
+				tbuf, tsz, NULL, xs, ys, clrfl);
+		}
+
+		if(rxs)*rxs=xs;
+		if(rys)*rys=ys;
 		return(0);
 	}
 
-	if(*rxs)txs=*rxs;
-	if(*rys)tys=*rys;
+	if(rxs)txs=*rxs;
+	if(rys)tys=*rys;
 	if(txs&&tys)
 	{
 		npx=((xs+7)>>3)*((ys+7)>>3);
@@ -2130,6 +2139,22 @@ BTIC4B_API int BTIC4B_DecodeImgBmpBuffer(byte *cbuf, int cbsz,
 	ctx=BTIC4B_AllocContext();
 	i=BTIC4B_DecodeImgBmpBufferCtx(ctx, cbuf, cbsz,
 		ibuf, rxs, rys, clrfl);
+	BTIC4B_FreeContext(ctx);
+	return(i);
+}
+
+BTIC4B_API int BTIC4B_DecodeImgBmpBuffer2(byte *cbuf, int cbsz,
+	byte *ibuf, int *rxs, int *rys, int *imgt, int *clrt)
+{
+	BTIC4B_Context *ctx;
+	int i;
+	
+	ctx=BTIC4B_AllocContext();
+	i=BTIC4B_DecodeImgBmpBufferCtx(ctx, cbuf, cbsz,
+		ibuf, rxs, rys, 0xFF);
+		
+	if(imgt)*imgt=ctx->imgt;
+	if(imgt)*imgt=ctx->imgt;
 	BTIC4B_FreeContext(ctx);
 	return(i);
 }

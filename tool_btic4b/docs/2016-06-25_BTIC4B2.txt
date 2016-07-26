@@ -23,6 +23,10 @@ Value Ranges:
 ** HDR16 values may be either signed or unsigned.
 *** Values are signed, with negatives stored in ones' complement form.
 *** Values will be clamped to 16-bit range inside blocks.
+* HDR 12, Values are encoded as half-floats truncated to 12 bits.
+** Y value range is -2047..2047.
+** U/V/Du/Dv values are in the range of +/- 4095
+** Dy value range is 0 to 4095.
 
 
 The primary colorspace used with this codec will be GDbDr, where:
@@ -131,6 +135,7 @@ Header (Optional):
 *** 3=LDR12 RGB
 *** 4=HDR16 RGB
 *** 5=HDR16 RGBA
+*** 6=HDR12 RGB
 ** 2 bits: Image Block Size
 *** 0=256 bit (No AX)
 *** 1=384 bit (No AX)
@@ -149,6 +154,14 @@ If XSize and YSize are 0, then the resolution is taken from the BITMAPINFOHEADER
 
 Defaults (No Header):
 * LDR8 RGBA with 512-bit blocks and GDbDr.
+
+Color Transform:
+* GDbDr:
+** Y=G, U=B-G, V=R-G
+** G=Y, B=G+U, R=G+V
+* RCT:
+** Y=(2G+B+R)/4, U=B-G, V=R-G
+** G=Y-(U+V)/4, B=G+U, R=G+V
 
 
 == Bitstream Serialization ==
@@ -251,8 +264,17 @@ Where p is the block being predicted, A is the preceding block, with C and B bei
 If one of the blocks is the result of a skip or skip+translate operation, its values will ignored be copied from the current contents of the color vector.
 
 If the predictor is 1, then a Paeth predictor will be used to predict the block color:
-
 p will be predicted as whichever value is closest to A+B-C.
+
+Predictors:
+* 0=Current Vector
+* 1=Paeth (Independent Prediction)
+** The paeth predictor predicts each component independently.
+* 2=Half Linear (3A+3B-2C)/4
+* 3=Half Average (3A+3B+2C)/8
+* 4=Paeth (Joint 3)
+** The choice made by Cy is shared by Cu and Cv.
+** Similar applies to Dy, Du, and Dv.
 
 
 === Commands ===
@@ -410,13 +432,13 @@ Block Type (Hex):
 * 10=8x8x3 (192 bit, Bs=384b)
 * 11=8x8x4 (256 bit, Bs=384b)
 * 12=Escape (Tag, Reserved)
-* 13=Y8x8x2+UV4x4x2 (192 bit, 4:2:0, LDR8, Bs=256b)
+* 13=Y8x8x2+UV4x4x2 (192 bit, 4:2:0, LDR8, Bs=256b, BsA=N/A)
 * 14=Y2x2x2+UV2x2x1 (16 bit, 4:1:0, Bs=256b)
 * 15=Y4x4x2+UV2x2x2 (48 bit, 4:1:0, Bs=256b)
 * 16=Y4x4x2+UV4x4x2 (96 bit, 4:2:0, Bs=256b)
 * 17=Y8x8x2+UV2x2x2 (144 bit, 4:1:0, Bs=384b)
 * 18=Y8x8x2+UV4x4x2 (192 bit, 4:2:0, Bs=384b)
-* 19=Y8x8x3+UV8x8x2 (448 bit, 4:4:4, LDR8, Bs=512b)
+* 19=Y8x8x3+UV8x8x2 (448 bit, 4:4:4, LDR8, Bs=512b, BsA=N/A)
 * 1A=Y8x8x2+UV4x8x2 (256 bit, 4:2:2, Bs=384b)
 * 1B=Y8x8x2+UV8x8x2 (384 bit, 4:4:4, Bs=512b, BsA=768b)
 * 1C=Y8x8x3+UV4x4x2 (256 bit, 4:2:0, Bs=384b)
@@ -436,10 +458,13 @@ If read from the LSB, the pixels will seem to be in left-to-right, nominally bot
 
 In examples given here, for convinience, they will be shown starting in the upper-left, though the definitions will be equivalent (if flipped) in the bottom-to-top case.
 
+The 4:2:2 blocks here will nominally be interpreted as Even/Odd.
+
 
 Single axis blocks will generally interpolate only along Y, assuming U and V to be flat. Blocks with Y and UV will interpolate each axis independently.
 
-YUV data will be packed end-to-end in blocks if less than the normal amount of bits is used. Ex: 4.10 will have the UV data start at byte 32 rather than 40.
+YUV data will be packed end-to-end in blocks if less than the normal amount of bits is used.
+
 
 Grad4: 4-bit tag encodes gradient direction
 * Bit 3: Hard/Soft, 0=Hard, 1=Soft

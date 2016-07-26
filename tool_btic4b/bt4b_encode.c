@@ -1970,6 +1970,9 @@ BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 	if((clrs&0x7F)==BTIC4B_CLRS_RGB48F)
 //		ctx->imgt=BTIC4B_IMGT_HDR12;
 		ctx->imgt=BTIC4B_IMGT_HDR16;
+
+	if((clrs&0x7F)==BTIC4B_CLRS_RGB8E8)
+		ctx->imgt=BTIC4B_IMGT_HDR16;
 	
 	BTIC4B_SetupContextQf(ctx, qfl);
 //	BTIC4B_EncImageBGRA(ctx, ctx->blks, ibuf, xs, ys);

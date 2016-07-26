@@ -1,0 +1,47 @@
+Possible Extension: "HPNG".
+
+Basic format: 32-bit PNG.
+
+Contents: RGBE.
+* RGB channel holds normalized pixel colors
+* Alpha channel holds the exponent.
+* Pixel values expressed as #EERRGGBB
+* Image contents may be identified via "fingerprinting".
+
+The format will have two sub-variants:
+* Unsigned
+** Exponent range is 0x71..0x8E, with 0x7F as 1.0 point.
+* Signed
+** Full byte range is used
+** Low 5 bits hold exponent.
+** High 3 bits hold sign bits.
+*** Bit 5=Red Sign
+*** Bit 6=Green Sign
+*** Bit 7=Blue Sign
+** Positive range is 0x00..0x1F with this variant.
+
+
+Valid Pixels:
+* In the RGB triple, at least one componennt needs to be 0x80..0xFF
+** Denormalized pixels will be considered invalid.
+* Exponents of 0x00 and 0x1F are special/invalid.
+** 0x00 represents denormals, which are not allowed here.
+** 0x1F represents Inf/NaN, which are also not allowed.
+* Logical Ultrablack will be #01808080 or #71808080
+* Logical Ultrawhite will be #1EFFFFFF or #7EFFFFFF
+* Logical Normalblack will be #06808080 or #76808080
+* Logical Normalwhite will be #0F808080 or #7F808080
+** LDR range will be be be between normalblack and normalwhite.
+** Ultrablack and untrawhite represent the darkest and brightest values.
+
+If an image fingerprint sees pixels which are not valid, then the image's pixel data may be assumed to not to be HDR.
+
+If all pixels checked in the fingerprint are within the unsigned range, the image may be assumed to be unsigned, otherwise it will be interpreted as signed if pixels fall outside the unsigned range, but remain valid as signed pixels.
+
+A fingerprint may either check all pixels within an image, or a subset of the pixels. A valid image will thus consist solely of valid pixels.
+
+Thus, Invalid Exponent-Values:
+* Unsigned: 00..70, 8F..FF
+* Signed:
+** 00, 1F, 20, 3F, 40, 5F, 60, 7F,
+** 80, 9F, A0, BF, C0, DF, E0, FF
