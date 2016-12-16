@@ -363,6 +363,15 @@ BOOL btacIsValidFormat(LPWAVEFORMATEX pwfx)
 		return(FALSE);
 	if(pwfx->nBlockAlign&(pwfx->nBlockAlign-1))
 		return(FALSE); 
+		
+	if(pwfx->nAvgBytesPerSec!=(pwfx->nSamplesPerSec/2))
+	{
+		if(pwfx->nAvgBytesPerSec!=pwfx->nSamplesPerSec)
+			return(FALSE); 
+		if(pwfx->nChannels!=2)
+			return(FALSE); 
+	}
+
     return (TRUE);
 }
  
@@ -374,21 +383,21 @@ LRESULT btacm_StreamConvert_BTAC2PCM(
     SHORT *hpiDst;
     BYTE *hpbSrc;
     BYTE *hpbDst;
-	int len, len2, lg2, nb, nbr, bs, ss;
+	int len, len2, lg2, lg2b, nb, nbr, bs, ss, isfr;
 	int i, j, k;
 	
 	lg2=0; bs=padsi->pwfxSrc->nBlockAlign;
 	switch(bs)
 	{
-		case   16: lg2= 5; break;
-		case   32: lg2= 6; break;
-		case   64: lg2= 7; break;
-		case  128: lg2= 8; break;
-		case  256: lg2= 9; break;
-		case  512: lg2=10; break;
-		case 1024: lg2=11; break;
-		case 2048: lg2=12; break;
-		case 4096: lg2=13; break;
+		case   16: lg2= 5; lg2b=4; break;
+		case   32: lg2= 6; lg2b=5; break;
+		case   64: lg2= 7; lg2b=6; break;
+		case  128: lg2= 8; lg2b=7; break;
+		case  256: lg2= 9; lg2b=8; break;
+		case  512: lg2=10; lg2b=9; break;
+		case 1024: lg2=11; lg2b=10; break;
+		case 2048: lg2=12; lg2b=11; break;
+		case 4096: lg2=13; lg2b=12; break;
 		default:
 			return(MMSYSERR_INVALPARAM);
 	}
@@ -396,8 +405,20 @@ LRESULT btacm_StreamConvert_BTAC2PCM(
 	if(lg2<=0)
 		return(MMSYSERR_INVALPARAM);
 
-	nb=padsh->cbSrcLength>>(lg2-1);
-	nbr=padsh->cbSrcLength-(nb<<(lg2-1));
+//	nb=padsh->cbSrcLength>>(lg2-1);
+//	nbr=padsh->cbSrcLength-(nb<<(lg2-1));
+
+	nb=padsh->cbSrcLength>>lg2b;
+	nbr=padsh->cbSrcLength-(nb<<lg2b);
+
+	isfr=0;
+	if((padsi->pwfxDst->nChannels==2) &&
+		(padsi->pwfxSrc->nAvgBytesPerSec>
+			(padsi->pwfxSrc->nSamplesPerSec/2)))
+	{
+		isfr=1;
+		lg2--;
+	}
 	
 //	if(nbr)nb++;
 	
@@ -425,12 +446,19 @@ LRESULT btacm_StreamConvert_BTAC2PCM(
 				hpbSrc+=bs;
 				hpbDst+=1<<lg2;
 			}
-		}else if(padsi->pwfxDst->nChannels==1)
+		}else if(padsi->pwfxDst->nChannels==2)
 		{
 			for(i=0; i<nb; i++)
 			{
-				BGBDT_SndBTAC1C_DecodeBlockStereoLg2_8b(
-					hpbSrc, hpbDst, lg2);
+				if(isfr)
+				{
+					BGBDT_SndBTAC1C_DecodeBlockStereoFrLg2_8b(
+						hpbSrc, hpbDst, lg2);
+				}else
+				{
+					BGBDT_SndBTAC1C_DecodeBlockStereoLg2_8b(
+						hpbSrc, hpbDst, lg2);
+				}
 				hpbSrc+=bs;
 				hpbDst+=2<<lg2;
 			}
@@ -453,7 +481,15 @@ LRESULT btacm_StreamConvert_BTAC2PCM(
 		{
 			for(i=0; i<nb; i++)
 			{
-				BGBDT_SndBTAC1C_DecodeBlockStereoLg2(hpbSrc, hpiDst, lg2);
+				if(isfr)
+				{
+					BGBDT_SndBTAC1C_DecodeBlockStereoFrLg2(
+						hpbSrc, hpiDst, lg2);
+				}else
+				{
+					BGBDT_SndBTAC1C_DecodeBlockStereoLg2(
+						hpbSrc, hpiDst, lg2);
+				}
 				hpbSrc+=bs;
 				hpiDst+=2<<lg2;
 			}
