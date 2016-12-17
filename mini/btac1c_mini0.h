@@ -42,6 +42,9 @@ THE SOFTWARE.
 
 /* Header stuff */
 
+#ifndef BTAC1C_MINI0_H
+#define BTAC1C_MINI0_H
+
 typedef unsigned char btac1c_byte;
 typedef unsigned short btac1c_u16;
 typedef signed short btac1c_s16;
@@ -54,12 +57,12 @@ typedef struct btac1c_idxstate_s btac1c_idxstate;
 
 struct btac1c_idxstate_s {
 btac1c_u16 idx;					/* step index values */
-btac1c_s16 lpred;					/* left/center predictor value */
-btac1c_s16 rpred;					/* right/side predictor value */
-btac1c_byte tag;					/* last (or forced) block type */
-btac1c_byte bcfcn;					/* center(left/right) function */
-btac1c_byte bsfcn;					/* side function */
-btac1c_byte usefx;					/* number of FIR filters to use */
+btac1c_s16 lpred;				/* left/center predictor value */
+btac1c_s16 rpred;				/* right/side predictor value */
+btac1c_byte tag;				/* last (or forced) block type */
+btac1c_byte bcfcn;				/* center(left/right) function */
+btac1c_byte bsfcn;				/* side function */
+btac1c_byte usefx;				/* number of FIR filters to use */
 btac1c_s16 firfx[4][8];			/* FIR filter coeffs (8.8) */
 };
 
@@ -104,80 +107,86 @@ btac1c_s16 firfx[4][8];			/* FIR filter coeffs (8.8) */
  */
 
 
+#ifndef BTAC1C_HAPI
+#define BTAC1C_HAPI static
+#endif
+
+
 /* Prototypes */
 
-void btac1c_initstate(btac1c_idxstate *ridx);
+BTAC1C_HAPI void btac1c_initstate(btac1c_idxstate *ridx);
 
-int BTAC1C2_PredictSample(
+BTAC1C_HAPI int BTAC1C2_PredictSample(
 	int *psamp, int idx, int pfcn, btac1c_idxstate *ridx);
-void *BTAC1C2_GetPredictFunc(int pfcn);
+BTAC1C_HAPI void *BTAC1C2_GetPredictFunc(int pfcn);
 
-void BTAC1C2_DecodeBlockMono(
+BTAC1C_HAPI void BTAC1C2_DecodeBlockMono(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx);
-void BTAC1C2_DecodeMonoBlockStereo(
+BTAC1C_HAPI void BTAC1C2_DecodeMonoBlockStereo(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx);
-void BTAC1C2_DecodeJointBlockStereo(
+BTAC1C_HAPI void BTAC1C2_DecodeJointBlockStereo(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx);
-void BTAC1C2_DecodeStereoBlockStereoI(
+BTAC1C_HAPI void BTAC1C2_DecodeStereoBlockStereoI(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx);
-void BTAC1C2_DecodeStereoBlockStereo(
+BTAC1C_HAPI void BTAC1C2_DecodeStereoBlockStereo(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx);
-void BTAC1C2_DecodeBlockStereo(
+BTAC1C_HAPI void BTAC1C2_DecodeBlockStereo(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx);
-void BTAC1C2_DecodeBlockStereoLg2(
+BTAC1C_HAPI void BTAC1C2_DecodeBlockStereoLg2(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int lg2, btac1c_idxstate *ridx);
-void BTAC1C2_DecodeBlockMonoLg2(
+BTAC1C_HAPI void BTAC1C2_DecodeBlockMonoLg2(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int lg2, btac1c_idxstate *ridx);
 
-int BTAC1C2_ErrorBlockMonoSamples(
+BTAC1C_HAPI int BTAC1C2_ErrorBlockMonoSamples(
 	btac1c_s16 *ibuf0, btac1c_s16 *ibuf1, int len);
-int BTAC1C2_ErrorBlockStereoSamples(
+BTAC1C_HAPI int BTAC1C2_ErrorBlockStereoSamples(
 	btac1c_s16 *ibuf0, btac1c_s16 *ibuf1, int len);
-int BTAC1C2_EncodeQuantUni(
+BTAC1C_HAPI int BTAC1C2_EncodeQuantUni(
 	int tgt, int pred, int step, int lsbit);
-int BTAC1C2_EncodeQuantUni2(
+BTAC1C_HAPI int BTAC1C2_EncodeQuantUni2(
 	int tgt, int tgt2, int pred, int step, int lsbit);
-int BTAC1C2_EncodeQuantUni3(
+BTAC1C_HAPI int BTAC1C2_EncodeQuantUni3(
 	int uni, int step, int pred, int tgt, int tgt2, int lsbit);
-void BTAC1C2_PredictSampleMulti(
+BTAC1C_HAPI void BTAC1C2_PredictSampleMulti(
 	int *psamp, int idx, btac1c_idxstate *ridx, int *prvec);
-int BTAC1C2_SelectFilterBlockMono(
+BTAC1C_HAPI int BTAC1C2_SelectFilterBlockMono(
 	btac1c_s16 *ibuf, int len, btac1c_idxstate *ridx);
-int BTAC1C2_SelectFilterBlockStereo(
+BTAC1C_HAPI int BTAC1C2_SelectFilterBlockStereo(
 	btac1c_s16 *ibuf, int len, btac1c_idxstate *ridx,
 	int *rpcfcn, int *rpsfcn);
-void BTAC1C2_EncodeBlockMonoPfcn(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockMonoPfcn(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pfcn);
-void BTAC1C2_EncodeBlockMono(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockMono(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len, btac1c_idxstate *ridx);
-void BTAC1C2_EncodeBlockStereoJS_Pfcn(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockStereoJS_Pfcn(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pcfcn, int psfcn);
-int BTAC1C2_StereoBlockSizeFromSamples(int len);
-void BTAC1C2_EncodeBlockStereoJS(
+BTAC1C_HAPI int BTAC1C2_StereoBlockSizeFromSamples(int len);
+BTAC1C_HAPI void BTAC1C2_EncodeBlockStereoJS(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len, btac1c_idxstate *ridx);
-void BTAC1C2_EncodeStereoBlockStereoI(
+BTAC1C_HAPI void BTAC1C2_EncodeStereoBlockStereoI(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pfcn);
-void BTAC1C2_EncodeStereoBlockStereo2Pfcn(
+BTAC1C_HAPI void BTAC1C2_EncodeStereoBlockStereo2Pfcn(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pfcn);
-void BTAC1C2_EncodeMonoBlockStereoPfcn(
+BTAC1C_HAPI void BTAC1C2_EncodeMonoBlockStereoPfcn(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pfcn);
-void BTAC1C2_EncodeBlockStereo(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockStereo(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx);
-void BTAC1C2_EncodeBlockStereoLg2(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockStereoLg2(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int lg2,
 	btac1c_idxstate *ridx);
-void BTAC1C2_EncodeBlockMonoLg2(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockMonoLg2(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int lg2,
 	btac1c_idxstate *ridx);
-
 
 /* Common */
+
+#ifndef BTAC1C_SKIPCODE
 
 static const int btac1c_index_table[16] = {
   -1, -1, -1, -1, 2, 4, 6, 8,
@@ -196,7 +205,7 @@ static const int btac1c_step_table[128] = {
  15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767 
 };
 
-int BTAC1C2_PredictSample(
+BTAC1C_HAPI int BTAC1C2_PredictSample(
 	int *psamp, int idx, int pfcn,
 	btac1c_idxstate *ridx)
 {
@@ -282,20 +291,20 @@ int BTAC1C2_PredictSample(
 	return(pred);
 }
 
-int BTAC1C2_PredictSample_Pfn0(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn0(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 	{ return(psamp[(idx-1)&7]); }
-int BTAC1C2_PredictSample_Pfn1(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn1(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 	{ return(2*psamp[(idx-1)&7]-psamp[(idx-2)&7]); }
-int BTAC1C2_PredictSample_Pfn2(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn2(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 	{ return((3*psamp[(idx-1)&7]-psamp[(idx-2)&7])>>1); }
-int BTAC1C2_PredictSample_Pfn3(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn3(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 	{ return((5*psamp[(idx-1)&7]-psamp[(idx-2)&7])>>2); }
 
-int BTAC1C2_PredictSample_Pfn4(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn4(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 {
 	int p0, p1;
@@ -304,7 +313,7 @@ int BTAC1C2_PredictSample_Pfn4(int *psamp, int idx,
 	return(p0-(p1>>1));
 }
 
-int BTAC1C2_PredictSample_Pfn5(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn5(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 {
 	int p0, p1;
@@ -313,7 +322,7 @@ int BTAC1C2_PredictSample_Pfn5(int *psamp, int idx,
 	return((3*p0-p1)>>2);
 }
 
-int BTAC1C2_PredictSample_Pfn6(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn6(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 {
 	int p0, p1;
@@ -322,7 +331,7 @@ int BTAC1C2_PredictSample_Pfn6(int *psamp, int idx,
 	return((5*p0-p1)>>3);
 }
 
-int BTAC1C2_PredictSample_Pfn7(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn7(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 {
 	return((18*psamp[(idx-1)&7]-4*psamp[(idx-2)&7]+
@@ -331,7 +340,7 @@ int BTAC1C2_PredictSample_Pfn7(int *psamp, int idx,
 }
 
 
-int BTAC1C2_PredictSample_Pfn8(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn8(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 {
 	return((	72*psamp[(idx-1)&7]-16*psamp[(idx-2)&7]+
@@ -340,7 +349,7 @@ int BTAC1C2_PredictSample_Pfn8(int *psamp, int idx,
 				 3*psamp[(idx-7)&7]- 1*psamp[(idx-8)&7])/64);
 }
 
-int BTAC1C2_PredictSample_Pfn9(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn9(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 {
 	return((	76*psamp[(idx-1)&7]-17*psamp[(idx-2)&7]+
@@ -349,7 +358,7 @@ int BTAC1C2_PredictSample_Pfn9(int *psamp, int idx,
 				 4*psamp[(idx-7)&7]- 3*psamp[(idx-8)&7])/64);
 }
 
-int BTAC1C2_PredictSample_Pfn10(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn10(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 {
 	int p0, p1;
@@ -358,7 +367,7 @@ int BTAC1C2_PredictSample_Pfn10(int *psamp, int idx,
 	return((5*p0-p1)>>3);
 }
 
-int BTAC1C2_PredictSample_Pfn11(int *psamp, int idx,
+BTAC1C_HAPI int BTAC1C2_PredictSample_Pfn11(int *psamp, int idx,
 	int pfcn, btac1c_idxstate *ridx)
 {
 	int p0, p1;
@@ -367,7 +376,7 @@ int BTAC1C2_PredictSample_Pfn11(int *psamp, int idx,
 	return((p0+p1)>>1);
 }
 
-void *BTAC1C2_GetPredictFunc(int pfcn)
+BTAC1C_HAPI void *BTAC1C2_GetPredictFunc(int pfcn)
 {
 	void *fcn;
 	switch(pfcn)
@@ -389,21 +398,21 @@ void *BTAC1C2_GetPredictFunc(int pfcn)
 	return(fcn);
 }
 
-void btac1c_memset(void *dst, int val, int sz)
+BTAC1C_HAPI void btac1c_memset(void *dst, int val, int sz)
 {
 	int i;
 	for(i=0; i<sz; i++)
 		((btac1c_byte *)dst)[i]=0x00;
 }
 
-void btac1c_memcpy(void *dst, void *src, int sz)
+BTAC1C_HAPI void btac1c_memcpy(void *dst, void *src, int sz)
 {
 	int i;
 	for(i=0; i<sz; i++)
 		((btac1c_byte *)dst)[i]=((btac1c_byte *)src)[i];
 }
 
-void btac1c_initstate(btac1c_idxstate *ridx)
+BTAC1C_HAPI void btac1c_initstate(btac1c_idxstate *ridx)
 {
 	btac1c_memset(ridx, 0, sizeof(btac1c_idxstate));
 }
@@ -411,7 +420,7 @@ void btac1c_initstate(btac1c_idxstate *ridx)
 
 /* Decoder */
 
-void BTAC1C2_DecodeBlockMono(
+BTAC1C_HAPI void BTAC1C2_DecodeBlockMono(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx)
 {
 	int psamp[8];
@@ -453,7 +462,7 @@ void BTAC1C2_DecodeBlockMono(
 	}
 }
 
-void BTAC1C2_DecodeMonoBlockStereo(
+BTAC1C_HAPI void BTAC1C2_DecodeMonoBlockStereo(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len,
 	btac1c_idxstate *ridx)
 {
@@ -523,7 +532,7 @@ void BTAC1C2_DecodeMonoBlockStereo(
 	}
 }
 
-void BTAC1C2_DecodeJointBlockStereo(
+BTAC1C_HAPI void BTAC1C2_DecodeJointBlockStereo(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len,
 	btac1c_idxstate *ridx)
 {
@@ -628,7 +637,7 @@ void BTAC1C2_DecodeJointBlockStereo(
 	}
 }
 
-void BTAC1C2_DecodeStereoBlockStereoI(
+BTAC1C_HAPI void BTAC1C2_DecodeStereoBlockStereoI(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx)
 {
 	int plsamp[8], prsamp[8];
@@ -696,7 +705,7 @@ void BTAC1C2_DecodeStereoBlockStereoI(
 	obuf[i*2+1]=rpred;
 }
 
-void BTAC1C2_DecodeStereoBlockStereo(
+BTAC1C_HAPI void BTAC1C2_DecodeStereoBlockStereo(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx)
 {
 	int p0, p1, p2, p3;
@@ -743,7 +752,7 @@ void BTAC1C2_DecodeStereoBlockStereo(
 #endif
 }
 
-void BTAC1C2_DecodeBlockStereo(
+BTAC1C_HAPI void BTAC1C2_DecodeBlockStereo(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int len, btac1c_idxstate *ridx)
 {
 	int i;
@@ -775,7 +784,7 @@ void BTAC1C2_DecodeBlockStereo(
 	}
 }
 
-void BTAC1C2_DecodeBlockStereoLg2(
+BTAC1C_HAPI void BTAC1C2_DecodeBlockStereoLg2(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int lg2, btac1c_idxstate *ridx)
 {
 	int i, j, k, l;
@@ -798,7 +807,7 @@ void BTAC1C2_DecodeBlockStereoLg2(
 	}
 }
 
-void BTAC1C2_DecodeBlockMonoLg2(
+BTAC1C_HAPI void BTAC1C2_DecodeBlockMonoLg2(
 	btac1c_byte *ibuf, btac1c_s16 *obuf, int lg2, btac1c_idxstate *ridx)
 {
 	int i, j, k, l;
@@ -820,7 +829,7 @@ void BTAC1C2_DecodeBlockMonoLg2(
 
 /* Encoder */
 
-btac1c_s64 btac1c2_fakesqrt(btac1c_s64 val)
+BTAC1C_HAPI btac1c_s64 btac1c2_fakesqrt(btac1c_s64 val)
 {
 	btac1c_s64 v, v1;
 	int i, j;
@@ -843,7 +852,7 @@ btac1c_s64 btac1c2_fakesqrt(btac1c_s64 val)
 	return(v);
 }
 
-int BTAC1C2_ErrorBlockMonoSamples(
+BTAC1C_HAPI int BTAC1C2_ErrorBlockMonoSamples(
 	btac1c_s16 *ibuf0, btac1c_s16 *ibuf1, int len)
 {
 	int p0, p1;
@@ -862,7 +871,7 @@ int BTAC1C2_ErrorBlockMonoSamples(
 	return(e);
 }
 
-int BTAC1C2_ErrorBlockStereoSamples(
+BTAC1C_HAPI int BTAC1C2_ErrorBlockStereoSamples(
 	btac1c_s16 *ibuf0, btac1c_s16 *ibuf1, int len)
 {
 	int p0, p1, p2, p3, pc0, ps0, pc1, ps1;
@@ -896,14 +905,14 @@ int BTAC1C2_ErrorBlockStereoSamples(
 }
 
 
-int BTAC1C2_EncodeQuantUni(
+BTAC1C_HAPI int BTAC1C2_EncodeQuantUni(
 	int tgt, int pred, int step, int lsbit)
 {
 	return(BTAC1C2_EncodeQuantUni2(
 		tgt, tgt, pred, step, lsbit));
 }
 
-int BTAC1C2_EncodeQuantUni2(
+BTAC1C_HAPI int BTAC1C2_EncodeQuantUni2(
 	int tgt, int tgt2, int pred, int step, int lsbit)
 {
 	int uni, sni, diff;
@@ -924,7 +933,7 @@ int BTAC1C2_EncodeQuantUni2(
 	return(uni);
 }
 
-int BTAC1C2_EncodeQuantUni3(
+BTAC1C_HAPI int BTAC1C2_EncodeQuantUni3(
 	int uni, int step, int pred, int tgt, int tgt2, int lsbit)
 {
 	int uni1, uni2;
@@ -978,7 +987,7 @@ int BTAC1C2_EncodeQuantUni3(
 	return(uni);
 }
 
-void BTAC1C2_PredictSampleMulti(
+BTAC1C_HAPI void BTAC1C2_PredictSampleMulti(
 	int *psamp, int idx, btac1c_idxstate *ridx,
 	int *prvec)
 {
@@ -1004,7 +1013,7 @@ void BTAC1C2_PredictSampleMulti(
 	}
 }
 
-int BTAC1C2_SelectFilterBlockMono(
+BTAC1C_HAPI int BTAC1C2_SelectFilterBlockMono(
 	btac1c_s16 *ibuf, int len, btac1c_idxstate *ridx)
 {
 	int psamp[8];
@@ -1054,7 +1063,7 @@ int BTAC1C2_SelectFilterBlockMono(
 	return(uni);
 }
 
-int BTAC1C2_SelectFilterBlockStereo(
+BTAC1C_HAPI int BTAC1C2_SelectFilterBlockStereo(
 	btac1c_s16 *ibuf, int len, btac1c_idxstate *ridx,
 	int *rpcfcn, int *rpsfcn)
 {
@@ -1128,7 +1137,7 @@ int BTAC1C2_SelectFilterBlockStereo(
 	return(uni);
 }
 
-void BTAC1C2_EncodeBlockMonoPfcn(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockMonoPfcn(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pfcn)
 {
@@ -1194,7 +1203,7 @@ void BTAC1C2_EncodeBlockMonoPfcn(
 	}
 }
 
-void BTAC1C2_EncodeBlockMono(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockMono(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len, btac1c_idxstate *ridx)
 {
 	int fcn;
@@ -1210,7 +1219,7 @@ void BTAC1C2_EncodeBlockMono(
 	BTAC1C2_EncodeBlockMonoPfcn(ibuf, obuf, len, ridx, fcn);
 }
 
-void BTAC1C2_EncodeBlockStereoJS_Pfcn(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockStereoJS_Pfcn(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pcfcn, int psfcn)
 {
@@ -1381,12 +1390,12 @@ void BTAC1C2_EncodeBlockStereoJS_Pfcn(
 	}
 }
 
-int BTAC1C2_StereoBlockSizeFromSamples(int len)
+BTAC1C_HAPI int BTAC1C2_StereoBlockSizeFromSamples(int len)
 {
 	return(8+((len+1)/2));
 }
 
-void BTAC1C2_EncodeBlockStereoJS(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockStereoJS(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len, btac1c_idxstate *ridx)
 {
 	btac1c_byte tbuf[1024];
@@ -1473,7 +1482,7 @@ void BTAC1C2_EncodeBlockStereoJS(
 }
 
 
-void BTAC1C2_EncodeStereoBlockStereoI(
+BTAC1C_HAPI void BTAC1C2_EncodeStereoBlockStereoI(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pfcn)
 {
@@ -1573,7 +1582,7 @@ void BTAC1C2_EncodeStereoBlockStereoI(
 	ridx->tag=2;
 }
 
-void BTAC1C2_EncodeStereoBlockStereo2Pfcn(
+BTAC1C_HAPI void BTAC1C2_EncodeStereoBlockStereo2Pfcn(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pfcn)
 {
@@ -1592,7 +1601,7 @@ void BTAC1C2_EncodeStereoBlockStereo2Pfcn(
 	BTAC1C2_EncodeStereoBlockStereoI(stbuf, obuf, l, ridx, pfcn);
 }
 
-void BTAC1C2_EncodeMonoBlockStereoPfcn(
+BTAC1C_HAPI void BTAC1C2_EncodeMonoBlockStereoPfcn(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx, int pfcn)
 {
@@ -1626,14 +1635,14 @@ void BTAC1C2_EncodeMonoBlockStereoPfcn(
 	obuf[7]=intr;
 }
 
-void BTAC1C2_EncodeBlockStereo(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockStereo(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int len,
 	btac1c_idxstate *ridx)
 {
 	BTAC1C2_EncodeBlockStereoJS(ibuf, obuf, len, ridx);
 }
 
-void BTAC1C2_EncodeBlockStereoLg2(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockStereoLg2(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int lg2,
 	btac1c_idxstate *ridx)
 {
@@ -1654,7 +1663,7 @@ void BTAC1C2_EncodeBlockStereoLg2(
 	BTAC1C2_EncodeBlockStereo(stbuf, obuf, len, ridx);
 }
 
-void BTAC1C2_EncodeBlockMonoLg2(
+BTAC1C_HAPI void BTAC1C2_EncodeBlockMonoLg2(
 	btac1c_s16 *ibuf, btac1c_byte *obuf, int lg2,
 	btac1c_idxstate *ridx)
 {
@@ -1674,3 +1683,6 @@ void BTAC1C2_EncodeBlockMonoLg2(
 	
 	BTAC1C2_EncodeBlockMono(stbuf, obuf, len, ridx);
 }
+
+#endif /* BTAC1C_SKIPCODE */
+#endif /* BTAC1C_MINI0_H */
