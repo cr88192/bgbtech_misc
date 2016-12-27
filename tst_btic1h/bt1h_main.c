@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
 	int n, n1, nf, ncf, qf, nwe, nwd;
 	int i, j, k, l;
 
-	nwe=4; nwd=4;
+	nwe=8; nwd=8;
 
 	for(i=1; i<argc; i++)
 	{
@@ -378,15 +378,15 @@ int main(int argc, char *argv[])
 //	qf=65;
 //	qf=85;
 //	qf=95;
-	qf=90;
-//	qf=75;
+//	qf=90;
+	qf=75;
 
 	qf=qf|BTIC1H_QFL_IFRAME;
 //	qf=qf|BTIC1H_QFL_USERC;
-//	qf=qf|BTIC1H_QFL_USESLICE;
+	qf=qf|BTIC1H_QFL_USESLICE;
 //	qf=qf|BTIC1H_QFL_USEGDBDR;
 
-	qf=qf|BTIC1H_QFL_USEMIP;
+//	qf=qf|BTIC1H_QFL_USEMIP;
 	
 	xs1=xs>>2; ys1=ys>>2; n=xs1*ys1;
 	blks=malloc(n*32);
@@ -486,11 +486,14 @@ int main(int argc, char *argv[])
 //			xs1, ys1, ct1-tbuf);
 //		BTIC1H_DecodeImageMB2B(blks, 32, obuf, xs, ys, 4);
 
-		BTIC1H_DecodeCtx(ctx, tbuf, obuf, ct1-tbuf,
-			xs*ys*4, &xs1, &ys1, BTIC1H_PXF_RGBX);
+//		BTIC1H_DecodeCtx(ctx, tbuf, obuf, ct1-tbuf,
+//			xs*ys*4, &xs1, &ys1, BTIC1H_PXF_RGBX);
 
 //		BTIC1H_DecodeCtx(ctx, tbuf, obuf, ct1-tbuf,
 //			xs*ys*4, &xs1, &ys1, BTIC1H_PXF_BC7);
+
+		BTIC1H_DecodeCtx(ctx, tbuf, obuf, ct1-tbuf,
+			xs*ys*4, &xs1, &ys1, BTIC1H_PXF_BC1);
 
 		nf++;
 //		t1=clock();

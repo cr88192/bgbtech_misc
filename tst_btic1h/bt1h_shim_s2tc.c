@@ -224,7 +224,9 @@ force_inline u16 btic1h_s2tc_packrgb(int cr, int cg, int cb)
 	return(i);
 }
 
-void BTIC1H_ConvBlockAlphaS2TC(byte *iblock,
+void BTIC1H_ConvBlockAlphaS2TC(
+	BTIC1H_Context *ctx,
+	byte *iblock,
 	byte *oblock, int flip)
 {
 	int cy, cd, bt, cya, cyb;
@@ -350,7 +352,9 @@ void BTIC1H_DecodeBlockMB2B_RGBI(
 	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip);
 
-void BTIC1H_ConvBlockSpecialS2TC(byte *iblock,
+void BTIC1H_ConvBlockSpecialS2TC(
+	BTIC1H_Context *ctx,
+	byte *iblock,
 	byte *oblock, int tfl)
 {
 	byte tblk[16*4];
@@ -363,10 +367,10 @@ void BTIC1H_ConvBlockSpecialS2TC(byte *iblock,
 
 	if(tfl&1)
 	{
-		BTIC1H_DecodeBlockMB2B_RGBI(NULL, iblock, tblk+12*4, 4, -4*4, 0);
+		BTIC1H_DecodeBlockMB2B_RGBI(ctx, iblock, tblk+12*4, 4, -4*4, 0);
 	}else
 	{
-		BTIC1H_DecodeBlockMB2B_RGBI(NULL, iblock, tblk, 4, 4*4, 0);
+		BTIC1H_DecodeBlockMB2B_RGBI(ctx, iblock, tblk, 4, 4*4, 0);
 	}
 	
 	mcy=256; ncy=-1;
@@ -384,7 +388,9 @@ void BTIC1H_ConvBlockSpecialS2TC(byte *iblock,
 	BTIC1H_S2TC_EncodeBlockI(oblock, yblk, min, max, mcy, ncy);
 }
 
-void BTIC1H_ConvBlockS2TC(byte *iblock,
+void BTIC1H_ConvBlockS2TC(
+	BTIC1H_Context *ctx,
+	byte *iblock,
 	byte *oblock, int flip)
 {
 //	byte *clr;
@@ -443,11 +449,11 @@ void BTIC1H_ConvBlockS2TC(byte *iblock,
 			{ cd=iblock[5]; bt=6; }
 		else if(iblock[4]==17)
 		{
-			BTIC1H_ConvBlockSpecialS2TC(iblock, oblock, flip);
+			BTIC1H_ConvBlockSpecialS2TC(ctx, iblock, oblock, flip);
 			return;
 		}else if(iblock[4]==7)
 		{
-			BTIC1H_ConvBlockSpecialS2TC(iblock, oblock, flip);
+			BTIC1H_ConvBlockSpecialS2TC(ctx, iblock, oblock, flip);
 			return;
 		}else if((iblock[4]==14) || (iblock[4]==15) ||
 			(iblock[4]==19))
@@ -462,7 +468,7 @@ void BTIC1H_ConvBlockS2TC(byte *iblock,
 		}else if((iblock[4]==20) || (iblock[4]==21) ||
 			(iblock[4]==22))
 		{
-			BTIC1H_ConvBlockSpecialS2TC(iblock, oblock, flip);
+			BTIC1H_ConvBlockSpecialS2TC(ctx, iblock, oblock, flip);
 			return;
 		}
 		else
@@ -619,7 +625,9 @@ void BTIC1H_ConvBlockS2TC(byte *iblock,
 	}
 }
 
-void BTIC1H_ConvImageS2TC_I(byte *iblock, int iblkstr,
+void BTIC1H_ConvImageS2TC_I(
+	BTIC1H_Context *ctx,
+	byte *iblock, int iblkstr,
 	byte *oblock, int oblkstr, int xs, int ys)
 {
 	int xs1, ys1;
@@ -640,13 +648,16 @@ void BTIC1H_ConvImageS2TC_I(byte *iblock, int iblkstr,
 		k0=i*xs1+j;
 		k1=(tfl&1)?((ys1-i-1)*xs1+j):(i*xs1+j);
 		BTIC1H_ConvBlockS2TC(
+			ctx,
 			iblock+k0*iblkstr,
 			oblock+k1*oblkstr,
 			tfl);
 	}
 }
 
-void BTIC1H_ConvImageAlphaS2TC_I(byte *iblock, int iblkstr,
+void BTIC1H_ConvImageAlphaS2TC_I(
+	BTIC1H_Context *ctx,
+	byte *iblock, int iblkstr,
 	byte *oblock, int oblkstr, int xs, int ys)
 {
 	int xs1, ys1, tfl;
@@ -665,26 +676,33 @@ void BTIC1H_ConvImageAlphaS2TC_I(byte *iblock, int iblkstr,
 		for(j=0; j<xs1; j++)
 	{
 		BTIC1H_ConvBlockAlphaS2TC(
+			ctx,
 			iblock+(i*xs1+j)*iblkstr,
 			oblock+(i*xs1+j)*oblkstr,
 			tfl);
 	}
 }
 
-void BTIC1H_ConvImageS2TCn(byte *iblock, int iblkstr,
+void BTIC1H_ConvImageS2TCn(
+	BTIC1H_Context *ctx,
+	byte *iblock, int iblkstr,
 	byte *oblock, int bcn, int xs, int ys)
 {
 	switch(bcn)
 	{
 	case 1:
-		BTIC1H_ConvImageS2TC_I(iblock, iblkstr, oblock, 8, xs, ys);
+		BTIC1H_ConvImageS2TC_I(
+			ctx, iblock, iblkstr, oblock, 8, xs, ys);
 		break;
 	case 2:
-		BTIC1H_ConvImageS2TC_I(iblock, iblkstr, oblock+8, 16, xs, ys);
+		BTIC1H_ConvImageS2TC_I(
+			ctx, iblock, iblkstr, oblock+8, 16, xs, ys);
 		break;
 	case 3:
-		BTIC1H_ConvImageAlphaS2TC_I(iblock+24, iblkstr, oblock, 16, xs, ys);
-		BTIC1H_ConvImageS2TC_I(iblock, iblkstr, oblock+8, 16, xs, ys);
+		BTIC1H_ConvImageAlphaS2TC_I(
+			ctx, iblock+24, iblkstr, oblock, 16, xs, ys);
+		BTIC1H_ConvImageS2TC_I(
+			ctx, iblock, iblkstr, oblock+8, 16, xs, ys);
 		break;
 	case 4:
 	case 5:

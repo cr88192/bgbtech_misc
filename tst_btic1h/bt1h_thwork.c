@@ -4,7 +4,7 @@ volatile int btic1h_workqueue_workers;
 volatile int btic1h_workqueue_taskcnt[1024];
 volatile byte btic1h_workqueue_kill=0;
 
-int btic1h_workqueue_defaultworkers=4;
+int btic1h_workqueue_defaultworkers=8;
 
 void btic1h_thLockQueue()
 {

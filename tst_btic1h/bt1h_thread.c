@@ -152,6 +152,9 @@ void bipro_thread_init()
 	bipro_threadtls_tls=TlsAlloc();
 	bipro_thread_ptrevent=CreateEvent(
 		NULL, TRUE, FALSE, TEXT("PointerEvent")); 
+		
+	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+//	SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
 #endif
 
 #if defined(linux) || defined(NATIVECLIENT)

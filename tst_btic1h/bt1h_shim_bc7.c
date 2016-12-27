@@ -413,7 +413,9 @@ void BTIC1H_DecodeBlockMB2B_RGBI(
 	BTIC1H_Context *ctx, byte *block,
 	byte *rgba, int xstride, int ystride, int tflip);
 
-void BTIC1H_ConvBlockSpecialBC7(byte *iblock,
+void BTIC1H_ConvBlockSpecialBC7(
+	BTIC1H_Context *ctx,
+	byte *iblock,
 	byte *oblock, int tfl)
 {
 	byte tblk[16*4];
@@ -426,10 +428,10 @@ void BTIC1H_ConvBlockSpecialBC7(byte *iblock,
 
 	if(tfl&1)
 	{
-		BTIC1H_DecodeBlockMB2B_RGBI(NULL, iblock, tblk+12*4, 4, -4*4, 0);
+		BTIC1H_DecodeBlockMB2B_RGBI(ctx, iblock, tblk+12*4, 4, -4*4, 0);
 	}else
 	{
-		BTIC1H_DecodeBlockMB2B_RGBI(NULL, iblock, tblk, 4, 4*4, 0);
+		BTIC1H_DecodeBlockMB2B_RGBI(ctx, iblock, tblk, 4, 4*4, 0);
 	}
 	
 	mcy=256; ncy=-1;
@@ -454,7 +456,9 @@ void BTIC1H_ConvBlockSpecialBC7(byte *iblock,
 		min, max, mcy, ncy, mca, nca);
 }
 
-void BTIC1H_ConvBlockBC7(byte *iblock,
+void BTIC1H_ConvBlockBC7(
+	BTIC1H_Context *ctx,
+	byte *iblock,
 	byte *oblock, int flip)
 {
 //	byte *clr;
@@ -596,11 +600,11 @@ void BTIC1H_ConvBlockBC7(byte *iblock,
 			{ cd=iblock[5]; bt=6; }
 		else if(iblock[4]==17)
 		{
-			BTIC1H_ConvBlockSpecialBC7(iblock, oblock, flip);
+			BTIC1H_ConvBlockSpecialBC7(ctx, iblock, oblock, flip);
 			return;
 		}else if(iblock[4]==7)
 		{
-			BTIC1H_ConvBlockSpecialBC7(iblock, oblock, flip);
+			BTIC1H_ConvBlockSpecialBC7(ctx, iblock, oblock, flip);
 			return;
 		}else if((iblock[4]==14) || (iblock[4]==15) ||
 			(iblock[4]==19))
@@ -615,7 +619,7 @@ void BTIC1H_ConvBlockBC7(byte *iblock,
 		}else if((iblock[4]==20) || (iblock[4]==21) ||
 			(iblock[4]==22))
 		{
-			BTIC1H_ConvBlockSpecialBC7(iblock, oblock, flip);
+			BTIC1H_ConvBlockSpecialBC7(ctx, iblock, oblock, flip);
 			return;
 		}
 		else
@@ -761,7 +765,9 @@ void BTIC1H_ConvBlockBC7(byte *iblock,
 	}
 }
 
-void BTIC1H_ConvImageBC7_I(byte *iblock, int iblkstr,
+void BTIC1H_ConvImageBC7_I(
+	BTIC1H_Context *ctx,
+	byte *iblock, int iblkstr,
 	byte *oblock, int oblkstr, int xs, int ys)
 {
 	int xs1, ys1;
@@ -782,16 +788,19 @@ void BTIC1H_ConvImageBC7_I(byte *iblock, int iblkstr,
 		k0=i*xs1+j;
 		k1=(tfl&1)?((ys1-i-1)*xs1+j):(i*xs1+j);
 		BTIC1H_ConvBlockBC7(
+			ctx,
 			iblock+k0*iblkstr,
 			oblock+k1*oblkstr,
 			tfl);
 	}
 }
 
-void BTIC1H_ConvImageBC7n(byte *iblock, int iblkstr,
+void BTIC1H_ConvImageBC7n(
+	BTIC1H_Context *ctx,
+	byte *iblock, int iblkstr,
 	byte *oblock, int bcn, int xs, int ys)
 {
-	BTIC1H_ConvImageBC7_I(iblock, iblkstr, oblock, 16, xs, ys);
+	BTIC1H_ConvImageBC7_I(ctx, iblock, iblkstr, oblock, 16, xs, ys);
 }
 
 

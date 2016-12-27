@@ -14,7 +14,8 @@
 #   gdbgr           Use GDbDr colorspace (faster than YCbCr).
 
 useLog true
-workerThreads 4
+# workerThreads 4
+workerThreads 8
 
 # encoderFlags rangecoder66
 encoderFlags slice gdbdr

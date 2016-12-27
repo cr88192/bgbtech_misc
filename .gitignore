@@ -11,3 +11,11 @@ randbits.txt
 *.ilk
 *.exp
 *.lib
+
+*.tga
+*.zip
+*.png
+*.jpg
+*.bmp
+*.dat
+

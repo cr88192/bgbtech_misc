@@ -4,7 +4,7 @@
 #include <math.h>
 #include <time.h>
 
-#include "bt1h_common.c"
+#include "bt1h_common.h"
 #include "bt1h_rice.c"
 #include "bt1h_decrice.c"
 
@@ -162,6 +162,40 @@ int trans_fmtf(byte *ibuf, byte *obuf, int sz)
 	return(0);
 }
 
+int trans_stf2(byte *ibuf, byte *obuf, int sz)
+{
+	byte stfwin[256];
+	byte stfidx[256];
+	byte rov;
+	int i0, i1, i2, i3;
+	int i, j, k, l;
+	
+	for(i=0; i<256; i++)
+	{
+		stfwin[i]=i;
+		stfidx[i]=i;
+	}
+	
+	rov=0;
+	for(i=0; i<sz; i++)
+	{
+		j=ibuf[i];
+		k=(byte)(stfidx[j]-rov);
+		obuf[i]=k;
+
+		i3=(rov+(k  ))&255;
+//		i2=(rov+(k-1))&255;
+//		i2=(i3*7)>>3;
+		i2=(i3*7+3)>>3;
+//		i2=(i3*15)>>4;
+//		i2=(i3*3)>>2;
+		i0=stfwin[i2];	i1=stfwin[i3];
+		stfwin[i2]=i1;	stfwin[i3]=i0;
+		stfidx[i0]=i3;	stfidx[i1]=i2;
+	}
+	return(0);
+}
+
 int count_adrice(byte *ibuf, int sz, int *rk)
 {
 	int i, k, n;
@@ -229,13 +263,14 @@ int test_trans(byte *ibuf, byte *obuf, int fsz, int tn)
 		case 1: trans=trans_mtf; tnstr="MTF"; break;
 		case 2: trans=trans_smtf; tnstr="SMTF"; break;
 		case 3: trans=trans_fmtf; tnstr="FMTF"; break;
+		case 4: trans=trans_stf2; tnstr="STF2"; break;
 		default: trans=trans_stf; tnstr="STF"; break;
 	}
 
 	printf("Trans=%d: %s\n", tn, tnstr);
 
 	t0=clock(); t1=t0; tsz=0;
-	while(t1<(t0+(10*CLOCKS_PER_SEC)))
+	while(t1<(t0+(3*CLOCKS_PER_SEC)))
 	{
 //		trans_stf(ibuf, obuf, fsz);
 		trans(ibuf, obuf, fsz);
@@ -316,7 +351,7 @@ int main(int argc, char *argv[])
 	
 	tbuf1=malloc(fsz+64);
 
-	for(i=0; i<4; i++)
+	for(i=0; i<5; i++)
 	{
 		test_trans(ibuf, tbuf1, fsz, i);
 	}

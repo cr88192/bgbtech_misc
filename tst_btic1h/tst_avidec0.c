@@ -75,6 +75,8 @@ int main(int argc, char *argv[])
 		printf("No Input\n");
 		return(-1);
 	}
+	
+	bipro_thread_init();
 
 	ctx=BGBBTJ_AVI_LoadAVI(ifn);
 	if(!ctx)

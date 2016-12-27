@@ -1285,6 +1285,18 @@ void BTIC1H_DecodeBlockMB2B_RGBI(
 				}
 #endif
 
+#ifdef X86_64
+				pxb2=(((u64)l)<<32)|l;
+
+				ct=rgba;
+				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
+				ct=ct+ystride;
+				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
+				ct=ct+ystride;
+				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
+				ct=ct+ystride;
+				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
+#else
 //				pxb2=(((u64)l)<<32)|l;
 #if 1		
 				ct=rgba;
@@ -1303,6 +1315,7 @@ void BTIC1H_DecodeBlockMB2B_RGBI(
 //				*(u64 *)(ct+ 0)=pxb2;	*(u64 *)(ct+ 8)=pxb2;
 				*(u32 *)(ct+ 0)=l;	*(u32 *)(ct+ 4)=l;
 				*(u32 *)(ct+ 8)=l;	*(u32 *)(ct+12)=l;
+#endif
 #endif
 
 #if 0	
@@ -2545,13 +2558,13 @@ void BTIC1H_DecodeImageMB2B_ClrsBfl(
 	if((clrs>=BTIC1H_PXF_BC1) && (clrs<=BTIC1H_PXF_BC5))
 	{
 		i=(clrs-BTIC1H_PXF_BC1)+1;
-		BTIC1H_ConvImageS2TCn(block, blkstride, rgba, i, xs, ys);
+		BTIC1H_ConvImageS2TCn(ctx, block, blkstride, rgba, i, xs, ys);
 		return;
 	}
 	
 	if(clrs==BTIC1H_PXF_BC7)
 	{
-		BTIC1H_ConvImageBC7n(block, blkstride, rgba, 7, xs, ys);
+		BTIC1H_ConvImageBC7n(ctx, block, blkstride, rgba, 7, xs, ys);
 		return;
 	}
 
