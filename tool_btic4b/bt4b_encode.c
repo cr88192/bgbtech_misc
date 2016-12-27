@@ -1933,6 +1933,7 @@ BTIC4B_API byte *BTIC4B_EncodeBufEmitHeadCtx(
 	ct=BTIC4B_EncEmitUVLI(ct, ctx->xs);
 	ct=BTIC4B_EncEmitUVLI(ct, ctx->ys);
 	ct=BTIC4B_EncEmitUVLI(ct, mod);
+	ct=BTIC4B_EncEmitUVLI(ct, ctx->qfl);
 	
 	i=ct-ict;
 	ict[0]=i>>8; ict[1]=i;

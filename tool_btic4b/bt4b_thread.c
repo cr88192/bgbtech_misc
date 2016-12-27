@@ -926,6 +926,8 @@ void *BIPRO_LookupLabel(char *name)
 
 #ifdef _WIN32
 
+#define HAS_LOOKUPLABELOS
+
 int BIPRO_GetModuleListOS(char **buf, int max)
 {
 	int i, n;
@@ -1251,6 +1253,8 @@ int BIPRO_InitDbgHelpOS()
 
 	return(1);
 }
+
+#define HAS_LOOKUPADDRNAMEOS
 
 char *BIPRO_LookupAddrNameOS(void *addr, void **addr2)
 {
@@ -1611,6 +1615,22 @@ int BIPRO_ProcessEXE(char *name)
 	return(0);
 }
 
+#endif
+
+#ifndef HAS_LOOKUPLABELOS
+#define HAS_LOOKUPLABELOS
+void *BIPRO_LookupLabelOS(char *name)
+{
+	return(NULL);
+}
+#endif
+
+#ifndef HAS_LOOKUPADDRNAMEOS
+#define HAS_LOOKUPADDRNAMEOS
+char *BIPRO_LookupAddrNameOS(void *ptr, void **rbase)
+{
+	return(NULL);
+}
 #endif
 
 char *BIPRO_GetNamePtr(void *ptr)

@@ -1,5 +1,7 @@
 #if defined(_MSC_VER) || (_M_IX86_FP>=1)
-#define BT4B_XMMINTRIN
+// #define BT4B_XMMINTRIN
+// #pragma loop(no_vector)
+
 #include <xmmintrin.h>
 #include <emmintrin.h>
 #endif
