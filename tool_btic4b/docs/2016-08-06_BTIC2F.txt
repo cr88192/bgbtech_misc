@@ -1,0 +1,9 @@
+Possible: BTIC2F
+
+Idea:
+* Lossy or Lossless
+* Block based
+* Entropy: AdRiceLL / AdSRiceLL
+** Bitstream: LSB First
+* Transform: WHT
+* Colorspace: RCT or GDbDr

@@ -147,6 +147,7 @@ Header (Optional):
 *** 1=RCT
 *** 2=YCbCr
 *** 3=Resv
+* EncFlags:VLI
 
 Header may be located either in the image (preceding image-data or mipmap lumps), or appended onto BITMAPINFOHEADER within the relevant file-formats.
 
