@@ -1,6 +1,18 @@
 # bgbtech_misc
 BGB related misc stuff.
 
+tool_btic4b: BTIC4B Command-Line Tool (still image).
+
+tst_btic1h: BTIC1H VfW codec (Test).
+
+tst_btic1h2: BTIC1H VfW codec (Test) + BTIC4B encode/decode.
+
+tst_fastbcn: Test for a "reasonably fast" BC7 encoder.
+
+mini: Small tests (single file)
+* btac1c_mini0.h: Single-file implementation of BTAC1C audio codec (note: does not handle WAV file-format stuff).
+
+
 tool_btic4b
 ==========
 
@@ -32,6 +44,12 @@ This supports being compiled as a VfW codec driver. This allows its use from oth
 BTIC1H is a modestly fast Blocky VQ codec using Adaptive Rice coding for things like color deltas and commands.
 
 There are both faster blocky VQ codecs, as well as codecs which offer a better quality/bpp, but it works ok.
+
+tst_btic1h2
+==========
+
+tst_btic1h2: BTIC1H VfW codec (Test) + BTIC4B encode/decode.
+Basically similar to the previous, but also adds support for BTIC4B video.
 
 
 tst_fastbcn
