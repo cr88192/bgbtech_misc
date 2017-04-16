@@ -28,6 +28,7 @@ int BTIC4B_Img_StoreHDR_RGBE(FILE *fd, byte *buf, int w, int h)
 	fprintf(fd, "FORMAT=32-bit_rle_rgbe\n\n");
 	fprintf(fd, "-Y %d +X %d\n", h, w);
 	fwrite(buf, 1, w*h*4, fd);
+	return(0);
 }
 
 int BTIC4B_Img_SaveHDR_RGBE(
@@ -322,14 +323,14 @@ byte *BTIC4B_Img_ReadHDR_RGBE(FILE *fd, int *rw, int *rh)
 	
 	while(*s && *s!='\n')
 	{
-		s=btic4b_img_sgets(tb, s);
+		s=btic4b_img_sgets((char *)tb, s);
 	}
 	if(*s=='\n')s++;
 
-	s=btic4b_img_sgets(tb, s);
+	s=btic4b_img_sgets((char *)tb, s);
 	ofs=s-((char *)tb0);
 	
-	a=btic4b_img_ssplit(tb);
+	a=btic4b_img_ssplit((char *)tb);
 //	ys=atoi(a[1]);
 //	xs=atoi(a[3]);
 //	xf=0; yf=1;
@@ -505,15 +506,15 @@ byte *BTIC4B_Img_DecodeHDR_RGBE(byte *ibuf, int isz, int *rw, int *rh)
 	
 	while(*s && *s!='\n')
 	{
-		s=btic4b_img_sgets(tb, s);
+		s=btic4b_img_sgets((char *)tb, s);
 	}
 	if(*s=='\n')s++;
 
-	s=btic4b_img_sgets(tb, s);
+	s=btic4b_img_sgets((char *)tb, s);
 //	ofs=s-((char *)tb0);
 	ofs=s-((char *)ibuf);
 	
-	a=btic4b_img_ssplit(tb);
+	a=btic4b_img_ssplit((char *)tb);
 //	ys=atoi(a[1]);
 //	xs=atoi(a[3]);
 //	xf=0; yf=1;

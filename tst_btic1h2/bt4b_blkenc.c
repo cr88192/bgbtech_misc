@@ -111,12 +111,24 @@ void BTIC4B_SplitIbufBGRA(byte *ibuf, int ystr,
 			cr=(cr0+cr1+cr2+cr3)>>2;
 			cb=(cb0+cb1+cb2+cb3)>>2;
 
-			cy0=cg0;	cy1=cg1;
-			cy2=cg2;	cy3=cg3;
-//			cu=((cb-cg)>>1)+128;
-//			cv=((cr-cg)>>1)+128;
-			cu=cb-cg;
-			cv=cr-cg;
+//			if(ctx->clrt==BTIC4B_CLRT_RCT)
+			if(1)
+			{
+				cy0=(2*cg0+cr0+cb0)>>2;
+				cy1=(2*cg1+cr1+cb1)>>2;
+				cy2=(2*cg2+cr2+cb2)>>2;
+				cy3=(2*cg3+cr3+cb3)>>2;
+				cu=cb-cg;
+				cv=cr-cg;
+			}else
+			{
+				cy0=cg0;	cy1=cg1;
+				cy2=cg2;	cy3=cg3;
+//				cu=((cb-cg)>>1)+128;
+//				cv=((cr-cg)>>1)+128;
+				cu=cb-cg;
+				cv=cr-cg;
+			}
 
 			cty0[0]=cy0; 	cty0[1]=cy1;
 			cty1[0]=cy2; 	cty1[1]=cy3;
@@ -259,12 +271,24 @@ void BTIC4B_SplitIbufBGRX(byte *ibuf, int ystr,
 			cr=(cr0+cr1+cr2+cr3)>>2;
 			cb=(cb0+cb1+cb2+cb3)>>2;
 
-			cy0=cg0;	cy1=cg1;
-			cy2=cg2;	cy3=cg3;
-//			cu=((cb-cg)>>1)+128;
-//			cv=((cr-cg)>>1)+128;
-			cu=cb-cg;
-			cv=cr-cg;
+//			if(ctx->clrt==BTIC4B_CLRT_RCT)
+			if(1)
+			{
+				cy0=(2*cg0+cr0+cb0)>>2;
+				cy1=(2*cg1+cr1+cb1)>>2;
+				cy2=(2*cg2+cr2+cb2)>>2;
+				cy3=(2*cg3+cr3+cb3)>>2;
+				cu=cb-cg;
+				cv=cr-cg;
+			}else
+			{
+				cy0=cg0;	cy1=cg1;
+				cy2=cg2;	cy3=cg3;
+//				cu=((cb-cg)>>1)+128;
+//				cv=((cr-cg)>>1)+128;
+				cu=cb-cg;
+				cv=cr-cg;
+			}
 
 			cty0[0]=cy0; 	cty0[1]=cy1;
 			cty1[0]=cy2; 	cty1[1]=cy3;
@@ -361,10 +385,22 @@ void BTIC4B_SplitIbufBGR(byte *ibuf, int ystr,
 			cr=(cr0+cr1+cr2+cr3)>>2;
 			cb=(cb0+cb1+cb2+cb3)>>2;
 
-			cy0=cg0;	cy1=cg1;
-			cy2=cg2;	cy3=cg3;
-			cu=cb-cg;
-			cv=cr-cg;
+//			if(ctx->clrt==BTIC4B_CLRT_RCT)
+			if(1)
+			{
+				cy0=(2*cg0+cr0+cb0)>>2;
+				cy1=(2*cg1+cr1+cb1)>>2;
+				cy2=(2*cg2+cr2+cb2)>>2;
+				cy3=(2*cg3+cr3+cb3)>>2;
+				cu=cb-cg;
+				cv=cr-cg;
+			}else
+			{
+				cy0=cg0;	cy1=cg1;
+				cy2=cg2;	cy3=cg3;
+				cu=cb-cg;
+				cv=cr-cg;
+			}
 
 			cty0[0]=cy0; 	cty0[1]=cy1;
 			cty1[0]=cy2; 	cty1[1]=cy3;

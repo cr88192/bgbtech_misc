@@ -524,6 +524,13 @@ void BTIC4B_FillBlockHeadTag(BTIC4B_Context *ctx, byte *blk, int tag)
 	*(s16 *)(blk+14)=lqtvq_clamp32767S(ctx->dv);
 #endif
 
+#if 1
+	*(s32 *)(blk+16)=0;
+	*(s32 *)(blk+20)=0;
+	*(s32 *)(blk+24)=0;
+	*(s32 *)(blk+28)=0;
+#endif
+
 #if 0
 	cy=ctx->cy;	cu=ctx->cu;	cv=ctx->cv;
 	dy=ctx->dy;	du=ctx->du;	dv=ctx->dv;

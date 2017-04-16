@@ -1,3 +1,11 @@
+int btic4b_subfold(int a, int b)
+{
+	int c;
+	c=a-b;
+	c=(c<<1)^(c>>31);
+	return(c);
+}
+
 
 // #define BTIC4B_BYTES
 
@@ -1005,9 +1013,250 @@ int BTIC4B_EncBlockPriorColorP(BTIC4B_Context *ctx,
 
 }
 
+
+void BTIC4B_EncodeCopyBlocks(BTIC4B_Context *ctx,
+	byte *dblks, byte *sblks, int cnt)
+{
+	byte *cs, *ct;
+	int i;
+	
+	cs=sblks; ct=dblks;
+	for(i=0; i<cnt; i++)
+	{
+		ct[1]=cs[1];
+		ct[2]=cs[2];
+		ct[3]=cs[3];
+		memcpy(ct, cs, ctx->blksz);
+		ct[0]|=0x20;
+		ct+=ctx->blksz; cs+=ctx->blksz;
+	}
+
+//	memcpy(dblks, sblks, cnt*ctx->blksz);
+}
+
+int BTIC4B_CheckSkip(BTIC4B_Context *ctx,
+	byte *blk, byte *lblk, int blksz,
+	int qf, int dyem, int dyen,
+	int duvem, int duven,
+	int *rerr)
+{
+	byte pxa[64*4], pxb[64*4];
+	int i0, i1, i2, i3, i4, i5, i6, i7;
+	int j0, j1, j2, j3, j4, j5, j6, j7;
+	int cy, cu, cv, cd, cm;
+	int cy1, cu1, cv1, cd1, cm1;
+	int ca, cb, ca1, cb1;
+	int e0, e1, e2, e3, edy, euv;
+	int mcy, ncy, dcy;
+	int i, j, k, l;
+
+	if(!memcmp(blk, lblk, blksz))
+	{
+		if(rerr)*rerr=0;
+		return(2);
+	}
+
+#if 0
+	if(!btic1h_errfrac4_init)
+	{
+		for(i=0; i<16; i++)
+			for(j=0; j<16; j++)
+		{
+			btic1h_errfrac4_tab[i][j]=
+				btic1h_errfrac2(i>>2, j>>2)+
+				btic1h_errfrac2(i&3, j&3);
+		}
+		
+		for(i=0; i<4096; i++)
+		{
+			j=	((i>>4)&0xC0)|((i>>3)&0x30)|
+				((i>>2)&0x0C)|((i>>1)&0x03);
+			btic1h_errfrac12to8_tab[i]=j;
+		}
+		
+		btic1h_errfrac4_init=1;
+	}
+#endif
+
+//	return(0);
+
+//	cy=blk[0]; cu=blk[1]; cv=blk[2]; cd=blk[3];
+//	cy1=lblk[0]; cu1=lblk[1]; cv1=lblk[2]; cd1=lblk[3];
+//	cm=0; cm1=0;
+
+	cy =*(s16 *)(blk + 4);	cu =*(s16 *)(blk + 6);
+	cv =*(s16 *)(blk + 8);	cd =*(s16 *)(blk +10);
+	cy1=*(s16 *)(lblk+ 4);	cu1=*(s16 *)(lblk+ 6);
+	cv1=*(s16 *)(lblk+ 8);	cd1=*(s16 *)(lblk+10);
+	cm=blk[0];				cm1=lblk[0];
+
+#if 1
+	e0=btic4b_subfold(cy1, cy);
+	e1=btic4b_subfold(cd1, cd);
+	e2=btic4b_subfold(cu1, cu);
+	e3=btic4b_subfold(cv1, cv);
+	
+	edy=e0;
+	euv=e2+e3;
+	
+//	if((e0>dyen) || (e1>dyen) || (e2>duven) || (e3>duven))
+	if((e0>dyen) || (e1>dyen) || (euv>duven))
+	{
+//		e3=e2+e3;
+		if(rerr)*rerr=e0+(e1>>1)+euv;
+		return(0);
+	}
+#endif
+
+#if 1
+	ca=cy+(cd>>1);		cb=cy-(cd>>1);
+	ca1=cy1+(cd1>>1);	cb1=cy1-(cd1>>1);
+	e0=btic4b_subfold(ca1, cb);
+	e1=btic4b_subfold(cb1, ca);
+
+//	if((e0<dyem) && (e1<dyem) && (e2<duvem) && (e3<duvem))
+	if((e0<dyem) && (e1<dyem) && (euv<duvem))
+	{
+		e2=(e0>e1)?e0:e1;
+		if(rerr)*rerr=e2+euv;
+		return(2);
+	}
+#endif
+
+#if 1
+	mcy=ca; ncy=ca;
+	if(cb<mcy)mcy=cb;
+	if(cb>ncy)ncy=cb;
+	if(ca1<mcy)mcy=ca1;
+	if(ca1>ncy)ncy=ca1;
+	if(cb1<mcy)mcy=cb1;
+	if(cb1>ncy)ncy=cb1;
+	
+	dcy=ncy-mcy;
+#endif
+
+	BTIC4B_DecBlockBGRX(ctx, blk, pxa, 8*4);
+	BTIC4B_DecBlockBGRX(ctx, lblk, pxb, 8*4);
+	
+	e0=0;
+	for(i=0; i<64; i++)
+	{
+		j=pxa[i*4+0]-pxb[i*4+0];
+		e0+=j*j;
+		j=pxa[i*4+1]-pxb[i*4+1];
+		e0+=j*j;
+		j=pxa[i*4+2]-pxb[i*4+2];
+		e0+=j*j;
+	}
+	e1=sqrt(e0/(3*64));
+	
+	if(e1>=dyem)
+		return(0);
+	return(1);
+
+#if 0
+	if(cm!=cm1)
+	{
+		e2=dcy;
+		if(rerr)*rerr=e2+euv;
+		return(0);
+	}
+#endif
+
+#if 0
+	switch(cm)
+	{
+	case 0:
+		e3=	btic1h_errfrac8(blk[4], lblk[4])+
+			btic1h_errfrac8(blk[5], lblk[5])+
+			btic1h_errfrac8(blk[6], lblk[6])+
+			btic1h_errfrac8(blk[7], lblk[7]);
+		break;
+	case 1:
+		e3=btic1h_errfrac8(blk[6], lblk[6])*4;
+		break;
+//	case 2:
+//		e3=16*9;
+//		break;
+	case 8:		case 9:
+		e3=btic1h_errfrac4(blk[6]&15, lblk[6]&15)*8;
+		break;
+	case 10:	case 11:
+	case 12:	case 13:
+		e3=(btic1h_errfrac8(blk[6], lblk[6])+
+			btic1h_errfrac8(blk[7], lblk[7]))*2;
+		break;
+
+	case 14:	case 16:
+	case 17:	case 24:
+	case 27:
+		e3=	btic1h_errfrac8(blk[12], lblk[12])+
+			btic1h_errfrac8(blk[13], lblk[13])+
+			btic1h_errfrac8(blk[14], lblk[14])+
+			btic1h_errfrac8(blk[15], lblk[15]);
+		break;
+
+	case 15:
+	case 21:	case 22:
+	case 25:	case 26:
+		i=(blk[10]<<16)|(blk[11]<<8)|blk[12];
+		j=(blk[13]<<16)|(blk[14]<<8)|blk[15];
+		i0=btic1h_errfrac12to8_tab[(i>>12)&4095];
+		i1=btic1h_errfrac12to8_tab[(i    )&4095];
+		i2=btic1h_errfrac12to8_tab[(j>>12)&4095];
+		i3=btic1h_errfrac12to8_tab[(j    )&4095];
+		i=(lblk[10]<<16)|(lblk[11]<<8)|lblk[12];
+		j=(lblk[13]<<16)|(lblk[14]<<8)|lblk[15];
+		j0=btic1h_errfrac12to8_tab[(i>>12)&4095];
+		j1=btic1h_errfrac12to8_tab[(i    )&4095];
+		j2=btic1h_errfrac12to8_tab[(j>>12)&4095];
+		j3=btic1h_errfrac12to8_tab[(j    )&4095];
+
+		e3=	btic1h_errfrac8(i0, j0)+
+			btic1h_errfrac8(i1, j1)+
+			btic1h_errfrac8(i2, j2)+
+			btic1h_errfrac8(i3, j3);
+		break;
+
+	case 18:	case 19:
+	case 23:
+		e3=btic1h_errfrac8(blk[6], lblk[6])*4;
+		break;
+
+	case 20:
+		e3=	btic1h_errfrac8(blk[12], lblk[12])+
+			btic1h_errfrac8(blk[13], lblk[13])+
+			btic1h_errfrac8(blk[14], lblk[14])+
+			btic1h_errfrac8(blk[15], lblk[15]);
+		break;
+
+	default:
+		e3=16*9;
+		break;
+	}
+
+//	e0=btic4b_subfold(cy1, cy);
+//	e1=(cd>cd1)?cd:cd1;
+//	e2=e0+((e1*e3)>>7);
+//	e1=cd+cd1;
+//	e2=(e0-cd-cd1)+((e1*e3)>>7);
+
+//	e1=(cd+cd1)>>1;
+//	e2=e0+((e1*e3)>>7);
+	e2=edy+((dcy*e3)>>7);
+
+	if(rerr)*rerr=e2+euv;
+	return(e2<dyem);
+#endif
+
+//	return(0);
+}
+
+
 int BTIC4B_EncEmitDbgCmdPfx(BTIC4B_Context *ctx)
 {
 //	BTIC4B_EncEmitCommand(ctx, 0x4C);	//Debug
+	return(0);
 }
 
 void BTIC4B_DecUpdateCtxPred(BTIC4B_Context *ctx,
@@ -1095,13 +1344,26 @@ force_inline void BTIC4B_EncUpdatePredPost(BTIC4B_Context *ctx,
 int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 	byte *cbuf, byte *blks, byte *lblks, int xs, int ys, int qf)
 {
-	byte *cs, *cs1, *cse, *csl, *cs1e;
+	static const int voffs[6*4][2]={
+		{-1, 0},{ 0,-1},{1, 0},{ 0, 1},
+		{-1, 1},{ 1, 1},{1,-1},{-1,-1},
+		{-2, 0},{ 0,-2},{2, 0},{ 0, 2},
+		{-2, 1},{ 1,-2},{2, 1},{ 1, 2},
+		{-2,-1},{-1,-2},{2,-1},{-1, 2},
+		{-2, 2},{ 2, 2},{2,-2},{-2,-2}
+		};
+
+	byte *cs, *cs1, *cse, *csl, *csle, *cs1e, *cs2, *csl2, *csle2;
+	byte *lblks2;
 	byte *blkb;
 	int xs1, ys1;
 	int bi, bc, bc2;
+	int vx, vy, vo;
 	int i, j, k, n;
 	
 	BTIC4B_SetupContextQf(ctx, qf);
+	
+	BTIC4B_DecImageSetupClrsI(ctx, BTIC4B_CLRS_BGRX);
 
 #ifdef BTIC4B_BYTES
 	ctx->ct=cbuf;
@@ -1135,11 +1397,86 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 	csl=lblks;
 	
 	cse=cs+n*64;
+	csle=csl+n*64;
 	
+	lblks2=lblks;
+	csle2=csle;
+
 	while(cs<cse)
 	{
+		if(lblks)
+		{
+			csl=lblks+(cs-blks);
+			for(i=0; i<32; i++)
+			{
+				cs2=cs+i*ctx->blksz;
+				csl2=csl+i*ctx->blksz;
+				if(cs2>=cse)break;
+				if(BTIC4B_CheckSkip(ctx, cs2, csl2, ctx->blksz,
+						qf, ctx->qdy_2x2x2/4, ctx->qdy_4x4x2,
+							ctx->qduv_2x2/4, 2*ctx->qduv_2x2, &k)<=0)
+					break;
+			}
+			
+			if(i>0)
+			{
+				BTIC4B_EncEmitCommand(ctx, 0x41);
+				BTIC4B_EncEmitCount(ctx, i);
+
+				BTIC4B_EncodeCopyBlocks(ctx, cs, csl, i);
+				cs+=i*ctx->blksz;
+				csl+=i*ctx->blksz;
+				continue;
+			}
+
+#ifdef BT4B_USETSKIP
+			csl=lblks+(cs-blks);
+// #if 0
+			i=0;
+//			for(j=0; j<4; j++)
+			for(j=0; j<BT4B_TSKIP_MAX; j++)
+			{
+				vx=voffs[j][0];
+				vy=voffs[j][1];
+
+				vo=(vy*ctx->xsb+vx)*ctx->blksz;
+				for(i=0; i<32; i++)
+				{
+					cs2=cs+i*ctx->blksz;
+					csl2=csl+i*ctx->blksz+vo;
+					if(cs2>=cse)break;
+					if((csl2<lblks2) || (csl2>=csle2))
+						break;
+					if(BTIC4B_CheckSkip(ctx, cs2, csl2, ctx->blksz,
+							qf, ctx->qdy_2x2x2/4, ctx->qdy_4x4x2,
+							ctx->qduv_2x2/4, 2*ctx->qduv_2x2, &k)<=0)
+						break;
+				}
+				if(i>0)break;
+			}
+
+			if(i>0)
+			{
+				BTIC4B_EncEmitCommand(ctx, 0x42);
+				BTIC4B_EncEmitCount(ctx, i);
+				BTIC4B_EncEmitGenericVal(ctx, vx);
+				BTIC4B_EncEmitGenericVal(ctx, vy);
+
+				csl2=csl+vo;
+
+				BTIC4B_EncodeCopyBlocks(ctx, cs, csl2, i);
+
+				cs+=i*ctx->blksz;
+				csl+=i*ctx->blksz;
+//				t1=GPIO_GetTimeUS();
+				continue;
+			}
+#endif
+		}
+
 		blkb=cs;
 		cs+=ctx->blksz;
+		csl+=ctx->blksz;
 
 //		cs1e=cs1+63*ctx->blksz;
 		cs1e=cs+31*ctx->blksz;
@@ -1194,6 +1531,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncUpdatePred(ctx, cs, blks);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1211,6 +1549,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 						*(s16 *)(cs+ 8));
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1236,6 +1575,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncEmit4B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1261,6 +1601,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncEmit8B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1286,6 +1627,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncEmit16B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1311,6 +1653,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncEmit32B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1336,6 +1679,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncEmit64B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1363,6 +1707,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncEmit8B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1388,6 +1733,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncEmit16B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1413,6 +1759,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncEmit32B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1439,6 +1786,7 @@ int BTIC4B_EncImgBlocks(BTIC4B_Context *ctx,
 					BTIC4B_EncEmit64B(ctx, cs+16);
 					BTIC4B_EncUpdatePredPost(ctx, cs, blks);
 					cs+=ctx->blksz;
+					csl+=ctx->blksz;
 				}
 				break;
 			}
@@ -1943,7 +2291,7 @@ BTIC4B_API byte *BTIC4B_EncodeBufEmitHeadCtx(
 BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 	byte *obuf, int cbsz, byte *ibuf, int xs, int ys, int qfl, int clrs)
 {
-	byte *ct, *ct0;
+	byte *ct, *ct0, *cs1;
 	int sz, sz1;
 	int i, j, k, l;
 
@@ -1979,7 +2327,8 @@ BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 //	BTIC4B_EncImageBGRA(ctx, ctx->blks, ibuf, xs, ys);
 	BTIC4B_EncImageClrs(ctx, ctx->blks, ibuf, xs, ys, clrs);
 	
-	ct=BTIC4B_EncodeBufEmitHeadCtx(ctx, ct);
+	if(!(qfl&BTIC4B_QFL_PFRAME))
+		ct=BTIC4B_EncodeBufEmitHeadCtx(ctx, ct);
 	
 	ct0=ct+16;
 	sz1=BTIC4B_EncImgBlocks(ctx,
@@ -2030,7 +2379,11 @@ BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 		}
 	}
 #endif
-	
+
+	cs1=ctx->blks;
+	ctx->blks=ctx->lblks;
+	ctx->lblks=cs1;
+
 	sz=ct-obuf;
 	return(sz);
 }

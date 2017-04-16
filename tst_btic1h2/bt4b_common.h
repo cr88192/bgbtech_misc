@@ -128,6 +128,10 @@ typedef unsigned int uint;
 #define BTIC4B_CLRS_BC6MIP		0x0E
 #define BTIC4B_CLRS_BC7MIP		0x0F
 #define BTIC4B_CLRS_RGB8E8		0x10	//RGB8_E8
+#define BTIC4B_CLRS_BC4			0x11
+#define BTIC4B_CLRS_BC5			0x12
+#define BTIC4B_CLRS_BC4MIP		0x13
+#define BTIC4B_CLRS_BC5MIP		0x14
 
 #define BTIC4B_CLRT_GDBDR		0
 #define BTIC4B_CLRT_RCT			1
@@ -342,6 +346,7 @@ void (*BCnEncodeBlockBits64)(byte *block,
 	u64 pxy, int *min, int *max);
 void (*BCnEncodeBlockFlat)(byte *block, int *avg);
 
+void (*BCnEncodeBlockBGRA)(byte *block, byte *tpx, int ystr);
 };
 
 BTIC4B_API int BTIC4B_DecodeImgBufferCtx(BTIC4B_Context *ctx,
@@ -375,3 +380,17 @@ BTIC4B_API int BTIC4B_EncodeImgBmpBuffer(
 void BTIC4B_DecBlockBGRX(BTIC4B_Context *ctx,
 	byte *blkbuf, byte *ibuf, int ystr);
 void BTIC4B_DecImageSetupClrsI(BTIC4B_Context *ctx, int clrs);
+
+void BTIC4B_ConvImageBC4n(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
+void BTIC4B_ConvImageBC4nMip(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
+
+void BTIC4B_ConvImageBC5n(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
+void BTIC4B_ConvImageBC5nMip(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);

@@ -1,6 +1,6 @@
 #include "bt4b_multi.c"
-#include "bt1h_targa.c"
-#include "bt4b_dump_hdr.c"
+// #include "bt1h_targa.c"
+// #include "bt4b_dump_hdr.c"
 
 float calc_rmse(byte *ibuf0, byte *ibuf1, int xs, int ys)
 {

@@ -162,6 +162,8 @@ void BTIC4B_DecBlockFlatBGRA(BTIC4B_Context *ctx,
 	int cy, cu, cv, cu1, cv1;
 
 	u32 pxy0, pxy1, pxu, pxv;
+	int cr, cg, cb;
+	int fl;
 	int i, j, k;
 	
 	acy=*(s16 *)(blkbuf+ 4);
@@ -170,6 +172,99 @@ void BTIC4B_DecBlockFlatBGRA(BTIC4B_Context *ctx,
 
 	pxu=ctx->ClrDec1(acy, acu, acv);
 
+#if 0
+	fl=blkbuf[28];
+	if(fl)
+//	if(0)
+	{
+		if(fl&4)
+//		if(0)
+		{
+			lqtvq_fillu32_4x1((u32 *)(ibuf+0*ystr+8*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+1*ystr+8*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+2*ystr+8*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+3*ystr+8*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+4*ystr+8*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+5*ystr+8*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+6*ystr+8*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+7*ystr+8*4), pxu);
+		}
+
+		if(fl&8)
+		{
+			lqtvq_fillu32_8x1((u32 *)(ibuf+ 8*ystr), pxu);
+			lqtvq_fillu32_8x1((u32 *)(ibuf+ 9*ystr), pxu);
+			lqtvq_fillu32_8x1((u32 *)(ibuf+10*ystr), pxu);
+			lqtvq_fillu32_8x1((u32 *)(ibuf+11*ystr), pxu);
+		}
+
+		lqtvq_fillu32_4x1((u32 *)(ibuf+4*ystr+4*4), pxu);
+		lqtvq_fillu32_4x1((u32 *)(ibuf+5*ystr+4*4), pxu);
+		lqtvq_fillu32_4x1((u32 *)(ibuf+6*ystr+4*4), pxu);
+		lqtvq_fillu32_4x1((u32 *)(ibuf+7*ystr+4*4), pxu);
+		
+		cr=(pxu>>16)&255;
+		cg=(pxu>> 8)&255;
+		cb=(pxu    )&255;
+		
+//		if(fl&16)
+		if(0)
+		{
+			for(i=0; i<8; i++)
+			{
+				ibuf[i*ystr+ 0]=(3*ibuf[i*ystr+ 0]+  cb)>>2;
+				ibuf[i*ystr+ 1]=(3*ibuf[i*ystr+ 1]+  cg)>>2;
+				ibuf[i*ystr+ 2]=(3*ibuf[i*ystr+ 2]+  cr)>>2;
+				ibuf[i*ystr+ 4]=(  ibuf[i*ystr+ 4]+  cb)>>1;
+				ibuf[i*ystr+ 5]=(  ibuf[i*ystr+ 5]+  cg)>>1;
+				ibuf[i*ystr+ 6]=(  ibuf[i*ystr+ 6]+  cr)>>1;
+				ibuf[i*ystr+ 8]=(  ibuf[i*ystr+ 8]+3*cb)>>2;
+				ibuf[i*ystr+ 9]=(  ibuf[i*ystr+ 9]+3*cg)>>2;
+				ibuf[i*ystr+10]=(  ibuf[i*ystr+10]+3*cr)>>2;
+				*(u32 *)(ibuf+i*ystr+12)=pxu;
+			}
+		}else
+		{
+			lqtvq_fillu32_4x1((u32 *)(ibuf+0*ystr), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+1*ystr), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+2*ystr), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+3*ystr), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+4*ystr), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+5*ystr), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+6*ystr), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+7*ystr), pxu);
+		}
+
+//		if(fl&32)
+		if(0)
+		{
+			for(i=0; i<4; i++)
+			{
+				j=(i+4)*4;
+				ibuf[0*ystr+j+ 0]=(3*ibuf[0*ystr+j+ 0]+  cb)>>2;
+				ibuf[0*ystr+j+ 1]=(3*ibuf[0*ystr+j+ 1]+  cg)>>2;
+				ibuf[0*ystr+j+ 2]=(3*ibuf[0*ystr+j+ 2]+  cr)>>2;
+				ibuf[1*ystr+j+ 4]=(  ibuf[1*ystr+j+ 4]+  cb)>>1;
+				ibuf[1*ystr+j+ 5]=(  ibuf[1*ystr+j+ 5]+  cg)>>1;
+				ibuf[1*ystr+j+ 6]=(  ibuf[1*ystr+j+ 6]+  cr)>>1;
+				ibuf[2*ystr+j+ 8]=(  ibuf[2*ystr+j+ 8]+3*cb)>>2;
+				ibuf[2*ystr+j+ 9]=(  ibuf[2*ystr+j+ 9]+3*cg)>>2;
+				ibuf[2*ystr+j+10]=(  ibuf[2*ystr+j+10]+3*cr)>>2;
+				*(u32 *)(ibuf+3*ystr+j)=pxu;
+			}
+		}else
+		{
+			lqtvq_fillu32_4x1((u32 *)(ibuf+0*ystr+4*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+1*ystr+4*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+2*ystr+4*4), pxu);
+			lqtvq_fillu32_4x1((u32 *)(ibuf+3*ystr+4*4), pxu);
+		}
+		
+		return;
+	}
+#endif
+
+#if 1
 	lqtvq_fillu32_8x1((u32 *)(ibuf+0*ystr), pxu);
 	lqtvq_fillu32_8x1((u32 *)(ibuf+1*ystr), pxu);
 	lqtvq_fillu32_8x1((u32 *)(ibuf+2*ystr), pxu);
@@ -178,6 +273,7 @@ void BTIC4B_DecBlockFlatBGRA(BTIC4B_Context *ctx,
 	lqtvq_fillu32_8x1((u32 *)(ibuf+5*ystr), pxu);
 	lqtvq_fillu32_8x1((u32 *)(ibuf+6*ystr), pxu);
 	lqtvq_fillu32_8x1((u32 *)(ibuf+7*ystr), pxu);
+#endif
 }
 
 void BTIC4B_DecBlockFlatBGRA_FA(BTIC4B_Context *ctx,
@@ -2051,20 +2147,20 @@ void BTIC4B_DecBlockHalfBGRX(BTIC4B_Context *ctx,
 void BTIC4B_DecBlockBGR(BTIC4B_Context *ctx,
 	byte *blkbuf, byte *ibuf, int ystr)
 {
-	u32 tbuf[64];
+	u32 tbuf[256];
 //	byte *ct0, *ct1, *ct2, *ct3;
 	u32 *cs;
 	byte *ct;
 	int i;
 
-	BTIC4B_DecBlockBGRX(ctx, blkbuf, (byte *)tbuf, 8*4);
+	BTIC4B_DecBlockBGRX(ctx, blkbuf, (byte *)tbuf, 16*4);
 
 //	ct0=(ibuf+0*ystr);	ct1=(ibuf+1*ystr);
 //	ct2=(ibuf+2*ystr);	ct3=(ibuf+3*ystr);
 	
 	for(i=0; i<8; i++)
 	{
-		cs=tbuf+i*8;	ct=(ibuf+i*ystr);
+		cs=tbuf+i*16;	ct=(ibuf+i*ystr);
 		btic4b_setu24lef(ct+ 0, cs[0]);	btic4b_setu24lef(ct+ 3, cs[1]);
 		btic4b_setu24lef(ct+ 6, cs[2]);	btic4b_setu24lef(ct+ 9, cs[3]);
 		btic4b_setu24lef(ct+12, cs[4]);	btic4b_setu24lef(ct+15, cs[5]);
@@ -3536,14 +3632,35 @@ void BTIC4B_DecImageClrsI(BTIC4B_Context *ctx,
 		ct=blks+(i*xs2)*ctx->blksz;
 		for(j=0; j<xs1; j++)
 		{
+#if 0
+//			if(ct[0]==0)
+//			if(*((u16 *)ct)==0xFF00)
+			if(*((u16 *)ct)==0x0000)
+			{
+				k=0;
+				if(j>0)k|=1;
+				if(i>0)k|=2;
+				if((j+2)<xs1)k|=4;
+//				if((i+2)<ys1)k|=8;
+				if((j>0) && (*(u16 *)(ct-ctx->blksz)==0x0000))k|=16;
+//				if((i>0) && (*(u16 *)(ct-xs2*ctx->blksz)==0x0000))k|=32;
+				ct[28]=k;
+			}
+#endif
+
 			DecBlock(ctx, ct, cs, ystr);
 //			ct+=64; cs+=32;
 			ct+=ctx->blksz;
 			cs+=8*xstr;
 		}
 		if(xf)
-		{	BTIC4B_DecBlockEdgeClrs(ctx, ct, cs,
-				ystr, xf, 8, clrs);		}
+		{
+//			if(*((u16 *)ct)==0x0000)
+//				ct[28]=0;
+
+			BTIC4B_DecBlockEdgeClrs(ctx, ct, cs,
+				ystr, xf, 8, clrs);
+		}
 	}
 	if(yf)
 	{
@@ -3551,15 +3668,23 @@ void BTIC4B_DecImageClrsI(BTIC4B_Context *ctx,
 //		ct=blks+((i*xs2)<<6);
 		ct=blks+(i*xs2)*ctx->blksz;
 		for(j=0; j<xs1; j++)
-		{	BTIC4B_DecBlockEdgeClrs(ctx, ct, cs,
+		{
+//			if(*((u16 *)ct)==0x0000)
+//				ct[28]=0;
+
+			BTIC4B_DecBlockEdgeClrs(ctx, ct, cs,
 				ystr, 8, yf, clrs);
 //			ct+=64; cs+=32;
 			ct+=ctx->blksz;
 			cs+=8*xstr;
 		}
 		if(xf)
-		{	BTIC4B_DecBlockEdgeClrs(ctx, ct, cs,
-				ystr, xf, yf, clrs);	}
+		{
+//			if(*((u16 *)ct)==0x0000)
+//				ct[28]=0;
+			BTIC4B_DecBlockEdgeClrs(ctx, ct, cs,
+				ystr, xf, yf, clrs);
+		}
 	}
 }
 
@@ -3616,6 +3741,19 @@ void BTIC4B_DecImageClrs(BTIC4B_Context *ctx,
 		break;
 	case BTIC4B_CLRS_BC3MIP:
 		BTIC4B_ConvImageBC3nMip(ctx, blks, ctx->blksz, ibuf, xs, ys);
+		break;
+
+	case BTIC4B_CLRS_BC4:
+		BTIC4B_ConvImageBC4n(ctx, blks, ctx->blksz, ibuf, xs, ys);
+		break;
+	case BTIC4B_CLRS_BC4MIP:
+		BTIC4B_ConvImageBC4nMip(ctx, blks, ctx->blksz, ibuf, xs, ys);
+		break;
+	case BTIC4B_CLRS_BC5:
+		BTIC4B_ConvImageBC5n(ctx, blks, ctx->blksz, ibuf, xs, ys);
+		break;
+	case BTIC4B_CLRS_BC5MIP:
+		BTIC4B_ConvImageBC5nMip(ctx, blks, ctx->blksz, ibuf, xs, ys);
 		break;
 	}
 }

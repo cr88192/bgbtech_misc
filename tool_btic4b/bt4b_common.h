@@ -1,7 +1,5 @@
 #if defined(_MSC_VER) || (_M_IX86_FP>=1)
-// #define BT4B_XMMINTRIN
-// #pragma loop(no_vector)
-
+#define BT4B_XMMINTRIN
 #include <xmmintrin.h>
 #include <emmintrin.h>
 #endif
@@ -77,10 +75,10 @@ typedef unsigned int uint;
 #define default_inline __inline
 #endif
 
-#ifdef __GNUC__
-#define force_inline inline
-#define default_inline inline
-#endif
+// #ifdef __GNUC__
+// #define force_inline inline
+// #define default_inline inline
+// #endif
 
 #ifndef force_inline
 #define force_inline
@@ -125,6 +123,10 @@ typedef unsigned int uint;
 #define BTIC4B_CLRS_BC6MIP		0x0E
 #define BTIC4B_CLRS_BC7MIP		0x0F
 #define BTIC4B_CLRS_RGB8E8		0x10	//RGB8_E8
+#define BTIC4B_CLRS_BC4			0x11
+#define BTIC4B_CLRS_BC5			0x12
+#define BTIC4B_CLRS_BC4MIP		0x13
+#define BTIC4B_CLRS_BC5MIP		0x14
 
 #define BTIC4B_CLRT_GDBDR		0
 #define BTIC4B_CLRT_RCT			1
@@ -168,31 +170,45 @@ typedef unsigned int uint;
 #define btic4b_sets16le(ptr, val)	(*(s16 *)(ptr))=(val)
 #define btic4b_sets32le(ptr, val)	(*(s32 *)(ptr))=(val)
 #define btic4b_sets64le(ptr, val)	(*(s64 *)(ptr))=(val)
+
+#define btic4b_setu24lef(ptr, val)	(*(u32 *)(ptr))=(val)
+default_inline void btic4b_setu24le(byte *ptr, u32 val)
+	{ *(u16 *)ptr=val; ptr[2]=val>>16; }
+
 #else
+
 default_inline u16 btic4b_getu16le(byte *ptr)
 	{ return(ptr[0]|(ptr[1]<<8)); }
 default_inline u32 btic4b_getu32le(byte *ptr)
 	{ return(ptr[0]|(ptr[1]<<8)|(ptr[2]<<16)|(ptr[3]<<24)); }
 default_inline u64 btic4b_getu64le(byte *ptr)
 	{ return(btic4b_getu32le(ptr)|(((u64)btic4b_getu32le(ptr+4))<<32)); }
+
 default_inline s16 btic4b_gets16le(byte *ptr)
 	{ return(ptr[0]|(ptr[1]<<8)); }
 default_inline s32 btic4b_gets32le(byte *ptr)
 	{ return(ptr[0]|(ptr[1]<<8)|(ptr[2]<<16)|(ptr[3]<<24)); }
 default_inline s64 btic4b_gets64le(byte *ptr)
 	{ return(btic4b_getu32le(ptr)|(((s64)btic4b_gets32le(ptr+4))<<32)); }
+
 default_inline void btic4b_setu16le(byte *ptr, u16 val)
 	{ ptr[0]=val; ptr[1]=val>>8; }
 default_inline void btic4b_setu32le(byte *ptr, u32 val)
 	{ ptr[0]=val; ptr[1]=val>>8; ptr[2]=val>>16; ptr[3]=val>>24; }
 default_inline void btic4b_setu64le(byte *ptr, u64 val)
 	{ btic4b_setu32le(ptr, val); btic4b_setu32le(ptr+4, val>>32); }
+
 default_inline void btic4b_sets16le(byte *ptr, s16 val)
 	{ btic4b_setu16le(ptr, (u16)val); }
 default_inline void btic4b_sets32le(byte *ptr, s32 val)
 	{ btic4b_setu32le(ptr, (u32)val); }
 default_inline void btic4b_sets64le(byte *ptr, s64 val)
 	{ btic4b_setu64le(ptr, (u64)val); }
+
+default_inline void btic4b_setu24le(byte *ptr, u32 val)
+	{ ptr[0]=val; ptr[1]=val>>8; ptr[2]=val>>16; }
+#define btic4b_setu24lef(ptr, val)	btic4b_setu24le(ptr, val)
+
 #endif
 
 typedef struct {
@@ -249,6 +265,10 @@ byte pred;				//predictor
 byte imgt;				//image type
 byte clrt;				//colorspace transform
 byte pred_l8p;			//predictor needs to deal with LDR8/Skip
+byte usegrad;
+byte clrs;				//(code) current default colorspace
+byte flip;				//(code) image needs to be flipped
+byte xstr;				//X stride
 
 BTIC4B_SmtfState sm_cmd;
 BTIC4B_SmtfState sm_mask;
@@ -320,6 +340,8 @@ void (*BCnEncodeBlockBits64)(byte *block,
 	u64 pxy, int *min, int *max);
 void (*BCnEncodeBlockFlat)(byte *block, int *avg);
 
+void (*BCnEncodeBlockBGRA)(byte *block, byte *tpx, int ystr);
+
 };
 
 BTIC4B_API int BTIC4B_DecodeImgBufferCtx(BTIC4B_Context *ctx,
@@ -350,3 +372,20 @@ BTIC4B_API int BTIC4B_EncodeImgBmpBuffer(
 	byte *obuf, int cbsz, byte *ibuf,
 	int xs, int ys, int qfl, int clrs);
 
+void BTIC4B_DecBlockBGRX(BTIC4B_Context *ctx,
+	byte *blkbuf, byte *ibuf, int ystr);
+void BTIC4B_DecImageSetupClrsI(BTIC4B_Context *ctx, int clrs);
+
+void BTIC4B_ConvImageBC4n(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
+void BTIC4B_ConvImageBC4nMip(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
+
+void BTIC4B_ConvImageBC5n(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);
+void BTIC4B_ConvImageBC5nMip(BTIC4B_Context *ctx,
+	byte *iblock, int iblkstr,
+	byte *oblock, int xs, int ys);

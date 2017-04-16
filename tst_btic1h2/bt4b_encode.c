@@ -1,3 +1,11 @@
+int btic4b_subfold(int a, int b)
+{
+	int c;
+	c=a-b;
+	c=(c<<1)^(c>>31);
+	return(c);
+}
+
 
 // #define BTIC4B_BYTES
 
@@ -1083,10 +1091,10 @@ int BTIC4B_CheckSkip(BTIC4B_Context *ctx,
 	cm=blk[0];				cm1=lblk[0];
 
 #if 1
-	e0=btic1h_subfold(cy1, cy);
-	e1=btic1h_subfold(cd1, cd);
-	e2=btic1h_subfold(cu1, cu);
-	e3=btic1h_subfold(cv1, cv);
+	e0=btic4b_subfold(cy1, cy);
+	e1=btic4b_subfold(cd1, cd);
+	e2=btic4b_subfold(cu1, cu);
+	e3=btic4b_subfold(cv1, cv);
 	
 	edy=e0;
 	euv=e2+e3;
@@ -1103,8 +1111,8 @@ int BTIC4B_CheckSkip(BTIC4B_Context *ctx,
 #if 1
 	ca=cy+(cd>>1);		cb=cy-(cd>>1);
 	ca1=cy1+(cd1>>1);	cb1=cy1-(cd1>>1);
-	e0=btic1h_subfold(ca1, cb);
-	e1=btic1h_subfold(cb1, ca);
+	e0=btic4b_subfold(ca1, cb);
+	e1=btic4b_subfold(cb1, ca);
 
 //	if((e0<dyem) && (e1<dyem) && (e2<duvem) && (e3<duvem))
 	if((e0<dyem) && (e1<dyem) && (euv<duvem))
@@ -1227,7 +1235,7 @@ int BTIC4B_CheckSkip(BTIC4B_Context *ctx,
 		break;
 	}
 
-//	e0=btic1h_subfold(cy1, cy);
+//	e0=btic4b_subfold(cy1, cy);
 //	e1=(cd>cd1)?cd:cd1;
 //	e2=e0+((e1*e3)>>7);
 //	e1=cd+cd1;
@@ -2319,7 +2327,8 @@ BTIC4B_API int BTIC4B_EncodeImgBufferCtx(BTIC4B_Context *ctx,
 //	BTIC4B_EncImageBGRA(ctx, ctx->blks, ibuf, xs, ys);
 	BTIC4B_EncImageClrs(ctx, ctx->blks, ibuf, xs, ys, clrs);
 	
-	ct=BTIC4B_EncodeBufEmitHeadCtx(ctx, ct);
+	if(!(qfl&BTIC4B_QFL_PFRAME))
+		ct=BTIC4B_EncodeBufEmitHeadCtx(ctx, ct);
 	
 	ct0=ct+16;
 	sz1=BTIC4B_EncImgBlocks(ctx,

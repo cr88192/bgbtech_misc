@@ -277,6 +277,34 @@ Predictors:
 ** The choice made by Cy is shared by Cu and Cv.
 ** Similar applies to Dy, Du, and Dv.
 
+=== Grad4/16 ===
+
+Feature -3 will enable the use of Grad16.
+* If disabled, only Grad4 is used (for Grad4 blocks).
+* If enabled, a unary coded value indicates the grad type.
+** 0=Grad4
+** 01=Grad16
+
+Grad4: 4-bit tag encodes gradient direction
+* Bit 3: Hard/Soft, 0=Hard, 1=Soft
+** Hard will jump directly between the colors
+** Soft will transistion smoothly
+* Bit 2: Diagonal
+* Bit 0/1: Direction (0 to 1)
+** 0=L-R / UL-LR
+** 1=U-D / UR-LL
+** 2=R-L / LR-UL
+** 3=D-U / LL-UR
+
+Grad16: 16-bit index into a procedurally generated table.
+* iihh-rrss xxxx-xxxx
+** xxxx=Basic Pattern
+** ss=Shift Left 0-3 pixels.
+** rr=Rotate (0, 90, 180, 270)
+** hh=Hardness/Softness (00=Hard, 11=Soft)
+** ii=Index Remap (0=0123, 1=3210, 2=2031, 3=1302)
+*** If hh=00, 2/3=Noise Hard/Soft
+
 
 === Commands ===
 
@@ -467,16 +495,9 @@ Single axis blocks will generally interpolate only along Y, assuming U and V to 
 YUV data will be packed end-to-end in blocks if less than the normal amount of bits is used.
 
 
-Grad4: 4-bit tag encodes gradient direction
-* Bit 3: Hard/Soft, 0=Hard, 1=Soft
-** Hard will jump directly between the colors
-** Soft will transistion smoothly
-* Bit 2: Diagonal
-* Bit 0/1: Direction (0 to 1)
-** 0=L-R / UL-LR
-** 1=U-D / UR-LL
-** 2=R-L / LR-UL
-** 3=D-U / LL-UR
+
+Grad4B16: 5/17 Bit Indexed Gradient
+* Preceded by a unary code, 0=Grad4, 01=Grad16.
 
 
 === Alpha Blocks ===

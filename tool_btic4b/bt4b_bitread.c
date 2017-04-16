@@ -3,7 +3,8 @@ void BTIC4B_SetupReadBits(BTIC4B_Context *ctx, byte *buf, int sz)
 	ctx->cs=buf;
 //	ctx->bit_win=0;
 	ctx->bit_pos=0;
-	ctx->bit_win=*(u32 *)(ctx->cs);
+//	ctx->bit_win=*(u32 *)(ctx->cs);
+	ctx->bit_win=btic4b_getu32le(ctx->cs);
 }
 
 byte *BTIC4B_EndReadBits(BTIC4B_Context *ctx)
@@ -34,7 +35,8 @@ int BTIC4B_ReadNBitsNM(BTIC4B_Context *ctx, int len)
 	bp=bp+len;
 
 	ctx->cs+=bp>>3;
-	ctx->bit_win=*(u32 *)ctx->cs;
+//	ctx->bit_win=*(u32 *)ctx->cs;
+	ctx->bit_win=btic4b_getu32le(ctx->cs);
 	ctx->bit_pos=bp&7;
 	return(bits);
 }
@@ -52,7 +54,8 @@ int BTIC4B_ReadNBits(BTIC4B_Context *ctx, int len)
 	bp=bp+len;
 
 	ctx->cs+=bp>>3;
-	ctx->bit_win=*(u32 *)ctx->cs;
+//	ctx->bit_win=*(u32 *)ctx->cs;
+	ctx->bit_win=btic4b_getu32le(ctx->cs);
 	ctx->bit_pos=bp&7;
 	return(bits);
 }
@@ -99,7 +102,8 @@ int BTIC4B_Read8BitsNM(BTIC4B_Context *ctx)
 	int bits;
 	bits=ctx->bit_win>>ctx->bit_pos;
 	ctx->cs++;
-	ctx->bit_win=*(u32 *)ctx->cs;
+//	ctx->bit_win=*(u32 *)ctx->cs;
+	ctx->bit_win=btic4b_getu32le(ctx->cs);
 	return(bits);
 }
 
@@ -108,7 +112,8 @@ int BTIC4B_Read16BitsNM(BTIC4B_Context *ctx)
 	int bits;
 	bits=ctx->bit_win>>ctx->bit_pos;
 	ctx->cs+=2;
-	ctx->bit_win=*(u32 *)ctx->cs;
+//	ctx->bit_win=*(u32 *)ctx->cs;
+	ctx->bit_win=btic4b_getu32le(ctx->cs);
 	return(bits);
 }
 
@@ -117,7 +122,8 @@ int BTIC4B_Read24BitsNM(BTIC4B_Context *ctx)
 	int bits;
 	bits=ctx->bit_win>>ctx->bit_pos;
 	ctx->cs+=3;
-	ctx->bit_win=*(u32 *)ctx->cs;
+//	ctx->bit_win=*(u32 *)ctx->cs;
+	ctx->bit_win=btic4b_getu32le(ctx->cs);
 	return(bits);
 }
 
@@ -143,7 +149,8 @@ u32 BTIC4B_Read32Bits(BTIC4B_Context *ctx)
 
 	bits=ctx->bit_win>>ctx->bit_pos;
 	ctx->cs+=4;
-	bw1=*(u32 *)ctx->cs;
+//	bw1=*(u32 *)ctx->cs;
+	bw1=btic4b_getu32le(ctx->cs);
 	ctx->bit_win=bw1;
 	m=~((ctx->bit_pos-1)>>31);
 	bits|=(bw1<<(32-ctx->bit_pos))&m;
@@ -183,14 +190,16 @@ void BTIC4B_SkipNBits(BTIC4B_Context *ctx, int len)
 	int bp;
 	bp=ctx->bit_pos+len;
 	ctx->cs+=bp>>3;
-	ctx->bit_win=*(u32 *)ctx->cs;
+//	ctx->bit_win=*(u32 *)ctx->cs;
+	ctx->bit_win=btic4b_getu32le(ctx->cs);
 	ctx->bit_pos=bp&7;
 }
 
 void BTIC4B_Skip8Bits(BTIC4B_Context *ctx)
 {
 	ctx->cs++;
-	ctx->bit_win=*(u32 *)ctx->cs;
+//	ctx->bit_win=*(u32 *)ctx->cs;
+	ctx->bit_win=btic4b_getu32le(ctx->cs);
 }
 
 int BTIC4B_PeekNBitsNM(BTIC4B_Context *ctx, int len)
@@ -409,6 +418,8 @@ int BTIC4B_ReadSymbolSmtf(BTIC4B_Context *ctx,
 	i1=(i*7)>>3;
 	i2=st->tab[i0];		i3=st->tab[i1];
 	st->tab[i0]=i3;		st->tab[i1]=i2;
+//	i2=*(st->tab+i0);	i3=*(st->tab+i1);
+//	*(st->tab+i0)=i3;	*(st->tab+i1)=i2;
 //	st->idx[i2]=i1;		st->idx[i3]=i0;
 	return(i2);
 #endif

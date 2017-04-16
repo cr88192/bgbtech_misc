@@ -1378,6 +1378,18 @@ void BTIC4B_ConvBlockSpecialBC7_A(
 	else
 		{ ctx->DecBlock(ctx, iblock, (byte *)tblk, 8*4); }
 	
+	if(ctx->BCnEncodeBlockBGRA)
+	{
+		for(y=0; y<2; y++)
+			for(x=0; x<2; x++)
+		{
+			ctx->BCnEncodeBlockBGRA(
+				oblock+(y*obystr)+(x*obxstr),
+				(byte *)(tblk+y*4*4+x*4), 8*4);
+		}
+		return;
+	}
+	
 	for(y=0; y<2; y++)
 		for(x=0; x<2; x++)
 	{
@@ -1971,6 +1983,13 @@ void BTIC4B_ConvBlockBC7_A(
 	}
 	
 	if(iblock[1]&0x1F)
+	{
+		BTIC4B_ConvBlockSpecialBC7_A(ctx, iblock, oblock,
+			obxstr, obystr, tfl);
+		return;
+	}
+
+	if(!(ctx->BCnEncodeBlockBits32))
 	{
 		BTIC4B_ConvBlockSpecialBC7_A(ctx, iblock, oblock,
 			obxstr, obystr, tfl);
