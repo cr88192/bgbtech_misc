@@ -11,6 +11,7 @@ tst_fastbcn: Test for a "reasonably fast" BC7 encoder.
 
 mini: Small tests (single file)
 * btac1c_mini0.h: Single-file implementation of BTAC1C audio codec (note: does not handle WAV file-format stuff).
+* tst_felz0.c: Single file FeLZ32 implementation (speed oriented DWORD based LZ77 compressor).
 
 
 tool_btic4b
