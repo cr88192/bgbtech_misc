@@ -1,0 +1,185 @@
+BTFLZH0
+* LZ77 Style, Huffman Coded
+* Tables: T (Tag), L (Literal), D (Distance)
+* Sliding Window, 128kB to 1MB
+** Match lengths conventionally limited to 64kB
+** These limits are not "Set in stone".
+* Goal: Try to be reasonably fast, but still compress ok.
+
+Will resemble a mix of Deflate and LZ4.
+* Packaging and file storage will be defined externally.
+
+== Bitstream ==
+
+Bitstream:
+* Encoded in LSB First ordering.
+* Top-level consists of a series of tag blocks:
+** 4-bits, Tag
+*** 0: End Of Bitstream
+*** 1: LZ Payload Data
+*** 2: Huffman Table
+** After each tag is then any associated payload data.
+
+
+== Huffman Table ==
+
+Header:
+* 2 bits: Table ID
+** 0=(Reserved)
+** 1=Tags
+** 2=Literals
+** 3=Distance
+* 2 bits: Table Format
+** 0: Fixed Table
+*** Loads one of a number of predefined Huffman tables.
+*** The table is given as a 6-bit index.
+** 1: STF Coded Table
+** 2/3: Reserved
+
+
+=== STF Coded Table ===
+
+Consists of up to 256 symbols encoded with Rice coding with k=2.
+
+Length symbol values are encoded using a Swap-Towards-Front transform.
+After each symbol is coded, it is swapped with an index closer to zero.
+If the same symbol is encoded again, it will be referred to using the index it was swapped into.
+
+STF:
+* Initial table ordering:
+** 8, 7, 9, 6,  10, 5, 11, 4,  12, 3, 13, 2,  14, 1, 15, 0,  16, 17, 18, 19
+* Symbols are swapped towards the front after each symbol is encoded.
+** j1=(j0*11)/16
+
+* 0: Represents a non-encodable symbol.
+* 1..15: correspond to a symbol length.
+* 16: Repeat last length 2..9 times.
+* 17: Repeat last length 10..41 times.
+* 18: Skip 2..9 lengths (insert zeroes).
+* 19: Skip rest of table.
+** Any remaining symbol lengths are set to zero.
+
+Tables will be set up using Canonical Huffman Codes with a length between 1 and 15 bits. Symbols with a length of 0 are non-encodable and will not be assigned a code.
+
+Symbols will be assigned in lexicographic order, working from shorter to longer symbols. The resulting bit patterns will be left-justified and transposed.
+
+As such, the logical MSB of the coded symbol will be in LSB position within the bitstream.
+
+Canonically, only Rice values in the range of 0..19 are allowed.
+* These symbols will similarly have a maximum code length of 7 bits.
+* Prefixes representing larger values or longer codes are reserved.
+
+Rice (Rk=2)
+*    Bits: Value
+*     0xx:  0.. 3
+*    10xx:  4.. 7
+*   110xx:  8..11
+*  1110xx: 12..15
+* 11110xx: 15..19
+
+
+=== Fixed Table ===
+
+Fixed Tables:
+* 0..7: Fixed Tables with 8 .. 1 bits.
+** The symbols within these tables will be encoded directly as N bits.
+** Table 0 will effectively be a "raw bytes" table.
+** These symbols will be effectively bit-reversed from the Canonical-Huffman case.
+* Other tables may match the behavior of the Canonical Huffman coding.
+
+
+== LZ Payload Data ==
+
+Compressed payload consists of Tag symbols, followed by a distance, and then a series of compressed literal bytes.
+
+An escape case is used either if the values are out of range of what can be represented directly using the tag byte, or in the case of the end of a compressed block.
+
+Length and distance values will consist of a short prefix which will be used to drive a table, with the table containing a certain number of "extra bits".
+
+
+Format:
+* Tag: Prefix for Match length and literal bytes.
+** rrrlllll
+*** r=Raw/Literal Length Prefix.
+*** l=LZ Match Lenth Prefix.
+** Will be followed by extra bits for r and l.
+* Distance: Follows Tag
+** If distance is 0, the predicted distance is used.
+** Negative distances may also be encoded.
+*** These predict up to 16 previous distances.
+*** 0=Last distance
+*** -1..-16 refer to 1 to 16 distances prior to last distance.
+
+Raw Prefix:
+* Prefix (Extra): Min .. Max
+* 0/1 (0):  0..  1
+*   2 (1):  2..  3
+*   3 (2):  4..  7
+*   4 (3):  8.. 15
+*   5 (4): 16.. 31
+*   6 (5): 32.. 63
+*   7 (6): 64..127
+
+Length/Distance Prefix:
+* Prefix (Extra): Min .. Max
+*   0..  7 ( 0):     0..    7
+*   8.. 11 ( 1):     8..   15
+*  12.. 15 ( 2):    16..   31
+*  16.. 19 ( 3):    32..   63
+*  20.. 23 ( 4):    64..  127
+*  24.. 27 ( 5):   128..  255
+*  28.. 31 ( 6):   256..  511
+*  32.. 35 ( 7):   512.. 1023
+*  36.. 39 ( 8):  1024.. 2047
+*  40.. 43 ( 9):  2048.. 2047
+*  44.. 47 (10):  4096.. 8191
+*  48.. 51 (11):  8192..16383
+*  52.. 55 (12): 16384..32767
+*  56.. 59 (13): 32768..65535
+*  60.. 63 (14):   64k.. 128k
+*  64.. 67 (15):  128k.. 256k
+*  68.. 71 (16):  256k.. 512k
+*  72.. 75 (17):  512k..1024k
+*  76.. 79 (18):    1M..   2M
+*  80.. 83 (19):    2M..   4M
+*  84.. 87 (20):    4M..   8M
+*  88.. 91 (21):    8M..  16M
+*  92.. 95 (22):   16M..  32M
+*  96.. 99 (23):   32M..  64M
+* 100..103 (24):   64M.. 128M
+* 104..107 (25):  128M.. 256M
+* 108..111 (26):  256M.. 512M
+* 112..115 (27):  512M..   1G
+* 116..119 (28):    1G..   2G
+* 120..122 ( 0):    -1..   -4
+* 124 /125 ( 1):    -5..   -8
+* 126 /127 ( 2):    -9..  -16
+
+The use of distance prefixes 128..255 is reserved.
+* While these 'could' be used to encode negative values, this adds cost.
+
+
+Length Prefixes 0..2 are special.
+* 0: Escape Case
+* 1: Predict Length
+* 2: Predict Length and Distance
+
+Escape Case:
+* Encodes 3 distances (Raw, Match Length, Match Dist).
+** If Match Length and Dist are Zero, End Of Block
+*** Copy a run of raw bytes and then end the block.
+*** If all three values are zero, there are no literal bytes.
+** If the escaped match length is 1, Interpret as a predicted match.
+** An escape match-length of 2 is reserved.
+* The raw prefix in the tag byte must be zero.
+** This is reserved for future extension.
+
+Predicted length and distances will be the prior distance.
+* If there are no preceding matches this in the current block, these values are undefined.
+
+The distances -1 to -16 will refer to distance values preceding the last distance. Whenever a non-predicted distance occurs, the last distance will be added to this list.
+
+In some cases, these extended predictors may not be used:
+* If the distance table does not encode the associated symbols.
+* If a fixed-width distance table is used with fewer than 7 bits.
+* If a fixed 7-bit distance table with a fixed-width tag table.
