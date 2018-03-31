@@ -21,7 +21,7 @@ BTIC4B Command-Line Tool.
 
 This is a tool for encoding/decoding images into the BTIC4B image format, which consists of the TLV+bitstream format wrapped in a BMP header (generally given a BPX file extension).
 
-Like BTIC1H, BTIC4B is based on VQ/Color-Cell technology, but differs in that it uses 8x8 pixel blocks rather than 4x4. This seems able to somewhat improve quality/bitrate over 1H (in addition to making it faster).
+Like BTIC1H, BTIC4B is based on Color-Cell technology, but differs in that it uses 8x8 pixel blocks rather than 4x4. This seems able to somewhat improve quality/bitrate over 1H (in addition to making it faster).
 
 Unlike 1H, the bitstream uses little-endian bit-ordering, the AdRice coding is length limited, and a different SMTF+AdRice scheme is used. These changes are primarily to help with decode speed (cheaper for shifting and avoids the need for byte-swapping in the bitstream).
 
@@ -29,6 +29,8 @@ In tests, results seem to be reasonably competitive with those of JPEG.
 A potential application is as a lower-complexity alternative to JPEG for compressing graphics within an application.
 
 Potential later use cases may include HDR/FP16 graphics, and as a video codec (both of these are incomplete at the time of this writing).
+
+It also supports decoding to DXT1, DXT5, and BC7 without necessarily going through RGBA, in-case anyone cares. Granted, it goes through RGBA for some non-trivial block types, where there is not a 1:1 mapping, but whether these block formats are used can be controlled via encoding parameters.
 
 
 tst_btic1h
@@ -42,9 +44,10 @@ support incremental encoding. This is a "to be done" thing.
 
 This supports being compiled as a VfW codec driver. This allows its use from other Windows applications while embedded in an AVI. AVI and a modified BMP will be the canonical formats for on-disk storage of BTIC1H video or images.
 
-BTIC1H is a modestly fast Blocky VQ codec using Adaptive Rice coding for things like color deltas and commands.
+BTIC1H is a modestly fast Blocky Color-Cell codec using Adaptive Rice coding for things like color deltas and commands.
 
-There are both faster blocky VQ codecs, as well as codecs which offer a better quality/bpp, but it works ok.
+There are both faster blocky Color-Cell codecs, as well as codecs which offer a better quality/bpp, but it works ok.
+
 
 tst_btic1h2
 ==========
@@ -74,41 +77,6 @@ Would either way likely need to use a planar YUV format or similar as an interme
 As-is: On the test PC, the JPEG decoder by itself pulls off about 50 Mpix/sec, and can be converted to BC7 at 30-35 Mpix/sec. It is around 25-30 if producing BC7 output with mipmaps (the actual Mpix/sec is the same, however throughput is slightly lower due to needing to process more pixel data).
 
 
-BCn Modes
----------
-
-BCn Modes
-* 0, Unknown/Invalid
-* 1, BC1/DXT1, 64-bit with optional 1-bit alpha
-* 2, BC2/DXT3, 128-bit, with 64-bit color and 4-bpp alpha.
-* 3, BC3/DXT5, 128-bit, with 64-bit color and 8-bpp color.
-* 4, BC4, 64-bit Y image.
-* 5, BC5, 128-nit Y/A or R/G image.
-* 6, BC6H, 128-bit HDR.
-* 7, BC7, 128-bit LDR color+alpha.
-
-
-Pixel Format
-------------
-
-ppss-yqao
-* o: RGB/YUYV vs BGR/UYVY
-** 0=RGB/YUYV
-** 1=BGR/UYVY
-* a: Alpha (If pattern can have alpha)
-** 0=Alpha
-** 1=No Alpha
-* q: Don't use partitions (Resv)
-* y: Use YUV.
-* rr: Reserved, MBZ
-* ss: Stride=4-ss; (0->4, 3->1)
-* pp: Pixel Bit Type
-** 0=Unsigned Byte
-** 1=Reserved
-** 2=Half-Float
-** 3=Float
-
-
 tst_btlzazip
 ============
 
@@ -119,3 +87,14 @@ It exists as a compromise between Deflate and LZMA, capable of giving better com
 It has an optional arithmetic mode which may (sometimes) result in better compression (but does generally make it slower, so isn't generally used).
 
 The tool basically makes it standalone and hacks on a basic GZIP-like front-end.
+
+
+btflzh0
+=======
+
+Another LZ77 compressor tool.
+Uses a LZ4 like stream structure with 3 Huffman tables, can decompress quickly, and generally gets ratios similar to or slightly better than Deflate/Zlib (in my own tests, I have been seeing decode speeds a little faster than Zstd, but compression is worse).
+
+Tag prefix, Length/Distance, raw literals, and then a match; every match implicitly encoding a run of zero or more literal bytes; Tags, Literals, and Distances each having their own Huffman table. Huffman tables use a Deflate-like representation, albeit Rice-coded rather than trying to Huffman-code the Huffman tables (adds complexity but has limited savings).
+
+This was done mostly as a test / proof-of-concept tool.
