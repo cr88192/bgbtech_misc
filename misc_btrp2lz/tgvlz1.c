@@ -133,7 +133,10 @@ typedef struct TgvLz_Context_s TgvLz_Context;
 
 #define	memcpy_4B(dst, src)		memcpy(dst, src, 4)
 #define	memcpy_8B(dst, src)		memcpy(dst, src, 8)
-#define	memcpy_16B(dst, src)	memcpy(dst, src, 16)
+// #define	memcpy_16B(dst, src)	memcpy(dst, src, 16)
+#define	memcpy_16B(dst, src)	\
+	memcpy(((byte *)(dst))+0, ((byte *)(src))+0, 8);		\
+	memcpy(((byte *)(dst))+8, ((byte *)(src))+8, 8);
 
 #ifdef HAVE_MISAL_MEMCPY
 
@@ -172,8 +175,8 @@ force_inline void set_u32le(byte *ptr, u32 val)
 force_inline void set_u64le(byte *ptr, u64 val)
 {	ptr[0]=val;			ptr[1]=val>>8;
 	ptr[2]=val>>16;		ptr[3]=val>>24;
-	ptr[2]=val>>32;		ptr[3]=val>>40;
-	ptr[2]=val>>48;		ptr[3]=val>>56;		}
+	ptr[4]=val>>32;		ptr[5]=val>>40;
+	ptr[6]=val>>48;		ptr[7]=val>>56;		}
 
 #endif
 
