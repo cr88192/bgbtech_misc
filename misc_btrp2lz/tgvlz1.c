@@ -1056,6 +1056,7 @@ int TgvLz_DecodeBufferRP2(
 		}else
 			if(!(t0&0x20))
 		{
+			cs++;
 			rl=(t0>>6)&3;
 			if(!rl)break;
 //			*(u32 *)ct=*(u32 *)cs;
@@ -1153,6 +1154,59 @@ int TgvLz_DoEncode(TgvLz_Context *ctx,
 
 	csum1=TgvLz_CalculateImagePel4BChecksum(ibuf, isz);	
 	ctx->csum=csum1;
+	return(osz);
+}
+
+int TgvLz_DoEncodeSafe(TgvLz_Context *ctx,
+	byte *ibuf, byte *obuf, int isz)
+{
+	long long ttsz;
+	byte *obuf2;
+	double f, g;
+	int t0, t1, te;
+	int csum1, csum2;
+	int osz, osz2;
+	int i, j, k;
+
+	obuf2=malloc(isz*2+1024);
+
+	osz=ctx->EncodeBuffer(ctx, ibuf, obuf, isz, 2*isz);
+	
+#if 1
+	osz2=ctx->DecodeBuffer(obuf, obuf2, osz, isz*2);
+	
+	if(osz2!=isz)
+	{
+		printf("%s: Size mismatch\n", ctx->tstName);
+		return(-1);
+	}else
+	{
+		if(memcmp(ibuf, obuf2, isz))
+		{
+			printf("%s: Data mismatch\n", ctx->tstName);
+			return(-1);
+		}else
+		{
+//			printf("%s: Data OK\n", ctx->tstName);
+		}
+	}
+
+//	*(u64 *)(obuf2+isz+0)=0;
+//	*(u64 *)(obuf2+isz+8)=0;
+	memset(obuf2+isz, 0, 16);
+
+	csum1=TgvLz_CalculateImagePel4BChecksum(ibuf, isz);
+	csum2=TgvLz_CalculateImagePel4BChecksum(obuf2, isz);
+	
+	if(csum1!=csum2)
+	{
+		printf("%s: Checksum %08X->%08X\n", ctx->tstName, csum1, csum2);
+	}
+	
+	ctx->csum=csum2;
+#endif
+
+	free(obuf2);
 	return(osz);
 }
 
@@ -1262,6 +1316,30 @@ int TgvLz_DoTest(TgvLz_Context *ctx,
 	return(osz);
 }
 
+TgvLz_Context *TgvLz_CreateContext()
+{
+	TgvLz_Context *ctx;
+
+	ctx=malloc(sizeof(TgvLz_Context));
+	
+	memset(ctx, 0, sizeof(TgvLz_Context));
+	ctx->maxlen=16383;
+	ctx->maxdist=(1<<22)-1;
+
+	ctx->EncodeBuffer=TgvLz_EncodeBufferRP2;
+	ctx->DecodeBuffer=TgvLz_DecodeBufferRP2;
+	ctx->tstName="RP2";
+
+	return(ctx);
+}
+
+int TgvLz_DestroyContext(TgvLz_Context *ctx)
+{
+	free(ctx);
+	return(0);
+}
+
+#ifndef TGVLZ_NOMAIN
 int main(int argc, char *argv[])
 {
 	TgvLz_Context *ctx;
@@ -1436,3 +1514,4 @@ int main(int argc, char *argv[])
 
 	return(0);
 }
+#endif
