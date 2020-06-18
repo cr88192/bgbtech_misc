@@ -93,7 +93,7 @@ btflzh0
 =======
 
 Another LZ77 compressor tool.
-Uses a LZ4 like stream structure with 3 Huffman tables, can decompress quickly, and generally gets ratios similar to or slightly better than Deflate/Zlib (in my own tests, I have been seeing decode speeds a little faster than Zstd, but compression is worse).
+Uses a LZ4 like stream structure with 3 Huffman tables, can decompress quickly, and generally gets ratios similar to or slightly better than Deflate/Zlib, but is a little faster.
 
 Tag prefix, Length/Distance, raw literals, and then a match; every match implicitly encoding a run of zero or more literal bytes; Tags, Literals, and Distances each having their own Huffman table. Huffman tables use a Deflate-like representation, albeit Rice-coded rather than trying to Huffman-code the Huffman tables (adds complexity but has limited savings).
 
