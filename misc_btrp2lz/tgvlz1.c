@@ -93,19 +93,21 @@ typedef struct TgvLz_Context_s TgvLz_Context;
 #ifdef _MSC_VER
 #define force_inline	__forceinline
 #define	debug_break		__debugbreak();
-#define packed			
+#define unaligned		__unaligned
 #define HAVE_MISAL
 #else
-#define force_inline	
-#define	debug_break		
-#define packed			
-#endif
 
-#ifdef __BJX2__
+#if defined(__BGBCC__) || defined(__BJX2__)
 #define force_inline	
 #define	debug_break		__debugbreak();
-#define packed			__packed
+#define unaligned		__unaligned
 #define HAVE_MISAL
+#else
+#define force_inline
+#define	debug_break	
+#define unaligned
+#endif
+
 #endif
 
 #if defined(__i386__) || defined(__x86_64__) || defined(__arm__)
@@ -115,19 +117,19 @@ typedef struct TgvLz_Context_s TgvLz_Context;
 #ifdef HAVE_MISAL
 
 #define	memcpy_4B(dst, src)		\
-	(*(packed u32 *)(dst)=*(packed u32 *)(src))
+	(*(unaligned u32 *)(dst)=*(unaligned u32 *)(src))
 #define	memcpy_8B(dst, src)		\
-	(*(packed u64 *)(dst)=*(packed u64 *)(src))
+	(*(unaligned u64 *)(dst)=*(unaligned u64 *)(src))
 #define	memcpy_16B(dst, src)	\
-	(((packed u64 *)(dst))[0]=((packed u64 *)(src))[0]);	\
-	(((packed u64 *)(dst))[1]=((packed u64 *)(src))[1])
+	(((unaligned u64 *)(dst))[0]=((unaligned u64 *)(src))[0]);	\
+	(((unaligned u64 *)(dst))[1]=((unaligned u64 *)(src))[1])
 
-#define	get_u16le(ptr)			(*(packed u16 *)(ptr))
-#define	get_u32le(ptr)			(*(packed u32 *)(ptr))
-#define	get_u64le(ptr)			(*(packed u64 *)(ptr))
-#define	set_u16le(ptr, val)		(*(packed u16 *)(ptr))=(val)
-#define	set_u32le(ptr, val)		(*(packed u32 *)(ptr))=(val)
-#define	set_u64le(ptr, val)		(*(packed u64 *)(ptr))=(val)
+#define	get_u16le(ptr)			(*(unaligned u16 *)(ptr))
+#define	get_u32le(ptr)			(*(unaligned u32 *)(ptr))
+#define	get_u64le(ptr)			(*(unaligned u64 *)(ptr))
+#define	set_u16le(ptr, val)		(*(unaligned u16 *)(ptr))=(val)
+#define	set_u32le(ptr, val)		(*(unaligned u32 *)(ptr))=(val)
+#define	set_u64le(ptr, val)		(*(unaligned u64 *)(ptr))=(val)
 
 #else
 
@@ -190,6 +192,7 @@ byte *ct;
 int maxlen;
 int maxdist;
 u32	csum;
+byte cmp;
 
 byte	*chn_base;
 byte	*chn_ptrs[TKELZ_CHAIN_SZ];
@@ -389,6 +392,8 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 		if(!cs1)continue;
 		l=TgvLz_CheckMatch(str, cs1, cse);
 		d=str-cs1;
+		if(d<=0)
+			continue;
 //		if((l>bl) && (d<65536))
 //		if((l>bl) && (d<131072))
 		if((l>bl) && (d<md))
@@ -429,7 +434,8 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 
 	*rl=bl;
 	*rd=bd;
-	return((bl>=4) || ((bl>=3) && (bd<512)));
+	return((bl>=4) ||
+		((bl>=3) && (bd<512) && (ctx->cmp==3)));
 }
 
 int tgvlz_log2u(int val)
@@ -442,9 +448,23 @@ int tgvlz_log2u(int val)
 	return(i);
 }
 
-int TgvLz_EstRawCost(int rl)
+int TgvLz_EstRawCost(TgvLz_Context *ctx, int rl)
 {
 	int i, j, c;
+
+	if(ctx->cmp==4)
+	{
+		c=rl+1;
+		if(rl>=15)
+		{
+			i=rl-15;
+			while(i>=255)
+				{ c++; i-=255; }
+			c++;
+		}
+		c+=3;
+		return(c);
+	}
 
 	c=rl;
 	i=rl;
@@ -460,13 +480,34 @@ int TgvLz_EstRawCost(int rl)
 	return(c);
 }
 
-int TgvLz_EstMatchCost(int rl, int bl, int bd)
+int TgvLz_EstMatchCost(TgvLz_Context *ctx, int rl, int bl, int bd)
 {
-	int c;
+	int c, i;
+
+	if(ctx->cmp==4)
+	{
+		c=rl+1;
+		if(rl>=15)
+		{
+			i=rl-15;
+			while(i>=255)
+				{ c++; i-=255; }
+			c++;
+		}
+		if(bl>=19)
+		{
+			i=bl-19;
+			while(i>=255)
+				{ c++; i-=255; }
+			c++;
+		}
+		
+		return(c);
+	}
 
 //	c=(rl>>3)+rl;
 //	c=(rl>>7)+rl+(rl>=8);
-	c=TgvLz_EstRawCost(rl);
+	c=TgvLz_EstRawCost(ctx, rl);
 	if((bl<=10) && (bd<512))
 		{ c+=2; }
 	else if((bl<=67) && (bd<8192))
@@ -493,9 +534,8 @@ int TgvLz_LookupMatchB(TgvLz_Context *ctx,
 	rl0=cs-lcs;
 	rl1=rl0+1;	rl2=rl0+2;
 	
-	mc0=TgvLz_EstMatchCost(rl0, l, d);
-	
-	mc1=TgvLz_EstRawCost(rl0+l);
+	mc0=TgvLz_EstMatchCost(ctx, rl0, l, d);
+	mc1=TgvLz_EstRawCost(ctx, rl0+l);
 	
 	if(mc0>=mc1)
 	{
@@ -511,7 +551,7 @@ int TgvLz_LookupMatchB(TgvLz_Context *ctx,
 		if(j && (l1>(l+1)) && ((rl0>>3)==(rl1>>3)))
 			i=0;
 
-		mc1=TgvLz_EstMatchCost(rl1, l1, d1);
+		mc1=TgvLz_EstMatchCost(ctx, rl1, l1, d1);
 //		if(j && (l1>(l+1)) && (mc1<=mc0))
 //		if(j && (l1>(l+0)) && (mc1<=mc0))
 		if(j && ((mc1-l1)<=(mc0-l)))
@@ -525,47 +565,12 @@ int TgvLz_LookupMatchB(TgvLz_Context *ctx,
 		{
 			j=TgvLz_LookupMatch(ctx, cs+2, cse, &l1, &d1);
 
-//			if(j && (l1>(l+4)) && ((rl0>>3)==(rl2>>3)))
-//				i=0;
-
-			mc1=TgvLz_EstMatchCost(rl2, l1, d1);
+			mc1=TgvLz_EstMatchCost(ctx, rl2, l1, d1);
 //			if(j && (l1>(l+0)) && (mc1<=mc0))
 			if(j && ((mc1-l1)<(mc0-l)))
 //			if(j && ((mc1-l1)<=(mc0-l)))
 				i=0;
-
-//			if(j && (l1>(l+2)))
-//			if(j && (l1>(l+3)))
-//			if(j && (l1>(l+4)))
-//			if(j && (l1>(l+5)))
-//				i=0;
 		}
-
-#if 0
-		if(i)
-		{
-//			if((d>256) && (l<6))
-//			if((d>128) && (l<4))
-//				i=0;
-			if((d>511) && (l<4))
-//			if((d>511) && (l<5))
-				i=0;
-//			if((d>4096) && (l<10))
-//			if((d>8191) && (l<8))
-			if((d>8191) && (l<7))
-//			if((d>8191) && (l<6))
-				i=0;
-
-//			if((d>32767) && (l<9))
-//			if((d>32767) && (l<8))
-//				i=0;
-
-//			if((d>131071) && (l<9))
-			if((d>131071) && (l<10))
-//			if((d>131071) && (l<11))
-				i=0;
-		}
-#endif
 	}
 	
 	*rl=l;
@@ -1091,6 +1096,156 @@ int TgvLz_DecodeBufferRP2(
 	return(ct-obuf);
 }
 
+int TgvLz_EncodeBufferLZ4(TgvLz_Context *ctx,
+	byte *ibuf, byte *obuf, int ibsz, int obsz)
+{
+	byte *cs, *cse, *lcs;
+	byte *ct;
+	int pl, pd;
+	int l, d, rl, l1, d1;
+	int i, j, k;
+	
+	ctx->chn_base=ibuf;
+	cs=ibuf; cse=ibuf+ibsz;
+	ct=obuf;
+	
+	pd=0; pl=0;
+	
+	lcs=cs;
+	while(cs<cse)
+	{
+		i=TgvLz_LookupMatchB(ctx, cs, cse, lcs, &l, &d);
+
+		if(!i)
+		{
+			TgvLz_HashByte(ctx, cs);
+			cs++;
+			continue;
+		}
+			
+		rl=cs-lcs;
+
+		ctx->stat_rlen[tgvlz_log2u(rl)]++;
+		ctx->stat_len[tgvlz_log2u(l)]++;
+		ctx->stat_dist[tgvlz_log2u(d)]++;
+
+		l1=l-4;
+		j=((rl<<4)&0xF0)|(l1&0x0F);
+		if(rl>=15)j|=0xF0;
+		if(l1>=15)j|=0x0F;
+		*ct++=j;
+		
+		if(rl>=15)
+		{
+			j=rl-15;
+			while(j>=255)
+				{ *ct++=0xFF; j-=255; }
+			*ct++=j;
+		}
+
+		memcpy(ct, lcs, rl);
+		ct+=rl;
+		lcs+=rl;
+
+		*ct++=d;
+		*ct++=d>>8;
+		
+		if(l>=19)
+		{
+			j=l-19;
+			while(j>=255)
+				{ *ct++=0xFF; j-=255; }
+			*ct++=j;
+		}
+
+		TgvLz_HashStr(ctx, cs, l);
+		cs+=l;
+		lcs=cs;
+	}
+
+	rl=cs-lcs;
+
+	if(rl>0)
+	{
+		j=(rl<<4)&0xF0;
+		if(rl>=15)j|=0xF0;
+		*ct++=j;	
+		if(rl>=15)
+		{
+			j=rl-15;
+			while(j>=255)
+				{ *ct++=0xFF; j-=255; }
+			*ct++=j;
+		}
+
+		memcpy(ct, lcs, rl);
+		ct+=rl;
+		lcs+=rl;
+	}
+
+	return(ct-obuf);
+}
+
+int TgvLz_DecodeBufferLZ4(byte *ibuf, byte *obuf, int isz, int osz)
+{
+	byte *ct, *cs, *cse;
+	byte *cs1, *cs1e, *ct1;
+	u64 tv;
+	int tg, lr, ll, ld;
+	int i;
+	
+	tg=0;	lr=0;
+	ll=0;	ld=0;
+	
+	ct=obuf;
+	cs=ibuf; cse=ibuf+isz;
+	while(cs<cse)
+	{
+		tg=*cs++;
+		lr=(tg>>4)&15;
+		if(lr==15)
+		{
+			i=*cs++;
+			while(i==255)
+				{ lr+=255; i=*cs++; }
+			lr+=i;
+		}
+
+		if(lr)
+		{
+			TgvLz_RawCopy(ct, cs, lr);
+			cs+=lr;	ct+=lr;
+		}
+
+		if((cs+1)>=cse)
+			{ break; }
+		
+		ld=*(u16 *)cs;
+		cs+=2;
+		if(!ld)
+		{
+			printf("TKPE_UnpackL4: End Of Image\n");
+			break;
+		}
+		ll=(tg&15)+4;
+		if(ll==19)
+		{
+			i=*cs++;
+			while(i==255)
+				{ ll+=255; i=*cs++; }
+			ll+=i;
+		}
+
+		TgvLz_MatchCopy2(ct, ll, ld);
+		ct+=ll;
+	}
+	
+	tg=0;	lr=0;
+	ll=0;	ld=0;
+	
+	return(ct-obuf);
+}
+
 u32 TgvLz_CalculateImagePel4BChecksum(byte *buf, int size)
 {
 	byte *cs, *cse;
@@ -1177,7 +1332,7 @@ int TgvLz_DoEncodeSafe(TgvLz_Context *ctx,
 	
 	if(osz2!=isz)
 	{
-		printf("%s: Size mismatch\n", ctx->tstName);
+		printf("%s: Size mismatch %d->%d\n", ctx->tstName, isz, osz2);
 		return(-1);
 	}else
 	{
@@ -1329,6 +1484,25 @@ TgvLz_Context *TgvLz_CreateContext()
 	ctx->EncodeBuffer=TgvLz_EncodeBufferRP2;
 	ctx->DecodeBuffer=TgvLz_DecodeBufferRP2;
 	ctx->tstName="RP2";
+	ctx->cmp=3;
+
+	return(ctx);
+}
+
+TgvLz_Context *TgvLz_CreateContextLZ4()
+{
+	TgvLz_Context *ctx;
+
+	ctx=malloc(sizeof(TgvLz_Context));
+	
+	memset(ctx, 0, sizeof(TgvLz_Context));
+	ctx->maxlen=16383;
+	ctx->maxdist=65535;
+
+	ctx->EncodeBuffer=TgvLz_EncodeBufferLZ4;
+	ctx->DecodeBuffer=TgvLz_DecodeBufferLZ4;
+	ctx->tstName="LZ4";
+	ctx->cmp=4;
 
 	return(ctx);
 }
