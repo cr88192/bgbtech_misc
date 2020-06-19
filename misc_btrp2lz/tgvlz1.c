@@ -93,7 +93,11 @@ typedef struct TgvLz_Context_s TgvLz_Context;
 #ifdef _MSC_VER
 #define force_inline	__forceinline
 #define	debug_break		__debugbreak();
+#ifdef _M_IX86
+#define unaligned
+#else
 #define unaligned		__unaligned
+#endif
 #define HAVE_MISAL
 #else
 
