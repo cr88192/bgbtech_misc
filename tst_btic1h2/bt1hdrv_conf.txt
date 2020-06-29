@@ -24,3 +24,4 @@ encoderFlags slice gdbdr
 
 # defaultCodec bt1h
 defaultCodec bt4b
+# defaultCodec bt5a

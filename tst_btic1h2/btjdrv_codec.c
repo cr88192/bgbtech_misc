@@ -253,6 +253,7 @@ int BTIC1H_Codec_Init()
 
 	BTIC1H_CodecBT1H_Init();
 	BTIC1H_CodecBT4B_Init();
+	BTIC1H_CodecBT5A_Init();
 
 	return(1);
 }

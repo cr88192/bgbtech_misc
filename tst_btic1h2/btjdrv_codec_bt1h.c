@@ -79,12 +79,14 @@ int bt1h_end_compress(BTIC1H_VidCodecCTX *ctx)
 {
 	BTIC1H_Work_KillWorkers();
 	BTIC1H_DestroyContext(ctx->data);
+	return(0);
 }
 
 int bt1h_end_decompress(BTIC1H_VidCodecCTX *ctx)
 {
 	BTIC1H_Work_KillWorkers();
 	BTIC1H_DestroyContext(ctx->data);
+	return(0);
 }
 
 BTIC1H_VidCodecCTX *bt1h_begin_decompress(int fcc,

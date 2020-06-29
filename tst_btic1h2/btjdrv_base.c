@@ -118,6 +118,22 @@ int BTJPG_DriverTryLoadConfig(char *name)
 	return(1);
 }
 
+void BTJPG_DriverReloadConfig(void)
+{
+	char tb1[1024];
+	char tb2[1024];
+
+#ifdef _MSC_VER
+	GetEnvironmentVariable("HOME", tb1, 512);
+
+	strcpy(tb2, tb1);
+	strcat(tb2, BGBBTJ_DRVCFGSFX);
+	BTJPG_DriverTryLoadConfig(tb2);
+#else
+	BTJPG_DriverTryLoadConfig(BGBBTJ_DRVCFGFILE);
+#endif
+}
+
 void BTJPG_DriverInit(void)
 {
 	static int init=0;

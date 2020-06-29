@@ -69,6 +69,11 @@ void btjpg_printf(char *str, ...);
 #include "bt4b_shim_bc7.c"
 #include "bt4b_shim_s2tc.c"
 
+#define TGVLZ_NOMAIN
+#include "tgvlz1.c"
+
+#include "btp0a_decode.c"
+#include "btp0a_encode.c"
 
 #include "snd_btac1c.c"
 
@@ -77,4 +82,5 @@ void btjpg_printf(char *str, ...);
 #include "btjdrv_codec.c"
 #include "btjdrv_codec_bt1h.c"
 #include "btjdrv_codec_bt4b.c"
+#include "btjdrv_codec_bt5a.c"
 #include "btjvfw_driverproc.c"

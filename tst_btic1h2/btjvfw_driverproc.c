@@ -201,6 +201,8 @@ static LRESULT btjvfw_compress_query(BTIC1H_VidCodecCTX *ctx,
 static LRESULT btjvfw_compress_get_format(BTIC1H_VidCodecCTX *ctx,
 	BITMAPINFO *lParam1, BITMAPINFO *lParam2)
 {
+	BTJPG_DriverReloadConfig();
+
 	btjpg_printf("btjvfw_compress_get_format: %p %p\n",
 		(void *)lParam1, (void *)lParam2);
 	btjvfw_dumpbitmapinfos(ctx, lParam1, lParam2);

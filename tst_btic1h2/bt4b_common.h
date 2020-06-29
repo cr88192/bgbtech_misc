@@ -132,6 +132,7 @@ typedef unsigned int uint;
 #define BTIC4B_CLRS_BC5			0x12
 #define BTIC4B_CLRS_BC4MIP		0x13
 #define BTIC4B_CLRS_BC5MIP		0x14
+#define BTIC4B_CLRS_RGB555		0x15	//RGB555
 
 #define BTIC4B_CLRT_GDBDR		0
 #define BTIC4B_CLRT_RCT			1
@@ -156,6 +157,8 @@ typedef unsigned int uint;
 #define BTIC4B_QFL_USEPRED		0x0400
 #define BTIC4B_QFL_USEBFQ		0x0800
 #define BTIC4B_QFL_OPTBCN		0x1000
+
+#define BTIC4B_QFL_FLIP			0x10000
 
 #define BTIC4B_ERRS_GENERIC		-1
 #define BTIC4B_ERRS_BADFCC		-16

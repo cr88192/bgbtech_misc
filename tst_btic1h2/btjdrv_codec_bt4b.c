@@ -111,6 +111,8 @@ int bt4b_compress_frame(BTIC1H_VidCodecCTX *ctx,
 	if(qfl&BTIC1H_QFL_IFRAME)qfl1|=BTIC4B_QFL_IFRAME;
 	if(qfl&BTIC1H_QFL_PFRAME)qfl1|=BTIC4B_QFL_PFRAME;
 
+	if(qfl&BTIC1H_QFL_USEGDBDR)qfl1|=BTIC4B_QFL_OPTBCN;
+
 	sz=BTIC4B_EncodeImgBufferCtx(info, dst, dsz,
 		src, info->xs, info->ys, qfl1, clrs1);
 
@@ -128,12 +130,14 @@ int bt4b_end_compress(BTIC1H_VidCodecCTX *ctx)
 {
 	BTIC1H_Work_KillWorkers();
 	BTIC4B_FreeContext(ctx->data);
+	return(0);
 }
 
 int bt4b_end_decompress(BTIC1H_VidCodecCTX *ctx)
 {
 	BTIC1H_Work_KillWorkers();
 	BTIC4B_FreeContext(ctx->data);
+	return(0);
 }
 
 BTIC1H_VidCodecCTX *bt4b_begin_decompress(int fcc,
