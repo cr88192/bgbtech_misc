@@ -19,3 +19,7 @@ randbits.txt
 *.bmp
 *.dat
 
+*.sln
+*.idb
+*.opendb
+*.db

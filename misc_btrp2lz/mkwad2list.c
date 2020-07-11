@@ -6,16 +6,14 @@
 #define TGVLZ_NOMAIN
 #include "tgvlz1.c"
 
-#ifndef BGBCC_FOURCC
-#define BGBCC_FOURCC(a, b, c, d)	((a)|((b)<<8)|((c)<<16)|((d)<<24))
-#endif
-
 #if 0
 typedef unsigned char byte;
 typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 #endif
+
+#define BGBCC_FOURCC(a, b, c, d)	((a)|((b)<<8)|((c)<<16)|((d)<<24))
 
 typedef unsigned short word;
 
@@ -46,21 +44,6 @@ typedef struct
 	byte	name[16];
 } wad2lump_t;
 
-typedef struct
-{
-	byte	identification[4];		// should be IWAD
-	u32		infotableofs;
-	u32		numlumps;
-} packinfo_t;
-
-typedef struct
-{
-	byte	name[56];
-	u32		filepos;
-	u32		size;
-} packlump_t;
-
-
 
 FILE		*wad_fd;
 // filelump_t	wad_dir[2048];
@@ -72,6 +55,8 @@ int			wad_ntypes;
 int			wad_ldirid;
 int			wad_dirid;
 
+u16			wad_hash[64];
+
 byte		*wad_data;
 int			wad_rover;
 
@@ -79,10 +64,6 @@ byte		*iwad_data;
 filelump_t	*iwad_dir;
 wadinfo_t	*iwad_head;
 int			iwad_size;
-
-byte		*pack_data;
-packlump_t	*pack_dir;
-packinfo_t	*pack_head;
 
 int		wad_mincsz;
 int		wad_maxcsz;
@@ -442,6 +423,99 @@ int AddWadLumpPath(char *name, byte *buf, int isz)
 	return(i);
 }
 
+void *LoadFile(char *name, int *rsz)
+{
+	FILE *fd;
+	void *buf;
+	int sz;
+	
+	fd=fopen(name, "rb");
+	if(!fd)return(NULL);
+	fseek(fd, 0, 2);
+	sz=ftell(fd);
+	fseek(fd, 0, 0);
+	buf=malloc(sz+16);
+	fread(buf, 1, sz, fd);
+	fclose(fd);
+	*rsz=sz;
+	return(buf);
+}
+
+void StoreFile(char *name, void *buf, int sz)
+{
+	FILE *fd;
+	
+	fd=fopen(name, "wb");
+	if(!fd)return;
+	fwrite(buf, 1, sz, fd);
+	fclose(fd);
+}
+
+byte *bgbcc_rlcbuf=NULL;
+int bgbcc_rlcpos;
+
+void *bgbcc_ralloc(int sz)
+{
+	void *p;
+
+	if(!bgbcc_rlcbuf)
+	{
+		bgbcc_rlcbuf=(byte *)malloc(1<<18);
+		bgbcc_rlcpos=0;
+	}
+
+	if((bgbcc_rlcpos+sz)>=((1<<18)-4096))
+		bgbcc_rlcpos=0;
+	p=(void *)(bgbcc_rlcbuf+bgbcc_rlcpos);
+	bgbcc_rlcpos=(bgbcc_rlcpos+sz+15)&(~15);
+
+	return(p);
+}
+
+char *bgbcc_rstrdup(char *s)
+{
+	char *t;
+	t=(char *)bgbcc_ralloc(strlen(s)+1);
+	strcpy(t, s);
+	return(t);
+}
+
+char **bgbcc_split(char *s)
+{
+	char **a, *t;
+	int i;
+
+	a=bgbcc_ralloc(64*sizeof(char *));
+	i=0;
+	while(*s)
+	{
+		while(*s && (*s<=' '))s++;
+		if(!*s)break;
+		if(*s=='#')break;
+		if(*s==';')break;
+		if((s[0]=='/') && (s[1]=='/'))
+			break;
+
+		t=bgbcc_ralloc(256);
+		a[i++]=t;
+
+		if(*s=='"')
+		{
+			s++;
+			while(*s && (*s!='"'))*t++=*s++;
+			if(*s=='"')s++;
+
+			*t++=0;
+			continue;
+		}
+
+		while(*s && (*s>' '))*t++=*s++;
+		*t++=0;
+	}
+	a[i]=NULL;
+
+	return(a);
+}
 
 int FccTagForName(char *src)
 {
@@ -482,40 +556,16 @@ int HashIndexForName16(char *s)
 	return(h);
 }
 
-void *LoadFile(char *name, int *rsz)
-{
-	FILE *fd;
-	void *buf;
-	int sz;
-	
-	fd=fopen(name, "rb");
-	if(!fd)return(NULL);
-	fseek(fd, 0, 2);
-	sz=ftell(fd);
-	fseek(fd, 0, 0);
-	buf=malloc(sz+16);
-	fread(buf, 1, sz, fd);
-	fclose(fd);
-	*rsz=sz;
-	return(buf);
-}
-
-void StoreFile(char *name, void *buf, int sz)
-{
-	FILE *fd;
-	
-	fd=fopen(name, "wb");
-	if(!fd)return;
-	fwrite(buf, 1, sz, fd);
-	fclose(fd);
-}
-
 int main(int argc, char *argv[])
 {
-	char tn[65];
+	char tbuf[512];
+	char tn[257];
+	FILE *ifd;
+	char *ibuf;
 	char *ifn, *ofn;
-	int tyofs, dirsz;
-	int i, j, k;
+	char **a;
+	int isz, tag, tag1, tyofs;
+	int i, j, k, h;
 	
 //	ifn=argv[1];
 //	ofn=argv[2];
@@ -554,7 +604,7 @@ int main(int argc, char *argv[])
 	}
 
 	wad_data=malloc(1<<26);
-	wad_rover=16;
+	wad_rover=32;
 	wad_n_lumps=0;
 	wad_ldirid=0;
 	wad_dirid=1;
@@ -564,49 +614,80 @@ int main(int argc, char *argv[])
 
 	memset(wad_data, 0, 1<<26);
 
-	iwad_data=LoadFile(ifn, &iwad_size);
-	if(!iwad_data)
+//	ibuf=LoadFile(ifn, &isz);
+
+	ifd=fopen(ifn, "rt");
+	if(!ifd)
 	{
-		printf("Fail Load %s\n", ifn);
-		return(0);
+		printf("fail open %s\n", ifn);
 	}
 	
-	pack_data=iwad_data;
-	iwad_head=(wadinfo_t *)iwad_data;
-	pack_head=(packinfo_t *)pack_data;
-
-	if(	!memcmp(iwad_head->identification, "IWAD", 4) ||
-		!memcmp(iwad_head->identification, "PWAD", 4))
+	while(!feof(ifd))
 	{
-		iwad_dir=(filelump_t *)(iwad_data+(iwad_head->infotableofs));
+		memset(tbuf, 0, 512);
+		fgets(tbuf, 511, ifd);
 		
-		for(i=0; i<iwad_head->numlumps; i++)
-		{
-			printf("%d/%d\r", i, iwad_head->numlumps);
-			w_strupr_n(tn, iwad_dir[i].name, 8);
-			tn[8]=0;
-			AddWadLump(tn,
-				iwad_data+iwad_dir[i].filepos,
-				iwad_dir[i].size, 0);
-		}
-		printf("\n");
-	}else if(!memcmp(iwad_head->identification, "PACK", 4))
-	{
-		pack_dir=(packlump_t *)(pack_data+(pack_head->infotableofs));
-		dirsz=pack_head->numlumps/64;
+		a=bgbcc_split(tbuf);
+		if(!a[0])
+			continue;
+		if((a[0][0]=='#') || (a[0][0]==';') || (a[0][0]=='/'))
+			continue;
 
-		for(i=0; i<dirsz; i++)
+		ibuf=LoadFile(a[1], &isz);
+		
+		if(!ibuf)
 		{
-			printf("%d/%d\r", i, dirsz);
-			w_strlwr_n(tn, pack_dir[i].name, 56);
-			tn[56]=0;
-			AddWadLumpPath(tn,
-				pack_data+pack_dir[i].filepos,
-				pack_dir[i].size);
+			printf("fail load %s\n", a[1]);
+			continue;
 		}
-		printf("\n");
+		
+		tag=FccTagForName(a[1]);
+		tag1=FccTagForName(a[0]);
+
+		if(tag1)
+		{
+			w_strupr_n(tn, a[0], 256);
+			AddWadLumpPath(tn, ibuf, isz);
+		}
+		else
+		{
+			w_strupr_n(tn, a[0], 16);
+			tn[16]=0;
+			AddWadLump(tn, ibuf, isz, tag);
+		}
 	}
+	
+	fclose(ifd);
 
+
+#if 0
+	iwad_data=LoadFile(ifn, &iwad_size);
+	iwad_head=(wadinfo_t *)iwad_data;
+	iwad_dir=(filelump_t *)(iwad_data+(iwad_head->infotableofs));
+	
+	for(i=0; i<iwad_head->numlumps; i++)
+	{
+		printf("%d/%d\r", i, iwad_head->numlumps);
+		w_strupr_n(tn, iwad_dir[i].name, 8);
+		tn[8]=0;
+		AddWadLump(tn,
+			iwad_data+iwad_dir[i].filepos,
+			iwad_dir[i].size);
+	}
+	printf("\n");
+#endif
+
+	for(i=0; i<64; i++)
+	{
+		wad_hash[i]=0xFFFF;
+	}
+	
+	for(i=(wad_n_lumps-1); i>=0; i--)
+	{
+		h=HashIndexForName16(wad_dir[i].name);
+		wad_dir[i].chn=wad_hash[h];
+		wad_hash[h]=i;
+	}
 
 	wad_rover=(wad_rover+3)&(~3);
 
@@ -624,10 +705,13 @@ int main(int argc, char *argv[])
 	memcpy(wad_data+wad_rover, wad_dir, wad_n_lumps*32);
 	wad_rover+=wad_n_lumps*32;
 	
+	memcpy(wad_data+wad_rover, wad_hash, 64*2);
+	wad_rover+=64*2;
+	
 	memcpy(wad_data, &wad_head, sizeof(wad_head));
 
-	printf("%d -> %d bytes %d%%\n", iwad_size, wad_rover,
-		(100*wad_rover)/iwad_size);
+//	printf("%d -> %d bytes %d%%\n", iwad_size, wad_rover,
+//		(100*wad_rover)/iwad_size);
 	
 	printf("csz: min=%d max=%d\n", wad_mincsz, wad_maxcsz);
 	
