@@ -1,0 +1,139 @@
+BT Palette Image (BTIC 5A)
+* FOURCC: 'bt5a' ?
+
+Focus will be on static images or short animations (animated textures or sprites), with a relatively low-cost decoder. Image quality isn't a particularly high priority.
+
+Will internally use a color palette, but decoded frames will be assumed to use HiColor or similar. The palette may be either encoded with each I-Frame, or a static global palette may be used.
+
+It may also be used as a video codec if low complexity decoding is needed.
+
+
+Palettes will be stored as RGB555:
+* 0rrr-rrgg-gggb-bbbb
+* Nominally, color 255 will be reserved for a transparent color.
+* A default palette may also be used.
+** The MSB bit will conventionally be assumed to be an alpha bit.
+** Setting this bit for Color 255 may indicate that transparency is used.
+
+Default Palette:
+* 0..15: Traditional 16-color palette (RGBI)
+* 16..31: Grayscale, 16 shades.
+* 32..247: 216 color palette
+* 248..254: Special Colors
+* 255: Transparent
+
+This palette may be used if no dynamic palette is used.
+
+
+Frame TLV:
+* 0x00..0x1F: 8K, TWOCC
+* 0x20..0x3F: 8K, FOURCC
+* 0x40..0x5F: 512M, TWOCC
+* 0x60..0x7F: 512M, FOURCC
+* 0x80..0x9F: 2M, TWOCC
+* 0xA0..0xBF: 2M, FOURCC
+
+TwoCC:
+* 'IX': Image Data (I-Frame), No LZ
+* 'PX': Image Data (P-Frame), No LZ
+* 'HX': Optional Header
+* 'PT': Color Palette
+
+* 'Z3': Frame Encoded with RP2
+* 'Z4': Frame Encoded with LZ4
+** LZ Compressed frames will be preceded by a small 32-bit header:
+*** (23: 0): Uncompressed Size
+*** (31:24): Reserved / Zero
+** LZ may not be applied recursively.
+
+Header:
+* u16 width;	//image frame width
+* u16 height;	//image frame height
+* u16 flags;	//some control flags
+** 1: Uses simple skip rather than motion compensation.
+*** This mode does not need a second block buffer or copying in the decoder.
+
+The frame size will be internally padded up to a multiple of 4 pixels, though the width and height will represent the actual / non-padded resolution.
+
+
+=== Image Data ===
+
+Frame Data:
+* ppppppp0 pppppppp aaaaaaaa bbbbbbbb  //Raw Simple Block (4x4x1, 2-color)
+**  Emit block, selecting A or B based on each pixel bit.
+**  Updates both colors A and B.
+* yyyxxx01, Small Delta Vector (0..6 => -3..+3)
+**  Copy block with small delta relative to prior vector.
+* nnn11101, Short Repeat Vector
+**  Copy blocks repeating the last vector.
+* 111nnn01, Short Skip (Vector set to 0,0)
+**  Copy blocks while setting motion vector to zero.
+* 11111101, Reserved
+
+* nn000011 nnnnnnnn, Larger Skip / Repeat
+**  Copy larger run of blocks reusing prior vector.
+**  Functions like a Skip if the vector is zero.
+* nn001011 yyyyxxxx, Copy 1..4 blocks with Absolute Vector
+** Vector range is (0..14 => -7..+7), 15 is reserved.
+* nn010011 aaaaaaaa, Flat Color (1..4 blocks)
+**  Updates color A.
+* nn011011 bbbbbbbb, Flat Color (1..4 blocks)
+**  Updates color B.
+
+* nn100011 (n *  1B), Emit 2..8 blocks, 2x2x1, reusing prior colors
+* nn101011 (n *  2B), Emit 1..4 blocks, reusing prior colors
+* nn110011 (n *  8B), Emit 1..4 blocks, 4-color + 4x4x2bpp
+* nn111011 (n * 16B), Emit 1..4 blocks, each with 16 raw pixels.
+* pppp0111, 2x2x1 block, reusing prior colors.
+* nnp01111, Emit 1..4 flat blocks, reuse colors, P selects A or B.
+
+
+I-Frame:
+* Always updates the whole image.
+* I-Frame images may use secondary LZ compression (RP2).
+
+P-Frame:
+* Will update the image based on the prior image;
+* P-Frame images may use secondary LZ compression (RP2).
+* Motion compensation will be based on a relative number of blocks.
+
+
+Pixel Bits will be 1bpp, where 0=ColorA, 1=ColorB.
+
+Pixel ordering will be LSB first, with the LSB corresponding to the lower-left corner of a block in raster order:
+* 12 13 14 15
+*  8  9 10 11
+*  4  5  6  7
+*  0  1  2  3
+
+With the image nominally being in raster order at the lower-left corner.
+
+
+=== RP2 ===
+
+BtRP2 is a yet another byte-based LZ77 variant.
+
+BtRP2 (Transposed, LE):
+*                   dddddddd-dlllrrr0	(l=3..10, d=0..511, r=0..7)
+*          dddddddd-dddddlll-lllrrr01	(l=4..67, d=0..8191)
+* dddddddd-dddddddd-dlllllll-llrrr011	(l=4..515, d=0..131071)
+*                            rrrr0111	(Raw Bytes, r=(r+1)*8, 8..128)
+*                          * rrr01111	(Long Match)
+*                            rr011111	(r=1..3 bytes, 0=EOB)
+*                   rrrrrrrr-r0111111 	(Long Raw, r=(r+1)*8, 8..4096)
+** d: Distance
+** l: Match Length
+** r: Literal Length
+
+Values are encoded in little-endian order, with tag bits located in the LSB. Bits will be contiguous within the value, with shift-and-mask being used to extract individual elements.
+
+Long Match will encode length and distance using variable-length encodings directly following the initial tag byte.
+
+Length VLN:
+*          lllllll0,   4..  131
+* llllllll-llllll01, 132..16383
+
+Distance VLN:
+*          dddddddd-ddddddd0, 32K (0..32767)
+* dddddddd-dddddddd-dddddd01,  4M
+

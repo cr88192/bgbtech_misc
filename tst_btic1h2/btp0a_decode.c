@@ -19,9 +19,9 @@ Block, 64-bit:
 #define		BTPIC_FOURCC(a, b, c, d)	((a)|((b)<<8)|((c)<<16)|((d)<<24))
 
 #define		BTPIC_TCC_IX	BTPIC_TWOCC('I', 'X')
-#define		BTPIC_TCC_PX	BTPIC_TWOCC('I', 'X')
+#define		BTPIC_TCC_PX	BTPIC_TWOCC('P', 'X')
 #define		BTPIC_TCC_IZ	BTPIC_TWOCC('I', 'Z')
-#define		BTPIC_TCC_PZ	BTPIC_TWOCC('I', 'Z')
+#define		BTPIC_TCC_PZ	BTPIC_TWOCC('P', 'Z')
 #define		BTPIC_TCC_HX	BTPIC_TWOCC('H', 'X')
 #define		BTPIC_TCC_PT	BTPIC_TWOCC('P', 'T')
 
@@ -407,8 +407,10 @@ int BTPIC0A_FreeDecodeContext(BTPIC0A_DecodeContext *ctx)
 
 void BTPIC0A_DecodeImageBlockRGB16(u64 blk, u16 *dptr, int ystr, int clrs)
 {
+	u16 clrt[4];
 	u16 *ct;
-	u64 v;
+	u32 pxb;
+	u64 v, clrtv;
 	int clra, clrb, pix, tg;
 	int t0, t1, t2, t3;
 
@@ -441,7 +443,8 @@ void BTPIC0A_DecodeImageBlockRGB16(u64 blk, u16 *dptr, int ystr, int clrs)
 #endif
 	}
 
-	if(!(tg&2))
+//	if(!(tg&2))
+	if((tg&7)==1)
 	{
 		if(pix&0x0001)	{ t0=clrb; } else { t0=clra; }
 		if(pix&0x0002)	{ t1=clrb; } else { t1=clra; }
@@ -457,7 +460,8 @@ void BTPIC0A_DecodeImageBlockRGB16(u64 blk, u16 *dptr, int ystr, int clrs)
 		return;
 	}
 
-	if(!(tg&4))
+//	if(!(tg&4))
+	if((tg&7)==3)
 	{
 		if(pix&0x0001)	{ t0=clrb; } else { t0=clra; }
 		if(pix&0x0002)	{ t1=clrb; } else { t1=clra; }
@@ -484,12 +488,112 @@ void BTPIC0A_DecodeImageBlockRGB16(u64 blk, u16 *dptr, int ystr, int clrs)
 		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
 		return;
 	}
+
+	if((tg&7)==5)
+	{
+		clra|=(clra>>5)&1;
+		clrb|=(clrb>>5)&1;
+		t0=(((clra+clrb)>>3)&0x0C63);
+//		clrt[0]=clra;
+//		clrt[3]=clrb;
+		t2=((clra>>1)&0x3DEF)+((clrb>>2)&0x1CE7)+t0;
+		t3=((clrb>>1)&0x3DEF)+((clra>>2)&0x1CE7)+t0;
+//		clrt[1]=t2;
+//		clrt[2]=t3;
+
+		clrtv=
+			(((u64)clrb)<<48) |
+			(((u64)t3  )<<32) |
+			(((u64)t2  )<<16) |
+			(((u64)clra)<< 0) ;
+
+//		t0=clrt[(pix>>0)&3];	t1=clrt[(pix>>2)&3];
+//		t2=clrt[(pix>>4)&3];	t3=clrt[(pix>>6)&3];
+		t0=clrtv>>((pix<<4)&0x30);	t1=clrtv>>((pix<<2)&0x30);
+		t2=clrtv>>((pix   )&0x30);	t3=clrtv>>((pix>>2)&0x30);
+
+		ct[0]=t0;	ct[1]=t0;	ct[2]=t1;	ct[3]=t1;
+		ct+=ystr;
+		ct[0]=t0;	ct[1]=t0;	ct[2]=t1;	ct[3]=t1;
+		ct+=ystr;
+		ct[0]=t2;	ct[1]=t2;	ct[2]=t3;	ct[3]=t3;
+		ct+=ystr;
+		ct[0]=t2;	ct[1]=t2;	ct[2]=t3;	ct[3]=t3;
+		return;
+	}
+	
+	if((tg&7)==7)
+	{
+		pxb=blk>>32;
+
+		//0111-1011-1101-1110 (No LSB)
+		//0011-1101-1110-1111 (SHR 1)
+		//0001-1100-1110-0111 (SHR 2)
+		//0000-1100-0110-0011 (SHR 3)
+
+		clra=(blk>> 3)&0x7FFE;
+		clrb=(blk>>17)&0x7FFE;
+		clra|=(clra>>5)&1;
+		clrb|=(clrb>>5)&1;
+		t0=(((clra+clrb)>>3)&0x0C63);
+//		clrt[0]=clra;
+//		clrt[3]=clrb;
+		t2=((clra>>1)&0x3DEF)+((clrb>>2)&0x1CE7)+t0;
+		t3=((clrb>>1)&0x3DEF)+((clra>>2)&0x1CE7)+t0;
+//		clrt[1]=t2;
+//		clrt[2]=t3;
+
+		clrtv=
+			(((u64)clrb)<<48) |
+			(((u64)t3  )<<32) |
+			(((u64)t2  )<<16) |
+			(((u64)clra)<< 0) ;
+
+//		t0=clrt[(pxb>>0)&3];	t1=clrt[(pxb>>2)&3];
+//		t2=clrt[(pxb>>4)&3];	t3=clrt[(pxb>>6)&3];
+		t0=clrtv>>((pxb<<4)&0x30);	t1=clrtv>>((pxb<<2)&0x30);
+		t2=clrtv>>((pxb   )&0x30);	t3=clrtv>>((pxb>>2)&0x30);
+		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
+		ct+=ystr;
+//		t0=clrt[(pxb>> 8)&3];	t1=clrt[(pxb>>10)&3];
+//		t2=clrt[(pxb>>12)&3];	t3=clrt[(pxb>>14)&3];
+		t0=clrtv>>((pxb>> 4)&0x30);	t1=clrtv>>((pxb>> 6)&0x30);
+		t2=clrtv>>((pxb>> 8)&0x30);	t3=clrtv>>((pxb>>10)&0x30);
+		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
+		ct+=ystr;
+//		t0=clrt[(pxb>>16)&3];	t1=clrt[(pxb>>18)&3];
+//		t2=clrt[(pxb>>20)&3];	t3=clrt[(pxb>>22)&3];
+		t0=clrtv>>((pxb>>12)&0x30);	t1=clrtv>>((pxb>>14)&0x30);
+		t2=clrtv>>((pxb>>16)&0x30);	t3=clrtv>>((pxb>>18)&0x30);
+		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
+		ct+=ystr;
+//		t0=clrt[(pxb>>24)&3];	t1=clrt[(pxb>>26)&3];
+//		t2=clrt[(pxb>>28)&3];	t3=clrt[(pxb>>30)&3];
+		t0=clrtv>>((pxb>>20)&0x30);	t1=clrtv>>((pxb>>22)&0x30);
+		t2=clrtv>>((pxb>>24)&0x30);	t3=clrtv>>((pxb>>26)&0x30);
+		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
+		ct+=ystr;
+		return;
+	}
+
+	t0=0x5555;	t1=0xAAAA;
+	t2=t1;		t3=t0;
+	ct[0]=t0;	ct[1]=t0;	ct[2]=t1;	ct[3]=t1;
+	ct+=ystr;
+	ct[0]=t0;	ct[1]=t0;	ct[2]=t1;	ct[3]=t1;
+	ct+=ystr;
+	ct[0]=t2;	ct[1]=t2;	ct[2]=t3;	ct[3]=t3;
+	ct+=ystr;
+	ct[0]=t2;	ct[1]=t2;	ct[2]=t3;	ct[3]=t3;
+	return;
 }
 
 void BTPIC0A_DecodeImageBlockRGB(u64 blk, void *dptr, int ystr, int clrs)
 {
+	u32 clrt[4];
 	byte *ct;
-	u64 v;
+	u32 pxb;
+	u64 v, clrtv;
 	int clra, clrb, pix, tg;
 	int t0, t1, t2, t3;
 
@@ -539,7 +643,8 @@ void BTPIC0A_DecodeImageBlockRGB(u64 blk, void *dptr, int ystr, int clrs)
 		return;
 	}
 
-	if(!(tg&2))
+//	if(!(tg&2))
+	if((tg&7)==1)
 	{
 		if(pix&0x0001)	{ t0=clrb; } else { t0=clra; }
 		if(pix&0x0002)	{ t1=clrb; } else { t1=clra; }
@@ -563,7 +668,8 @@ void BTPIC0A_DecodeImageBlockRGB(u64 blk, void *dptr, int ystr, int clrs)
 		return;
 	}
 
-	if(!(tg&4))
+//	if(!(tg&4))
+	if((tg&7)==3)
 	{
 		if(pix&0x0001)	{ t0=clrb; } else { t0=clra; }
 		if(pix&0x0002)	{ t1=clrb; } else { t1=clra; }
@@ -598,12 +704,122 @@ void BTPIC0A_DecodeImageBlockRGB(u64 blk, void *dptr, int ystr, int clrs)
 		btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
 		return;
 	}
+
+	if((tg&7)==5)
+	{
+		t0=(((clra+clrb)>>3)&0x001F1F1F);
+		clrt[0]=clra;
+		clrt[3]=clrb;
+		t2=((clra>>1)&0x007F7F7F)+((clrb>>2)&0x003F3F3F)+t0;
+		t3=((clrb>>1)&0x007F7F7F)+((clra>>2)&0x003F3F3F)+t0;
+		clrt[1]=t2;
+		clrt[2]=t3;
+
+		t0=clrt[(pix>>0)&3];	t1=clrt[(pix>>2)&3];
+		t2=clrt[(pix>>4)&3];	t3=clrt[(pix>>6)&3];
+
+		btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+		btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+		ct+=ystr;
+		btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+		btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+		ct+=ystr;
+		btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+		btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+		ct+=ystr;
+		btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+		btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+		return;
+	}
+	
+	if((tg&7)==7)
+	{
+		pxb=blk>>32;
+
+		clra=(blk>> 3)&0x7FFE;
+		clrb=(blk>>17)&0x7FFE;
+		clra|=(clra>>5)&1;
+		clrb|=(clrb>>5)&1;
+
+		clra=0xFF000000|
+			((clra<<9)&0x00F80000)|
+			((clra<<6)&0x0000F800)|
+			((clra<<3)&0x000000F8);
+		clrb=0xFF000000|
+			((clrb<<9)&0x00F80000)|
+			((clrb<<6)&0x0000F800)|
+			((clrb<<3)&0x000000F8);
+
+		if(clrs==BTIC4B_CLRS_RGB)
+		{
+			clra=(clra&0xFF00FF00)|
+				((clra<<16)&0x00FF0000)|
+				((clra>>16)&0x000000FF);
+			clrb=(clrb&0xFF00FF00)|
+				((clrb<<16)&0x00FF0000)|
+				((clrb>>16)&0x000000FF);
+		}
+
+		t0=(((clra+clrb)>>3)&0x001F1F1F);
+		clrt[0]=clra;
+		clrt[3]=clrb;
+		t2=((clra>>1)&0x007F7F7F)+((clrb>>2)&0x003F3F3F)+t0;
+		t3=((clrb>>1)&0x007F7F7F)+((clra>>2)&0x003F3F3F)+t0;
+		clrt[1]=t2;
+		clrt[2]=t3;
+
+		t0=clrt[(pxb>>0)&3];	t1=clrt[(pxb>>2)&3];
+		t2=clrt[(pxb>>4)&3];	t3=clrt[(pxb>>6)&3];
+		btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+		btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+
+		ct+=ystr;
+		t0=clrt[(pxb>> 8)&3];	t1=clrt[(pxb>>10)&3];
+		t2=clrt[(pxb>>12)&3];	t3=clrt[(pxb>>14)&3];
+		btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+		btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+		ct+=ystr;
+
+		t0=clrt[(pxb>>16)&3];	t1=clrt[(pxb>>18)&3];
+		t2=clrt[(pxb>>20)&3];	t3=clrt[(pxb>>22)&3];
+		btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+		btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+		ct+=ystr;
+
+		t0=clrt[(pxb>>24)&3];	t1=clrt[(pxb>>26)&3];
+		t2=clrt[(pxb>>28)&3];	t3=clrt[(pxb>>30)&3];
+		btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+		btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+		ct+=ystr;
+		return;
+	}
+
+	t0=0x555555;	t1=0xAAAAAA;
+	t2=t1;		t3=t0;
+	btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+	btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+
+	ct+=ystr;
+	btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+	btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+
+	ct+=ystr;
+	btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+	btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+
+	ct+=ystr;
+	btic4b_setu24lef(ct+0, t0);		btic4b_setu24lef(ct+3, t1);
+	btic4b_setu24lef(ct+6, t2);		btic4b_setu24lef(ct+9, t3);
+
+	return;
 }
 
 void BTPIC0A_DecodeImageBlockRGBX(u64 blk, u32 *dptr, int ystr, int clrs)
 {
+	u32 clrt[4];
 	u32 *ct;
-	u64 v;
+	u32 pxb;
+	u64 v, clrtv;
 	int clra, clrb, pix, tg;
 	int t0, t1, t2, t3;
 
@@ -649,7 +865,8 @@ void BTPIC0A_DecodeImageBlockRGBX(u64 blk, u32 *dptr, int ystr, int clrs)
 		return;
 	}
 
-	if(!(tg&2))
+//	if(!(tg&2))
+	if((tg&7)==1)
 	{
 		if(pix&0x0001)	{ t0=clrb; } else { t0=clra; }
 		if(pix&0x0002)	{ t1=clrb; } else { t1=clra; }
@@ -665,7 +882,8 @@ void BTPIC0A_DecodeImageBlockRGBX(u64 blk, u32 *dptr, int ystr, int clrs)
 		return;
 	}
 
-	if(!(tg&4))
+//	if(!(tg&4))
+	if((tg&7)==3)
 	{
 		if(pix&0x0001)	{ t0=clrb; } else { t0=clra; }
 		if(pix&0x0002)	{ t1=clrb; } else { t1=clra; }
@@ -692,6 +910,100 @@ void BTPIC0A_DecodeImageBlockRGBX(u64 blk, u32 *dptr, int ystr, int clrs)
 		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
 		return;
 	}
+
+	if((tg&7)==5)
+	{
+		t0=(((clra+clrb)>>3)&0x001F1F1F);
+		clrt[0]=clra;
+		clrt[3]=clrb;
+		t2=((clra>>1)&0x007F7F7F)+((clrb>>2)&0x003F3F3F)+t0;
+		t3=((clrb>>1)&0x007F7F7F)+((clra>>2)&0x003F3F3F)+t0;
+		clrt[1]=t2;
+		clrt[2]=t3;
+
+		t0=clrt[(pix>>0)&3];	t1=clrt[(pix>>2)&3];
+		t2=clrt[(pix>>4)&3];	t3=clrt[(pix>>6)&3];
+
+		ct[0]=t0;	ct[1]=t0;	ct[2]=t1;	ct[3]=t1;
+		ct+=ystr;
+		ct[0]=t0;	ct[1]=t0;	ct[2]=t1;	ct[3]=t1;
+		ct+=ystr;
+		ct[0]=t2;	ct[1]=t2;	ct[2]=t3;	ct[3]=t3;
+		ct+=ystr;
+		ct[0]=t2;	ct[1]=t2;	ct[2]=t3;	ct[3]=t3;
+		return;
+	}
+	
+	if((tg&7)==7)
+	{
+		pxb=blk>>32;
+
+		clra=(blk>> 3)&0x7FFE;
+		clrb=(blk>>17)&0x7FFE;
+		clra|=(clra>>5)&1;
+		clrb|=(clrb>>5)&1;
+
+		clra=0xFF000000|
+			((clra<<9)&0x00F80000)|
+			((clra<<6)&0x0000F800)|
+			((clra<<3)&0x000000F8);
+		clrb=0xFF000000|
+			((clrb<<9)&0x00F80000)|
+			((clrb<<6)&0x0000F800)|
+			((clrb<<3)&0x000000F8);
+
+		if(	(clrs==BTIC4B_CLRS_RGBA) ||
+			(clrs==BTIC4B_CLRS_RGBX))
+		{
+			clra=(clra&0xFF00FF00)|
+				((clra<<16)&0x00FF0000)|
+				((clra>>16)&0x000000FF);
+			clrb=(clrb&0xFF00FF00)|
+				((clrb<<16)&0x00FF0000)|
+				((clrb>>16)&0x000000FF);
+		}
+
+		t0=(((clra+clrb)>>3)&0x001F1F1F);
+		clrt[0]=clra;
+		clrt[3]=clrb;
+		t2=((clra>>1)&0x007F7F7F)+((clrb>>2)&0x003F3F3F)+t0;
+		t3=((clrb>>1)&0x007F7F7F)+((clra>>2)&0x003F3F3F)+t0;
+		clrt[1]=t2;
+		clrt[2]=t3;
+
+		t0=clrt[(pxb>>0)&3];	t1=clrt[(pxb>>2)&3];
+		t2=clrt[(pxb>>4)&3];	t3=clrt[(pxb>>6)&3];
+		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
+		ct+=ystr;
+
+		t0=clrt[(pxb>> 8)&3];	t1=clrt[(pxb>>10)&3];
+		t2=clrt[(pxb>>12)&3];	t3=clrt[(pxb>>14)&3];
+		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
+		ct+=ystr;
+
+		t0=clrt[(pxb>>16)&3];	t1=clrt[(pxb>>18)&3];
+		t2=clrt[(pxb>>20)&3];	t3=clrt[(pxb>>22)&3];
+		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
+		ct+=ystr;
+
+		t0=clrt[(pxb>>24)&3];	t1=clrt[(pxb>>26)&3];
+		t2=clrt[(pxb>>28)&3];	t3=clrt[(pxb>>30)&3];
+		ct[0]=t0;	ct[1]=t1;	ct[2]=t2;	ct[3]=t3;
+		ct+=ystr;
+
+		return;
+	}
+
+	t0=0xFF555555;	t1=0xFFAAAAAA;
+	t2=t1;		t3=t0;
+	ct[0]=t0;	ct[1]=t0;	ct[2]=t1;	ct[3]=t1;
+	ct+=ystr;
+	ct[0]=t0;	ct[1]=t0;	ct[2]=t1;	ct[3]=t1;
+	ct+=ystr;
+	ct[0]=t2;	ct[1]=t2;	ct[2]=t3;	ct[3]=t3;
+	ct+=ystr;
+	ct[0]=t2;	ct[1]=t2;	ct[2]=t3;	ct[3]=t3;
+	return;
 }
 
 void BTPIC0A_DecodeBlockImageRGB16(u16 *dptr, u64 *blka,
@@ -711,7 +1023,8 @@ void BTPIC0A_DecodeBlockImageRGB16(u16 *dptr, u64 *blka,
 		while(cs<cse)
 		{
 			blk=*cs;
-			if(!(blk&0x80))
+//			if(!(blk&0x80))
+			if(!(blk&0x8))
 			{
 //				*cs=blk|0x80;	//mark already decoded
 				BTPIC0A_DecodeImageBlockRGB16(*cs, ct1, ystr, clrs);
@@ -739,7 +1052,8 @@ void BTPIC0A_DecodeBlockImageRGBX(u32 *dptr, u64 *blka,
 		while(cs<cse)
 		{
 			blk=*cs;
-			if(!(blk&0x80))
+//			if(!(blk&0x80))
+			if(!(blk&0x8))
 			{
 //				*cs=blk|0x80;	//mark already decoded
 				BTPIC0A_DecodeImageBlockRGBX(*cs, ct1, ystr, clrs);
@@ -767,7 +1081,8 @@ void BTPIC0A_DecodeBlockImageRGB(byte *dptr, u64 *blka,
 		while(cs<cse)
 		{
 			blk=*cs;
-			if(!(blk&0x80))
+//			if(!(blk&0x80))
+			if(!(blk&0x8))
 			{
 //				*cs=blk|0x80;	//mark already decoded
 				BTPIC0A_DecodeImageBlockRGB(*cs, ct1, ystr, clrs);
@@ -822,7 +1137,8 @@ void BTPIC0A_DecodeCopyBlocks(
 		while(n--)
 		{
 			blk=*csl++;
-			blk&=~0x80;
+//			blk&=~0x80;
+			blk&=~0x8;
 			*ct++=blk;
 		}
 	}else
