@@ -18,6 +18,7 @@ randbits.txt
 *.jpg
 *.bmp
 *.dat
+*.avi
 
 *.sln
 *.idb
