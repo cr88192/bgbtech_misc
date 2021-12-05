@@ -417,6 +417,55 @@ int btpic_clamp(int v, int m, int n)
 	return(v);
 }
 
+u32 BTIC5B_InitDeltas_FixupPat6(u32 pat2, u16 pat1)
+{
+	int x, y, xn1, xp1, yn1, yp1, ix, p;
+	int pxn1, pxp1, pyn1, pyp1;
+	u32 patb;
+
+//	patb=pat2;
+	patb=0;
+
+	for(y=0; y<4; y++)
+		for(x=0; x<4; x++)
+	{
+		ix=y*4+x;
+		p=(pat2>>(ix*2))&3;
+
+		if((p==0) || (p==3))
+		{
+			patb|=p<<(ix*2);
+			continue;
+		}
+
+		xn1=(x>0)?(x-1):x;	xp1=(x<3)?(x+1):x;
+		yn1=(y>0)?(y-1):y;	yp1=(y<3)?(y+1):y;
+		
+		pxn1=(pat2>>((y*4+xn1)*2))&3;	pxp1=(pat2>>((y*4+xp1)*2))&3;
+		pyn1=(pat2>>((yn1*4+x)*2))&3;	pyp1=(pat2>>((yp1*4+x)*2))&3;
+		
+		if((pxn1==0) && (pxp1==0) && (p==1))		p=0;
+		if((pxn1==3) && (pxp1==3) && (p==2))		p=3;
+
+		if((pyn1==0) && (pyp1==0) && (p==1))		p=0;
+		if((pyn1==3) && (pyp1==3) && (p==2))		p=3;
+
+		if((pxn1==1) && (pxp1==0) && (p==1))		p=0;
+		if((pxn1==2) && (pxp1==3) && (p==2))		p=3;
+		if((pxn1==0) && (pxp1==1) && (p==1))		p=0;
+		if((pxn1==3) && (pxp1==2) && (p==2))		p=3;
+
+		if((pyn1==1) && (pyp1==0) && (p==1))		p=0;
+		if((pyn1==2) && (pyp1==3) && (p==2))		p=3;
+		if((pyn1==0) && (pyp1==1) && (p==1))		p=0;
+		if((pyn1==3) && (pyp1==2) && (p==2))		p=3;
+
+		patb|=p<<(ix*2);
+	}
+
+	return(patb);
+}
+
 void BTIC5B_InitDeltas()
 {
 	const int ptshr=0;
@@ -424,6 +473,7 @@ void BTIC5B_InitDeltas()
 	int ph0, ph1, ph2, ph3;
 	int pv0, pv1, pv2, pv3;
 	int p0, p1, p2, p3;
+	int q0, q1, q2, q3;
 	int px, px2;
 	int i, j, k;
 	if(bt5b_initdeltas)
@@ -463,7 +513,8 @@ void BTIC5B_InitDeltas()
 	
 		px=0;
 		px2=0;
-		
+
+
 		p0=ph0+pv0;		p1=ph1+pv0;
 		p2=ph2+pv0;		p3=ph3+pv0;
 		if(p0>=0)px|=0x0001;
@@ -471,11 +522,12 @@ void BTIC5B_InitDeltas()
 		if(p2>=0)px|=0x0004;
 		if(p3>=0)px|=0x0008;
 		
-		p0=btpic_clamp((p0>>ptshr)+2, 0, 3);
-		p1=btpic_clamp((p1>>ptshr)+2, 0, 3);
-		p2=btpic_clamp((p2>>ptshr)+2, 0, 3);
-		p3=btpic_clamp((p3>>ptshr)+2, 0, 3);
-		px2=(p0<<0)|(p1<<2)|(p2<<4)|(p3<<6);
+		q0=btpic_clamp((p0>>ptshr)+2, 0, 3);
+		q1=btpic_clamp((p1>>ptshr)+2, 0, 3);
+		q2=btpic_clamp((p2>>ptshr)+2, 0, 3);
+		q3=btpic_clamp((p3>>ptshr)+2, 0, 3);
+		px2=(q0<<0)|(q1<<2)|(q2<<4)|(q3<<6);
+
 
 		p0=ph0+pv1;		p1=ph1+pv1;
 		p2=ph2+pv1;		p3=ph3+pv1;
@@ -484,11 +536,12 @@ void BTIC5B_InitDeltas()
 		if(p2>=0)px|=0x0040;
 		if(p3>=0)px|=0x0080;
 		
-		p0=btpic_clamp((p0>>ptshr)+2, 0, 3);
-		p1=btpic_clamp((p1>>ptshr)+2, 0, 3);
-		p2=btpic_clamp((p2>>ptshr)+2, 0, 3);
-		p3=btpic_clamp((p3>>ptshr)+2, 0, 3);
-		px2|=(p0<< 8)|(p1<<10)|(p2<<12)|(p3<<14);
+		q0=btpic_clamp((p0>>ptshr)+2, 0, 3);
+		q1=btpic_clamp((p1>>ptshr)+2, 0, 3);
+		q2=btpic_clamp((p2>>ptshr)+2, 0, 3);
+		q3=btpic_clamp((p3>>ptshr)+2, 0, 3);
+		px2|=(q0<< 8)|(q1<<10)|(q2<<12)|(q3<<14);
+
 
 		p0=ph0+pv2;		p1=ph1+pv2;
 		p2=ph2+pv2;		p3=ph3+pv2;
@@ -497,11 +550,11 @@ void BTIC5B_InitDeltas()
 		if(p2>=0)px|=0x0400;
 		if(p3>=0)px|=0x0800;
 		
-		p0=btpic_clamp((p0>>ptshr)+2, 0, 3);
-		p1=btpic_clamp((p1>>ptshr)+2, 0, 3);
-		p2=btpic_clamp((p2>>ptshr)+2, 0, 3);
-		p3=btpic_clamp((p3>>ptshr)+2, 0, 3);
-		px2|=(p0<<16)|(p1<<18)|(p2<<20)|(p3<<22);
+		q0=btpic_clamp((p0>>ptshr)+2, 0, 3);
+		q1=btpic_clamp((p1>>ptshr)+2, 0, 3);
+		q2=btpic_clamp((p2>>ptshr)+2, 0, 3);
+		q3=btpic_clamp((p3>>ptshr)+2, 0, 3);
+		px2|=(q0<<16)|(q1<<18)|(q2<<20)|(q3<<22);
 
 		p0=ph0+pv3;		p1=ph1+pv3;
 		p2=ph2+pv3;		p3=ph3+pv3;
@@ -510,12 +563,15 @@ void BTIC5B_InitDeltas()
 		if(p2>=0)px|=0x4000;
 		if(p3>=0)px|=0x8000;
 		
-		p0=btpic_clamp((p0>>ptshr)+2, 0, 3);
-		p1=btpic_clamp((p1>>ptshr)+2, 0, 3);
-		p2=btpic_clamp((p2>>ptshr)+2, 0, 3);
-		p3=btpic_clamp((p3>>ptshr)+2, 0, 3);
-		px2|=(p0<<24)|(p1<<26)|(p2<<28)|(p3<<30);
-		
+		q0=btpic_clamp((p0>>ptshr)+2, 0, 3);
+		q1=btpic_clamp((p1>>ptshr)+2, 0, 3);
+		q2=btpic_clamp((p2>>ptshr)+2, 0, 3);
+		q3=btpic_clamp((p3>>ptshr)+2, 0, 3);
+		px2|=(q0<<24)|(q1<<26)|(q2<<28)|(q3<<30);
+
+
+		px2=BTIC5B_InitDeltas_FixupPat6(px2, px);
+
 		bt5b_pat6[i0*8+i1]=px;
 		bt5b_pat6x2[i0*8+i1]=px2;
 	}
@@ -690,20 +746,33 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 		{
 #if 1
 			cs++;
-			dx=(tgv>>2)&63;
-			px=bt5b_pat6[dx];
-//			px=bt5b_pat6x2[dx];
 			
 			if(tgv&2)
 			{
 				BTIC5B_DecodeEndpoint(ctx, &cs);
 				ca=ctx->clra;	cb=ctx->clrb;
 			}
+
+			dx=(tgv>>2)&63;
 			
-			blk=(((u64)px)<<16)|(((u64)ca)<<32)|(((u64)cb)<<48)|3;
-//			blk=(((u64)px)<<32)|
-//				(((u64)(ca&0x7FFE))<< 3)|
-//				(((u64)(cb&0x7FFE))<<17)|7;
+			if((ca^cb)&0x6318)
+//			if(0)
+			{
+				px=bt5b_pat6x2[dx];
+
+				blk=(((u64)px)<<32)|
+					(((u64)(ca&0x7FFE))<< 3)|
+					(((u64)(cb&0x7FFE))<<17)|7;
+			}else
+				if(ca!=cb)
+//				if(1)
+			{
+				px=bt5b_pat6[dx];			
+				blk=(((u64)px)<<16)|(((u64)ca)<<32)|(((u64)cb)<<48)|3;
+			}else
+			{
+				blk=(((u64)ca)<<32)|(((u64)cb)<<48)|0;
+			}
 			*ct++=blk;
 			continue;
 #endif
@@ -780,7 +849,8 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 			px=(tgv>>4)&15;
 			
 //			blk=(((u64)px)<<16)|(((u64)ca)<<32)|(((u64)cb)<<48)|3;
-			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|1;
+//			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|1;
+			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|(ca!=cb);
 			*ct++=blk;
 			continue;
 		}
@@ -885,7 +955,7 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 			blk=
 				(((u64)(ca&0x7FFE))<< 3) |
 				(((u64)(cb&0x7FFE))<<17) |
-				(((u64)px)<<32);
+				(((u64)px)<<32) | 7;
 			*ct++=blk;
 			continue;
 
@@ -908,7 +978,16 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 
 		if(!(tgv&128))	//0111_1111
 		{
-			__debugbreak();
+			cs+=2;
+
+			BTIC5B_DecodeEndpoint(ctx, &cs);
+			ca=ctx->clra;
+			cb=ctx->clrb;
+
+			px=(tgv>>8)&255;
+			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|5;
+			*ct++=blk;
+			continue;
 		}
 
 		if(!(tgv&256))	//zzz0_1111_1111

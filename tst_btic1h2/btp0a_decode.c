@@ -493,7 +493,8 @@ void BTPIC0A_DecodeImageBlockRGB16(u64 blk, u16 *dptr, int ystr, int clrs)
 	{
 		clra|=(clra>>5)&1;
 		clrb|=(clrb>>5)&1;
-		t0=(((clra+clrb)>>3)&0x0C63);
+//		t0=(((clra+clrb)>>3)&0x0C63);
+		t0=((clra&0x6318)+(clrb&0x6318))>>3;
 //		clrt[0]=clra;
 //		clrt[3]=clrb;
 		t2=((clra>>1)&0x3DEF)+((clrb>>2)&0x1CE7)+t0;
@@ -531,11 +532,14 @@ void BTPIC0A_DecodeImageBlockRGB16(u64 blk, u16 *dptr, int ystr, int clrs)
 		//0001-1100-1110-0111 (SHR 2)
 		//0000-1100-0110-0011 (SHR 3)
 
+		//0110-0011-0001-1000 (No LSB 3)
+
 		clra=(blk>> 3)&0x7FFE;
 		clrb=(blk>>17)&0x7FFE;
 		clra|=(clra>>5)&1;
 		clrb|=(clrb>>5)&1;
-		t0=(((clra+clrb)>>3)&0x0C63);
+//		t0=(((clra+clrb)>>3)&0x0C63);
+		t0=((clra&0x6318)+(clrb&0x6318))>>3;
 //		clrt[0]=clra;
 //		clrt[3]=clrb;
 		t2=((clra>>1)&0x3DEF)+((clrb>>2)&0x1CE7)+t0;
@@ -707,7 +711,8 @@ void BTPIC0A_DecodeImageBlockRGB(u64 blk, void *dptr, int ystr, int clrs)
 
 	if((tg&7)==5)
 	{
-		t0=(((clra+clrb)>>3)&0x001F1F1F);
+//		t0=(((clra+clrb)>>3)&0x001F1F1F);
+		t0=((clra&0x00F8F8F8)+(clrb&0x00F8F8F8))>>3;
 		clrt[0]=clra;
 		clrt[3]=clrb;
 		t2=((clra>>1)&0x007F7F7F)+((clrb>>2)&0x003F3F3F)+t0;
@@ -760,7 +765,8 @@ void BTPIC0A_DecodeImageBlockRGB(u64 blk, void *dptr, int ystr, int clrs)
 				((clrb>>16)&0x000000FF);
 		}
 
-		t0=(((clra+clrb)>>3)&0x001F1F1F);
+//		t0=(((clra+clrb)>>3)&0x001F1F1F);
+		t0=((clra&0x00F8F8F8)+(clrb&0x00F8F8F8))>>3;
 		clrt[0]=clra;
 		clrt[3]=clrb;
 		t2=((clra>>1)&0x007F7F7F)+((clrb>>2)&0x003F3F3F)+t0;
@@ -913,7 +919,8 @@ void BTPIC0A_DecodeImageBlockRGBX(u64 blk, u32 *dptr, int ystr, int clrs)
 
 	if((tg&7)==5)
 	{
-		t0=(((clra+clrb)>>3)&0x001F1F1F);
+//		t0=(((clra+clrb)>>3)&0x001F1F1F);
+		t0=((clra&0x00F8F8F8)+(clrb&0x00F8F8F8))>>3;
 		clrt[0]=clra;
 		clrt[3]=clrb;
 		t2=((clra>>1)&0x007F7F7F)+((clrb>>2)&0x003F3F3F)+t0;
@@ -963,7 +970,8 @@ void BTPIC0A_DecodeImageBlockRGBX(u64 blk, u32 *dptr, int ystr, int clrs)
 				((clrb>>16)&0x000000FF);
 		}
 
-		t0=(((clra+clrb)>>3)&0x001F1F1F);
+//		t0=(((clra+clrb)>>3)&0x001F1F1F);
+		t0=((clra&0x00F8F8F8)+(clrb&0x00F8F8F8))>>3;
 		clrt[0]=clra;
 		clrt[3]=clrb;
 		t2=((clra>>1)&0x007F7F7F)+((clrb>>2)&0x003F3F3F)+t0;

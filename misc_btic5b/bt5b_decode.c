@@ -247,7 +247,7 @@ BTIC5B_DecodeContext *BTIC5B_AllocDecodeContext(void)
 
 void BTIC5B_DecodeImageBlock(u64 blk, u16 *dptr, int ystr)
 {
-	u16 clrt[4];
+//	u16 clrt[4];
 	u16 *ct;
 	u32 pxb;
 	u64 v, clrtv;
@@ -320,7 +320,9 @@ void BTIC5B_DecodeImageBlock(u64 blk, u16 *dptr, int ystr)
 
 	if((tg&7)==5)
 	{
-		t0=(((clra+clrb)>>3)&0x0C63);
+//		t0=(((clra+clrb)>>3)&0x0C63);
+		t0=((clra&0x6318)+(clrb&0x6318))>>3;
+//		t0=(((clra&0x7BDE)+(clrb&0x7BDE))>>3)&0x1CE7;
 //		clrt[0]=clra;
 //		clrt[3]=clrb;
 		t2=((clra>>1)&0x3DEF)+((clrb>>2)&0x1CE7)+t0;
@@ -357,12 +359,15 @@ void BTIC5B_DecodeImageBlock(u64 blk, u16 *dptr, int ystr)
 		//0011-1101-1110-1111 (SHR 1)
 		//0001-1100-1110-0111 (SHR 2)
 		//0000-1100-0110-0011 (SHR 3)
+		//0110-0011-0001-1000 (No LSB 3)
 
 		clra=(blk>> 3)&0x7FFE;
 		clrb=(blk>>17)&0x7FFE;
 		clra|=(clra>>5)&1;
 		clrb|=(clrb>>5)&1;
-		t0=(((clra+clrb)>>3)&0x0C63);
+//		t0=(((clra+clrb)>>3)&0x0C63);
+		t0=((clra&0x6318)+(clrb&0x6318))>>3;
+//		t0=(((clra&0x7BDE)+(clrb&0x7BDE))>>3)&0x1CE7;
 //		clrt[0]=clra;
 //		clrt[3]=clrb;
 		t2=((clra>>1)&0x3DEF)+((clrb>>2)&0x1CE7)+t0;
@@ -515,9 +520,59 @@ int btpic_clamp(int v, int m, int n)
 	return(v);
 }
 
+u32 BTIC5B_InitDeltas_FixupPat6(u32 pat2, u16 pat1)
+{
+	int x, y, xn1, xp1, yn1, yp1, ix, p;
+	int pxn1, pxp1, pyn1, pyp1;
+	u32 patb;
+
+//	patb=pat2;
+	patb=0;
+
+	for(y=0; y<4; y++)
+		for(x=0; x<4; x++)
+	{
+		ix=y*4+x;
+		p=(pat2>>(ix*2))&3;
+
+		if((p==0) || (p==3))
+		{
+			patb|=p<<(ix*2);
+			continue;
+		}
+
+		xn1=(x>0)?(x-1):x;	xp1=(x<3)?(x+1):x;
+		yn1=(y>0)?(y-1):y;	yp1=(y<3)?(y+1):y;
+		
+		pxn1=(pat2>>((y*4+xn1)*2))&3;	pxp1=(pat2>>((y*4+xp1)*2))&3;
+		pyn1=(pat2>>((yn1*4+x)*2))&3;	pyp1=(pat2>>((yp1*4+x)*2))&3;
+		
+		if((pxn1==0) && (pxp1==0) && (p==1))		p=0;
+		if((pxn1==3) && (pxp1==3) && (p==2))		p=3;
+
+		if((pyn1==0) && (pyp1==0) && (p==1))		p=0;
+		if((pyn1==3) && (pyp1==3) && (p==2))		p=3;
+
+		if((pxn1==1) && (pxp1==0) && (p==1))		p=0;
+		if((pxn1==2) && (pxp1==3) && (p==2))		p=3;
+		if((pxn1==0) && (pxp1==1) && (p==1))		p=0;
+		if((pxn1==3) && (pxp1==2) && (p==2))		p=3;
+
+		if((pyn1==1) && (pyp1==0) && (p==1))		p=0;
+		if((pyn1==2) && (pyp1==3) && (p==2))		p=3;
+		if((pyn1==0) && (pyp1==1) && (p==1))		p=0;
+		if((pyn1==3) && (pyp1==2) && (p==2))		p=3;
+
+		patb|=p<<(ix*2);
+	}
+
+	return(patb);
+}
+
 void BTIC5B_InitDeltas()
 {
 	const int ptshr=0;
+//	const int ptshr=1;
 	int i0, i1, i2, i3;
 	int ph0, ph1, ph2, ph3;
 	int pv0, pv1, pv2, pv3;
@@ -614,6 +669,8 @@ void BTIC5B_InitDeltas()
 		p3=btpic_clamp((p3>>ptshr)+2, 0, 3);
 		px2|=(p0<<24)|(p1<<26)|(p2<<28)|(p3<<30);
 		
+		px2=BTIC5B_InitDeltas_FixupPat6(px2, px);
+
 		bt5b_pat6[i0*8+i1]=px;
 		bt5b_pat6x2[i0*8+i1]=px2;
 	}
@@ -788,20 +845,32 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 		{
 #if 1
 			cs++;
-			dx=(tgv>>2)&63;
-			px=bt5b_pat6[dx];
-//			px=bt5b_pat6x2[dx];
 			
 			if(tgv&2)
 			{
 				BTIC5B_DecodeEndpoint(ctx, &cs);
 				ca=ctx->clra;	cb=ctx->clrb;
 			}
+
+			dx=(tgv>>2)&63;
 			
-			blk=(((u64)px)<<16)|(((u64)ca)<<32)|(((u64)cb)<<48)|3;
-//			blk=(((u64)px)<<32)|
-//				(((u64)(ca&0x7FFE))<< 3)|
-//				(((u64)(cb&0x7FFE))<<17)|7;
+			if((ca^cb)&0x6318)
+			{
+				px=bt5b_pat6x2[dx];
+
+				blk=(((u64)px)<<32)|
+					(((u64)(ca&0x7FFE))<< 3)|
+					(((u64)(cb&0x7FFE))<<17)|7;
+			}else
+				if(ca!=cb)
+//				if(1)
+			{
+				px=bt5b_pat6[dx];			
+				blk=(((u64)px)<<16)|(((u64)ca)<<32)|(((u64)cb)<<48)|3;
+			}else
+			{
+				blk=(((u64)ca)<<32)|(((u64)cb)<<48)|0;
+			}
 			*ct++=blk;
 			continue;
 #endif
@@ -879,6 +948,7 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 			
 //			blk=(((u64)px)<<16)|(((u64)ca)<<32)|(((u64)cb)<<48)|3;
 			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|1;
+//			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|(ca!=cb);
 			*ct++=blk;
 			continue;
 		}
@@ -983,7 +1053,7 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 			blk=
 				(((u64)(ca&0x7FFE))<< 3) |
 				(((u64)(cb&0x7FFE))<<17) |
-				(((u64)px)<<32);
+				(((u64)px)<<32) | 7;
 			*ct++=blk;
 			continue;
 
@@ -1006,7 +1076,16 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 
 		if(!(tgv&128))	//0111_1111
 		{
-			__debugbreak();
+			cs+=2;
+
+			BTIC5B_DecodeEndpoint(ctx, &cs);
+			ca=ctx->clra;
+			cb=ctx->clrb;
+
+			px=(tgv>>8)&255;
+			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|5;
+			*ct++=blk;
+			continue;
 		}
 
 		if(!(tgv&256))	//zzz0_1111_1111

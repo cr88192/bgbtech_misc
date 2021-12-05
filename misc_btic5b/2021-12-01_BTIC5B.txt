@@ -204,14 +204,21 @@ Small Run (Flat):
 Small Run, Flat Colors, Endpoint per Block:
 * ( 5: 0): 011111
 * ( 7: 6): nn
+* (   8+): Endpoints (nn+1)
 ** Run of 1-4 blocks, Endpoint Per Block
 
 Bigger 4x4x2 Block:
 * ( 6: 0): 0111111
 * (    7): p (Endpoint Present)
 * (39: 8): Pixel Bits, 4x4x2
-* (  40+): (p!=0): Endpoint
+* (  40+): (p==1): Endpoint
 
+Bigger 2x2x2 Block:
+* ( 7: 0): 01111111
+* (15: 8): Pixel Bits, 2x2x2
+* (  16+): Endpoint
+
+Longer Flat-Color Run
 * ( 7: 0): 11111111
 * (10: 8): 011
 * (   11): p (Color Selector)

@@ -72,11 +72,15 @@ int BTIC5B_EncodeContextSetupQuality(BTIC5B_EncodeContext *ctx, int qfl)
 
 	qf=qfl&127;
 	if(qf>100)qf=100;
-	ctx->ld_flat=100-qf;
-	ctx->ld_2x2=200-(qf*2);
-	ctx->ld_skip=200-(qf*2);
+//	ctx->ld_flat=100-qf;
+	ctx->ld_flat=50-(qf/2);
+//	ctx->ld_2x2=200-(qf*2);
+	ctx->ld_2x2=100-qf;
+//	ctx->ld_skip=200-(qf*2);
+	ctx->ld_skip=100-qf;
 //	ctx->ld_joint=320-(qf*2);
-	ctx->ld_joint=200-(qf*2);
+//	ctx->ld_joint=200-(qf*2);
+	ctx->ld_joint=100-qf;
 //	ctx->ld_joint=220-(qf*2);
 	return(0);
 }
@@ -417,7 +421,7 @@ int BTIC5B_EncodeEndpoint_RGBD15(BTIC5B_EncodeContext *ctx,
 	int cra, cga, cba, cya;
 	int crb, cgb, cbb, cyb;
 	int cr, cg, cb, cy;
-	int cv;
+	int cv, cv0, cv1;
 	int i, j, n;
 	
 	cra=(clra>>10)&31;	cga=(clra>> 5)&31;	cba=(clra>> 0)&31;
@@ -443,15 +447,58 @@ int BTIC5B_EncodeEndpoint_RGBD15(BTIC5B_EncodeContext *ctx,
 	cya=(cv&0x7BDE)+bt5b_dystep[(cy>>1)&7];
 	cyb=(cv&0x7BDE)-bt5b_dystep[(cy>>1)&7];
 
-	for(i=0; i<8; i++)
+	j=cya|cyb;
+	if((j&0x7BDE)!=j)
 	{
-		j=cya|cyb;
-		if((j&0x7BDE)==j)
-			break;
-	
-		if((((cya&cyb)&0x8420) || (i>4)) && (cy>0))
+		cv0=cv;
+		
+		for(i=0; i<16; i++)
 		{
-			cy--;
+			j=cya|cyb;
+			if((j&0x7BDE)==j)
+				break;
+			
+			cv1=cv;
+		
+			if((((cya&cyb)&0x8420) || (i>8)) && (cy>0))
+			{
+				cy--;
+
+				cr=(cr&0x1E)|((cy>>3)&1);
+				cg=(cg&0x1E)|((cy>>2)&1);
+				cb=(cb&0x1E)|((cy>>1)&1);
+				cv=(cr<<10)|(cg<<5)|cb;
+				
+				cya=(cv&0x7BDE)+bt5b_dystep[(cy>>1)&7];
+				cyb=(cv&0x7BDE)-bt5b_dystep[(cy>>1)&7];
+				continue;
+			}
+
+			if(cya&0x8000)	cv-=0x0800;
+			if(cya&0x0400)	cv-=0x0040;
+			if(cya&0x0020)	cv-=0x0002;
+
+			cya=(cv&0x7BDE)+bt5b_dystep[(cy>>1)&7];
+			cyb=(cv&0x7BDE)-bt5b_dystep[(cy>>1)&7];
+
+			j=cya|cyb;
+			if((j&0x7BDE)==j)
+				break;
+
+			if(cyb&0x8000)	cv+=0x0800;
+			if(cyb&0x0400)	cv+=0x0040;
+			if(cyb&0x0020)	cv+=0x0002;
+
+			cya=(cv&0x7BDE)+bt5b_dystep[(cy>>1)&7];
+			cyb=(cv&0x7BDE)-bt5b_dystep[(cy>>1)&7];
+
+			j=cya|cyb;
+			if((j&0x7BDE)==j)
+				break;
+				
+//			cv=cv1;
+			if(cy>0)
+				cy--;
 
 			cr=(cr&0x1E)|((cy>>3)&1);
 			cg=(cg&0x1E)|((cy>>2)&1);
@@ -460,26 +507,13 @@ int BTIC5B_EncodeEndpoint_RGBD15(BTIC5B_EncodeContext *ctx,
 			
 			cya=(cv&0x7BDE)+bt5b_dystep[(cy>>1)&7];
 			cyb=(cv&0x7BDE)-bt5b_dystep[(cy>>1)&7];
-			continue;
 		}
-
-		if(cya&0x8000)	cv-=0x0800;
-		if(cya&0x0400)	cv-=0x0040;
-		if(cya&0x0020)	cv-=0x0002;
-
-		cya=(cv&0x7BDE)+bt5b_dystep[(cy>>1)&7];
-		cyb=(cv&0x7BDE)-bt5b_dystep[(cy>>1)&7];
-
-		if(cyb&0x8000)	cv+=0x0800;
-		if(cyb&0x0400)	cv+=0x0040;
-		if(cyb&0x0020)	cv+=0x0002;
-
-		cya=(cv&0x7BDE)+bt5b_dystep[(cy>>1)&7];
-		cyb=(cv&0x7BDE)-bt5b_dystep[(cy>>1)&7];
 	}
 
-	if(	((cya&0x7BDE)!=cya) ||
-		((cyb&0x7BDE)!=cyb))
+	j=cya|cyb;
+//	if(	((cya&0x7BDE)!=cya) ||
+//		((cyb&0x7BDE)!=cyb))
+	if((j&0x7BDE)!=j)
 	{
 		printf("Encode RGBD5: Overflow %04X %04X\n", clra, clrb);
 		cv&=0x7BDE;
@@ -490,7 +524,7 @@ int BTIC5B_EncodeEndpoint_RGBD15(BTIC5B_EncodeContext *ctx,
 
 int BTPIC_DecodeEndpoint_RGBD15(int rdv, int *rca, int *rcb)
 {
-	int cc, ca, cb, cdy;
+	int cc, ca, cb, cdy, j;
 
 	cc=rdv&0x7BDE;
 	cdy=((rdv>>0)&1)|((rdv>>4)&2)|((rdv>>8)&4);
@@ -498,6 +532,13 @@ int BTPIC_DecodeEndpoint_RGBD15(int rdv, int *rca, int *rcb)
 	cb=cc-bt5b_dystep[cdy];
 	
 //	if(((ca&0x7BDE)!=ca))
+
+	j=ca|cb;
+	if((j&0x7BDE)!=j)
+	{
+		printf("BT5B-E: Decode RGBD5: Overflow %04X %04X\n", ca, cb);
+//		cv&=0x7BDE;
+	}
 	
 	*rca=ca;
 	*rcb=cb;
@@ -635,9 +676,12 @@ int BTIC5B_EncodeEndpoint(BTIC5B_EncodeContext *ctx,
 //	if(cdd<ctx->ld_joint)
 //	if((cdd<ctx->ld_joint) || (dab<ctx->ld_flat) || (clra==clrb))
 //	if(((cdd/2)<ctx->ld_joint) || (dab<ctx->ld_flat) || (clra==clrb))
-	if(ctx->ld_flat>=8)
+//	if(ctx->ld_flat>=8)
+	if(ctx->ld_flat>=4)
 	{
-		if((cd>=0) && (lcdy<8) && (cd2d<ctx->ld_flat))
+//		if((cd>=0) && (lcdy<8) && (cd2d<ctx->ld_flat))
+		if((cd>=0) && (lcdy<8))
+//		if(0)
 		{
 			*ct++=(cd<<1)|1;
 			
@@ -1119,7 +1163,8 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 				continue;
 			}
 #endif
-			
+
+#if 1
 			*ct++=0x0B;
 			BTIC5B_EncodeEndpoint(ctx, &ct, ca, cb);
 //			lca=ca;
@@ -1127,6 +1172,8 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 			lca=ctx->clra;
 			lcb=ctx->clrb;
 			continue;
+#endif
+
 		}
 #endif
 
@@ -1226,6 +1273,7 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 
 #endif
 
+#if 1
 		p2x0=BTIC5B_EncodeImageBasic_Px4ToPx2(px);
 		if(p2x0>=0)
 //		if(0)
@@ -1247,6 +1295,7 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 				continue;
 			}
 		}
+#endif
 
 //		if(!lblka)
 		if(1)
@@ -1256,118 +1305,14 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 //			i2=BTIC5B_EncodeCheckBlockPat6(ctx, px2, ca2, cb2);
 //			i3=BTIC5B_EncodeCheckBlockPat6(ctx, px3, ca3, cb3);
 
-#if 0
-//			if(((mdm&15)==0) && ((mfc&15)==0))
-			if(((mdm&3)==0) && ((mfc&3)==0) &&
-				(i0>=0) && (i1>=0))
-			{
-				j=2;
-				if(((mdm& 7)==0) && ((mfc& 7)==0) && (i2>=0))
-				{
-					j=3;
-					if(((mdm&15)==0) && ((mfc&15)==0) && (i3>=0))
-						j=4;
-				}else
-				{
-#if 0
-//					if(((mdm&15)==4) && ((mfc&15)==4) && (i3>=0))
-					if(	(bt5b_ebitcnt[mdm&15]<2) &&
-						(bt5b_ebitcnt[mfc&15]<2) &&
-						(i3>=0))
-							j=4;
-#endif
-				}
-			
-				ctx->stat_pxp6+=j;
-				i+=j-1;
-
-//				*ct++=0x27|((j-1)<<6);
-				*ct++=0x37|((j-1)<<6);
-
-				if(BTIC5B_EncodeEndpointSkipP(ctx, ca, cb))
-				{
-					*ct++=(i0<<2)|0;
-				}else
-				{
-					*ct++=(i0<<2)|2;
-					BTIC5B_EncodeEndpoint(ctx, &ct, ca, cb);
-//					lca=ca;
-//					lcb=cb;
-					lca=ctx->clra;
-					lcb=ctx->clrb;
-				}
-
-				if(BTIC5B_EncodeEndpointSkipP(ctx, ca1, cb1))
-				{
-					*ct++=(i1<<2)|0;
-				}else
-				{
-					*ct++=(i1<<2)|2;
-					BTIC5B_EncodeEndpoint(ctx, &ct, ca1, cb1);
-//					lca=ca1;
-//					lcb=cb1;
-					lca=ctx->clra;
-					lcb=ctx->clrb;
-				}
-
-				if(j>2)
-				{
-					if(BTIC5B_EncodeEndpointSkipP(ctx, ca2, cb2))
-					{
-						*ct++=(i2<<2)|0;
-					}else
-					{
-						*ct++=(i2<<2)|2;
-						BTIC5B_EncodeEndpoint(ctx, &ct, ca2, cb2);
-//						lca=ca2;
-//						lcb=cb2;
-						lca=ctx->clra;
-						lcb=ctx->clrb;
-					}
-
-					if(j>3)
-					{
-						if(BTIC5B_EncodeEndpointSkipP(ctx, ca3, cb3))
-						{
-							*ct++=(i3<<2)|0;
-						}else
-						{
-							*ct++=(i3<<2)|2;
-							BTIC5B_EncodeEndpoint(ctx, &ct, ca3, cb3);
-//							lca=ca3;
-//							lcb=cb3;
-							lca=ctx->clra;
-							lcb=ctx->clrb;
-						}
-					}
-				}
-
-				continue;
-			}
-#endif
-
-#if 0
-			j=BTIC5B_EncodeCheckBlockPat6(ctx, px, ca, cb);
-//			px=bt5b_pat6[j];
-
-			ctx->stat_pxp6++;
-			*ct++=0x27;
-			*ct++=(j<<2)|3;
-
-			BTIC5B_EncodeEndpoint(ctx, &ct, ca, cb);
-//			lca=ca;
-//			lcb=cb;
-			lca=ctx->clra;
-			lcb=ctx->clrb;
-			continue;
-#endif
-
 #if 1
 			if(i0>=0)
 			{
 				ctx->stat_pxp6++;
 
 				if(BTIC5B_EncodeEndpointSkipP(ctx, ca, cb))
+//				if(0)
+//				if(1)
 				{
 					*ct++=(i0<<2)|0;
 				}else

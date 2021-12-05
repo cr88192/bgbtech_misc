@@ -519,8 +519,9 @@ int main(int argc, char *argv[])
 			BTIC1H_Img_SaveTGA555(tb, (u16 *)buf, xs, ys);
 		}
 
-		qfl=100;
+//		qfl=100;
 //		qfl=90;
+		qfl=95;
 //		if((i&15))qfl|=BTPIC_QFL_PFRAME;
 //		if((i&127))qfl|=BTPIC_QFL_PFRAME;
 		if((i&31))qfl|=BTPIC_QFL_PFRAME;
