@@ -1089,7 +1089,9 @@ int BTIC5B_DecodeFrame(BTIC5B_DecodeContext *ctx,
 			cs0=cs+7;	cs1=cs+sz;
 		}
 
-		if((fcc==BTPIC_TCC_Z3) || (fcc==BTPIC_TCC_Z4))
+		if(	(fcc==BTPIC_TCC_Z3) || (fcc==BTPIC_TCC_Z4) ||
+			(fcc==BTPIC_TCC_Z5) || (fcc==BTPIC_TCC_Z6) ||
+			(fcc==BTPIC_TCC_Z7))
 		{
 			k=btpic_getu32(cs0+0);
 			dsz=k&0xFFFFFF;
@@ -1119,7 +1121,16 @@ int BTIC5B_DecodeFrame(BTIC5B_DecodeContext *ctx,
 					cs2, ctx->zfbuf,
 					cs1-cs2, ctx->zfbsz);
 			}
-			
+
+#ifdef TKULZ_HTABNB
+			if(fcc==BTPIC_TCC_Z6)
+			{
+				TKuLZ_DecodeBufferNoCtx(
+					ctx->zfbuf, cs2,
+					ctx->zfbsz, cs1-cs2);
+			}
+#endif
+
 //			BTIC5B_DecodeFrame(ctx, ctx->zfbuf, ctx->zfbsz, img, ystr, clrs);
 			BTIC5B_DecodeFrame(ctx, ctx->zfbuf, dsz, img, ystr, clrs);
 			

@@ -35,6 +35,9 @@ The 'd' bit is used to encode which blocks have already been drawn in a previous
 
 #define		BTPIC_TCC_Z3	BTPIC_TWOCC('Z', '3')
 #define		BTPIC_TCC_Z4	BTPIC_TWOCC('Z', '4')
+#define		BTPIC_TCC_Z5	BTPIC_TWOCC('Z', '5')
+#define		BTPIC_TCC_Z6	BTPIC_TWOCC('Z', '6')
+#define		BTPIC_TCC_Z7	BTPIC_TWOCC('Z', '7')
 
 #define BTPIC_QFL_PFRAME	0x100
 
@@ -1188,7 +1191,9 @@ int BTIC5B_DecodeFrame(BTIC5B_DecodeContext *ctx,
 			cs0=cs+7;	cs1=cs+sz;
 		}
 
-		if((fcc==BTPIC_TCC_Z3) || (fcc==BTPIC_TCC_Z4))
+		if(	(fcc==BTPIC_TCC_Z3) ||
+			(fcc==BTPIC_TCC_Z4) ||
+			(fcc==BTPIC_TCC_Z6))
 		{
 			k=btpic_getu32(cs0+0);
 			dsz=k&0xFFFFFF;
@@ -1218,6 +1223,15 @@ int BTIC5B_DecodeFrame(BTIC5B_DecodeContext *ctx,
 					cs2, ctx->zfbuf,
 					cs1-cs2, ctx->zfbsz);
 			}
+
+#ifdef TKULZ_HTABNB
+			if(fcc==BTPIC_TCC_Z6)
+			{
+				TKuLZ_DecodeBufferNoCtx(
+					ctx->zfbuf, cs2,
+					ctx->zfbsz, cs1-cs2);
+			}
+#endif
 			
 //			BTIC5B_DecodeFrame(ctx, ctx->zfbuf, ctx->zfbsz, img, ystr);
 			BTIC5B_DecodeFrame(ctx, ctx->zfbuf, dsz, img, ystr);

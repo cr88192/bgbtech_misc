@@ -27,6 +27,9 @@ Block, 64-bit:
 
 #define		BTPIC_TCC_Z3	BTPIC_TWOCC('Z', '3')
 #define		BTPIC_TCC_Z4	BTPIC_TWOCC('Z', '4')
+#define		BTPIC_TCC_Z5	BTPIC_TWOCC('Z', '5')
+#define		BTPIC_TCC_Z6	BTPIC_TWOCC('Z', '6')
+#define		BTPIC_TCC_Z7	BTPIC_TWOCC('Z', '7')
 
 #if 0
 typedef	uint8_t		byte;

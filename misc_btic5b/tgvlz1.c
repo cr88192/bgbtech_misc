@@ -1522,6 +1522,7 @@ int TgvLz_SetLevel(TgvLz_Context *ctx, int lvl)
 	ctx->maxdepth=1<<(lvl+3);
 	if(lvl<4)
 		ctx->maxdepth=0;
+	return(0);
 }
 
 int TgvLz_DestroyContext(TgvLz_Context *ctx)

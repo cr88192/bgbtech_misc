@@ -13,6 +13,12 @@
 #define TGVLZ_NOMAIN
 #include "tgvlz1.c"
 
+#include "tkulzd.c"
+#include "tkulze.c"
+
+#include "btrlz0_dec.c"
+#include "btrlz0_enc.c"
+
 #include "bt5b_decode.c"
 #include "bt5b_encode.c"
 
@@ -448,11 +454,11 @@ int main(int argc, char *argv[])
 
 //	ifn="M:\\TestSonicUnleashed_WindmillIsleDA2_CRAM2.avi";
 
-//	ifn="M:\\BadApple_CV1.avi";
-//	ofn="TestOut_CV0.avi";
+	ifn="M:\\BadApple_CV1.avi";
+	ofn="TestOut_CV0.avi";
 
-	ifn="M:\\HEYYEYAAEYAAAEYAEYAA_CV0.avi";
-	ofn="TestOut_CV1.avi";
+//	ifn="M:\\HEYYEYAAEYAAAEYAEYAA_CV0.avi";
+//	ofn="TestOut_CV1.avi";
 
 	avi=BGBBTJ_AVI_LoadAVI(ifn);
 	if(!avi)

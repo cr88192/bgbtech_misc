@@ -72,6 +72,9 @@ void btjpg_printf(char *str, ...);
 #define TGVLZ_NOMAIN
 #include "tgvlz1.c"
 
+#include "tkulzd.c"
+#include "tkulze.c"
+
 #include "btp0a_decode.c"
 #include "btp0a_encode.c"
 

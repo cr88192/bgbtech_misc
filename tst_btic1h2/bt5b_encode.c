@@ -41,6 +41,8 @@ struct BTIC5B_EncodeContext_s {
 	byte *tfbuf;		//temp encoded frame buffer	
 	byte *zfbuf;		//LZ Frame temporary buffer
 	byte *zf2buf;		//LZ Frame temporary buffer
+	byte *zf3buf;		//LZ Frame temporary buffer
+	byte *zf4buf;		//LZ Frame temporary buffer
 	int zfbsz;			//LZ Frame buffer size
 };
 
@@ -1997,19 +1999,26 @@ int BTIC5B_EncodeFrameImageA(BTIC5B_EncodeContext *ctx,
 int BTIC5B_EncodeFrameImage(BTIC5B_EncodeContext *ctx,
 	byte *obuf, int obsz, void *ibuf, int qfl, int clrs)
 {
-	TgvLz_Context *zctx;
-	byte *tbuf, *t2buf;
-	int tsz, t2sz, sz;
+	static int stat_z0, stat_z3, stat_z6, stat_z7;
+	static TgvLz_Context *zctx=NULL;
+	byte *tbuf, *t2buf, *t3buf, *t4buf;
+	int tsz, t2sz, t3sz, t4sz, sz, tg;
 
 	tbuf=ctx->zfbuf;
 	t2buf=ctx->zf2buf;
+	t3buf=ctx->zf3buf;
+	t4buf=ctx->zf4buf;
 	if(!tbuf)
 	{
 		tbuf=malloc(obsz);
 		t2buf=malloc(obsz);
+		t3buf=malloc(obsz);
+		t4buf=malloc(obsz);
 
 		ctx->zfbuf=tbuf;
 		ctx->zf2buf=t2buf;
+		ctx->zf3buf=t3buf;
+		ctx->zf4buf=t4buf;
 	}
 
 	tsz=BTIC5B_EncodeFrameImageA(ctx, tbuf, obsz, ibuf, qfl, clrs);
@@ -2017,10 +2026,11 @@ int BTIC5B_EncodeFrameImage(BTIC5B_EncodeContext *ctx,
 //	tsz=cram_repak_buf(ibuf, tbuf+4, isz, isz*2, vstat);
 //	set_u32le(tbuf, 0x00000000|tsz);
 	
-	zctx=TgvLz_CreateContext();
+	if(!zctx)
+		zctx=TgvLz_CreateContext();
 	TgvLz_SetLevel(zctx, 4);
 	t2sz=TgvLz_DoEncode(zctx, tbuf, t2buf+10, tsz);
-	TgvLz_DestroyContext(zctx);
+//	TgvLz_DestroyContext(zctx);
 	sz=t2sz+10;
 	t2buf[0]=0x40|(sz>>24);
 	t2buf[1]=sz>>16;
@@ -2031,16 +2041,96 @@ int BTIC5B_EncodeFrameImage(BTIC5B_EncodeContext *ctx,
 	set_u32le(t2buf+6, tsz);
 	t2sz=sz;
 	
-	if((t2sz*1.3)<tsz)
+	if(t2sz<8192)
+	{
+		t2sz-=2;
+		t2buf[0]=0x00|(t2sz>>8);
+		t2buf[1]=t2sz>> 0;
+		memmove(t2buf+2, t2buf+4, t2sz-2);
+	}
+	
+	
+	t3sz=obsz;
+	t4sz=obsz;
+	
+#ifdef TKULZ_HASH_SZ
+	if(tsz>2048)
+	{
+		t3sz=TKuLZ_EncodeBufferNoCtx(t3buf+10, tbuf, obsz, tsz, 4);
+		sz=t3sz+10;
+		t3buf[0]=0x40|(sz>>24);
+		t3buf[1]=sz>>16;
+		t3buf[2]=sz>> 8;
+		t3buf[3]=sz>> 0;
+		t3buf[4]='Z';
+		t3buf[5]='6';
+		set_u32le(t3buf+6, tsz);
+		t3sz=sz;
+		
+		if(t3sz<8192)
+		{
+			t3sz-=2;
+			t3buf[0]=0x00|(t3sz>>8);
+			t3buf[1]=t3sz>> 0;
+			memmove(t3buf+2, t3buf+4, t3sz-2);
+		}
+	}
+#endif
+
+// #ifdef BTRLZ_HASH_SZ
+#if 0
+	t4sz=BTRLZ0_EncodeBufferNoCtx(tbuf, t4buf+10, tsz, obsz, 4);
+	sz=t4sz+10;
+	t4buf[0]=0x40|(sz>>24);
+	t4buf[1]=sz>>16;
+	t4buf[2]=sz>> 8;
+	t4buf[3]=sz>> 0;
+	t4buf[4]='Z';
+	t4buf[5]='7';
+	set_u32le(t4buf+6, tsz);
+	t4sz=sz;
+	
+	if(t4sz<8192)
+	{
+		t4sz-=2;
+		t4buf[0]=0x00|(t4sz>>8);
+		t4buf[1]=t4sz>> 0;
+		memmove(t4buf+2, t4buf+4, t4sz-2);
+	}
+#endif
+
+//	if((t2sz*1.3)<tsz)
+	if((t2sz*1.25)<tsz)
 //	if(0)
 	{
-		sz=t2sz;
-		memcpy(obuf, t2buf, sz);
+		if((t3sz*1.2)<t2sz)
+//		if((t3sz*1.15)<t2sz)
+//		if(1)
+		{
+			sz=t3sz;
+			memcpy(obuf, t3buf, sz);
+			stat_z6++;
+			tg=BTPIC_TCC_Z6;
+		}else
+		{
+			sz=t2sz;
+			memcpy(obuf, t2buf, sz);
+			stat_z3++;
+			tg=BTPIC_TCC_Z3;
+		}
+//		tg=BTPIC_TWOCC(obuf[4], obuf[5]);
 	}else
 	{
 		sz=tsz;
 		memcpy(obuf, tbuf, sz);
+		tg=0x2020;
+		stat_z0++;
 	}
+	
+//	printf("tsz=%d t2sz=%d t3sz=%d t4sz=%d tg=%c%c (%d/%d/%d)\n",
+//		tsz, t2sz, t3sz, t4sz,
+//		tg&255, (tg>>8)&255,
+//		stat_z0, stat_z3, stat_z6);
 	
 //	free(tbuf);
 //	free(t2buf);

@@ -27,14 +27,24 @@ The length field for the TLV tags is effectively encoded in big-endian ordering.
 TwoCC:
 * 'IX': Image Data (I-Frame), No LZ
 * 'PX': Image Data (P-Frame), No LZ
-* 'HX': Optional Header
+* 'HX': Optional Header (I-Frame)
 
+LZ Compressed Frames:
+* 'Z0': Dummy Wrapper (Unencoded Frame)
+* 'Z1': Reserved
+* 'Z2': Reserved
 * 'Z3': Frame Encoded with RP2
 * 'Z4': Frame Encoded with LZ4
+* 'Z5': Reserved
+* 'Z6': TKuLZ
+* 'Z7': STF+AdRice (Possible)
+* 'Z8': Deflate (Possible)
+* 'Z9': Deflate64 (Possible)
+
 ** LZ Compressed frames will be preceded by a small 32-bit header:
 *** (23: 0): Uncompressed Size
 *** (31:24): Reserved / Zero
-** LZ may not be applied recursively.
+** LZ frame encoding may not be applied recursively.
 
 Header:
 * u16 width;	//image frame width
