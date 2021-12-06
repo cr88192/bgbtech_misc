@@ -18,6 +18,7 @@ struct BTIC5B_EncodeContext_s {
 	u16 clra;
 	u16 clrb;
 	u16 clrc;
+	u16 lclrc;
 	byte clrdy;
 
 	int ld_flat;
@@ -99,7 +100,7 @@ int BTIC5B_EncodeInitContext(BTIC5B_EncodeContext *ctx,
 
 	ctx->blka=malloc(ctx->bxs*ctx->bys*sizeof(u64));
 	ctx->lblka=malloc(ctx->bxs*ctx->bys*sizeof(u64));
-	ctx->fl|=1;
+//	ctx->fl|=1;
 
 	ctx->clra_a=malloc(ctx->bxs*ctx->bys*sizeof(u16));
 	ctx->clra_b=malloc(ctx->bxs*ctx->bys*sizeof(u16));
@@ -110,6 +111,151 @@ int BTIC5B_EncodeInitContext(BTIC5B_EncodeContext *ctx,
 	BTIC5B_EncodeContextSetupQuality(ctx, qfl);
 	
 	return(0);
+}
+
+static byte bt5b_ebitcnt[16]=
+	{ 0, 1, 1, 2,  1, 2, 2, 3,  1, 2, 2, 3,  2, 3, 3, 4 };
+
+void BTIC5B_InitDeltasEncode()
+{
+	u16 pbma[64];
+	int x, y, xn1, xp1, yn1, yp1, ix, p;
+	int pxn1, pxp1, pyn1, pyp1;
+	int pxe, pbi, pbe;
+	int t0, t1;
+
+	u16 px1, px1b, pxm;
+	u32 px2;
+	int i, j, k, l;
+
+	BTIC5B_InitDeltas();
+	
+	if(bt5b_pat6lut)
+		return;
+		
+	bt5b_pat6lut=malloc(65536);
+	memset(bt5b_pat6lut, 0xFF, 65536);
+
+	t0=clock();
+
+	/*
+	 * Fill pattern lookup with 1-pixel flips.
+	 * Generate a table of which pixels can flip.
+	 */
+	for(i=0; i<64; i++)
+	{
+		px1=bt5b_pat6[i];
+		px2=bt5b_pat6x2[i];
+		bt5b_pat6lut[px1]=i;
+
+		pxm=0;		
+		for(y=0; y<4; y++)
+			for(x=0; x<4; x++)
+		{
+			ix=y*4+x;
+			p=(px2>>(ix*2))&3;
+
+			if((p==1) || (p==2))
+			{
+				px1b=px1^(1<<ix);
+				pxm|=(1<<ix);
+				if(bt5b_pat6lut[px1b]==0xFF)
+					bt5b_pat6lut[px1b]=i;
+			}
+
+			xn1=(x>0)?(x-1):x;	xp1=(x<3)?(x+1):x;
+			yn1=(y>0)?(y-1):y;	yp1=(y<3)?(y+1):y;
+			
+			pxn1=(px2>>((y*4+xn1)*2))&3;	pxp1=(px2>>((y*4+xp1)*2))&3;
+			pyn1=(px2>>((yn1*4+x)*2))&3;	pyp1=(px2>>((yp1*4+x)*2))&3;
+
+			if((pxn1!=pxp1) || (pyn1!=pyp1))
+			{
+				px1b=px1^(1<<ix);
+				pxm|=(1<<ix);
+				if(bt5b_pat6lut[px1b]==0xFF)
+					bt5b_pat6lut[px1b]=i;
+			}
+		}
+		pbma[i]=pxm;
+	}
+
+	/*
+	 * Now, try filling in the lookup table with other flips.
+	 */
+#if 1
+	for(j=0; j<65536; j++)
+	{
+		if(bt5b_pat6lut[j]!=0xFF)
+			continue;
+
+		pbi=0; pbe=999;
+
+		for(i=0; i<64; i++)
+		{
+			pxm=pbma[i];
+			px1=bt5b_pat6[i];
+//			px2=bt5b_pat6x2[i];
+
+			if((j^px1)&(~pxm))
+				continue;
+
+//			k=j&pxm;
+//			if(k==l)
+//				continue;
+
+			pxe=j^px1;
+			k=	bt5b_ebitcnt[(pxe   )&15]+bt5b_ebitcnt[(pxe>> 4)&15]+
+				bt5b_ebitcnt[(pxe>>8)&15]+bt5b_ebitcnt[(pxe>>12)&15];
+			if(k<pbe)
+				{ pbi=i; pbe=k; }
+
+//			l=k;
+			
+//			px1b=px1^k;
+
+//			if(bt5b_pat6lut[px1b]==0xFF)
+//				bt5b_pat6lut[px1b]=i;
+		}
+
+		bt5b_pat6lut[j]=pbi;
+	}
+#endif
+
+#if 0
+	for(i=0; i<64; i++)
+	{
+		px1=bt5b_pat6[i];
+		px2=bt5b_pat6x2[i];
+		pxm=pbma[i];
+		
+		l=-1;
+		
+		for(j=0; j<65536; j++)
+		{
+			k=j&pxm;
+			if(k==l)
+				continue;
+			l=k;
+			
+			px1b=px1^k;
+
+			if(bt5b_pat6lut[px1b]==0xFF)
+				bt5b_pat6lut[px1b]=i;
+		}
+	}
+#endif
+
+	k=0;
+	for(j=0; j<65536; j++)
+	{
+		if(bt5b_pat6lut[j]==0xFF)
+			k++;
+	}
+	
+	t1=clock();
+	
+	printf("BTIC5B_InitDeltasEncode: Took %d, Unset=%d\n", t1-t0, k);
 }
 
 int BTIC5B_EncodeImageBasic_Px4ToPx2(u16 px)
@@ -388,9 +534,12 @@ int	BTIC5B_EncodeGetColorDist16(u16 ca, u16 cb)
 int BTIC5B_EncodeCheckCanSkipBlock(BTIC5B_EncodeContext *ctx,
 	u64 blk0, u64 blk1)
 {
+	u16 tblka0[16], tblka1[16];
 	u16 px0, px1, px2, px3;
+	u64 blk2, blk3;
 	int ca0, ca1, ca2, ca3, cb0, cb1, cb2, cb3;
 	int d0, d1, d2, d3;
+	int i, j, k;
 
 	if(blk0==blk1)
 		return(1);
@@ -411,7 +560,31 @@ int BTIC5B_EncodeCheckCanSkipBlock(BTIC5B_EncodeContext *ctx,
 
 	if((d0<ctx->ld_skip) && (d1<ctx->ld_skip))
 		return(1);
+
+#if 1
+	d2=BTIC5B_EncodeGetColorDist16(ca0, ca1);
+	d3=BTIC5B_EncodeGetColorDist16(cb0, cb1);
+
+//	if((d0>=ctx->ld_skip) && (d1>=ctx->ld_skip))
+//	if(	(d0>=ctx->ld_skip) && (d1>=ctx->ld_skip) &&
+//		(d2>=ctx->ld_skip) && (d3>=ctx->ld_skip))
+//			return(0);
 	
+	blk2=(((u64)px0)<<16)|(((u64)ca0)<<32)|(((u64)cb0)<<48)|3;
+	blk3=(((u64)px1)<<16)|(((u64)ca1)<<32)|(((u64)cb1)<<48)|3;
+	BTIC5B_DecodeImageBlock(blk2, tblka0, 4);
+	BTIC5B_DecodeImageBlock(blk3, tblka1, 4);
+	
+	d0=0;
+	for(i=0; i<16; i++)
+		{ d0+=BTIC5B_EncodeGetColorDist16(tblka0[i], tblka1[i]); }
+	d0=d0/16;
+	
+	if(d0<ctx->ld_skip)
+//	if(d0<ctx->ld_flat)
+		return(1);
+#endif
+
 	return(0);
 }
 
@@ -547,7 +720,7 @@ int BTPIC_DecodeEndpoint_RGBD15(int rdv, int *rca, int *rcb)
 
 int BTIC5B_EncodeEndpoint_FindDeltaRGBD15(
 	BTIC5B_EncodeContext *ctx,
-	int cda, int cdy, int lcda, int lcdy)
+	int cda, int cdy, int lcda, int lcdy, int lcda2)
 {
 	int cra, cga, cba, cya;
 	int crb, cgb, cbb, cyb;
@@ -562,6 +735,16 @@ int BTIC5B_EncodeEndpoint_FindDeltaRGBD15(
 //	if(dy!=1)
 		return(-1);
 
+#if 0
+	cya=(lcda*2)-lcda2;
+	if(cya==cda)
+	{
+		dv=0x1B;
+		dv=dv*4+dy;
+		return(dv);
+	}
+#endif
+
 	cra=(cda >>10)&31;	cga=(cda >> 5)&31;	cba=(cda >> 0)&31;
 	crb=(lcda>>10)&31;	cgb=(lcda>> 5)&31;	cbb=(lcda>> 0)&31;
 
@@ -569,10 +752,24 @@ int BTIC5B_EncodeEndpoint_FindDeltaRGBD15(
 	dg=(cga-cgb)>>1;
 	db=(cba-cbb)>>1;
 	dr+=1;	dg+=1;	db+=1;
-	if((dr<0) || (dg<0) || (db<0))
+//	if((dr<0) || (dg<0) || (db<0))
+//		return(-1);
+//	if((dr>2) || (dg>2) || (db>2))
+//		return(-1);
+
+	if(	(dr<0) || (dg<0) || (db<0) ||
+		(dr>2) || (dg>2) || (db>2) )
+	{
+		cya=(lcda*2)-lcda2;
+		if((cya==cda) && ((cya&0x7BDE)==cya))
+		{
+			dv=0x1B;
+			dv=dv*4+dy;
+			return(dv);
+		}
+
 		return(-1);
-	if((dr>2) || (dg>2) || (db>2))
-		return(-1);
+	}
 
 	dv=(dr*9)+(dg*3)+db;
 	if((dv<0) || (dv>0x1A))
@@ -590,7 +787,7 @@ int BTIC5B_EncodeEndpoint_FindDeltaRGBD15(
 int BTIC5B_EncodeEndpointSkipP(BTIC5B_EncodeContext *ctx,
 	int clra, int clrb)
 {
-	int lcda, lcdy, cda, cdy, cd;
+	int lcda, lcdy, lcda2, cda, cdy, cd;
 	int cdd, dab, clr2a, clr2b;
 	int cd2a, clr3a, clr3b, cd2d;
 
@@ -601,13 +798,14 @@ int BTIC5B_EncodeEndpointSkipP(BTIC5B_EncodeContext *ctx,
 
 #if 1
 	lcda=ctx->clrc;
+	lcda2=ctx->lclrc;
 	lcdy=ctx->clrdy;
 
 	cda=BTIC5B_EncodeEndpoint_RGBD15(ctx, clra, clrb);
 	cdy=((cda>>0)&1)|((cda>>4)&2)|((cda>>8)&4);
 
 	cd=BTIC5B_EncodeEndpoint_FindDeltaRGBD15(ctx,
-		cda&0x7BDE, cdy, lcda, lcdy);
+		cda&0x7BDE, cdy, lcda, lcdy, lcda2);
 
 	dab=BTIC5B_EncodeGetColorDist16(clra, clrb);
 
@@ -622,9 +820,11 @@ int BTIC5B_EncodeEndpointSkipP(BTIC5B_EncodeContext *ctx,
 	cd2d =	BTIC5B_EncodeGetColorDist16(clra, clr3a) +
 			BTIC5B_EncodeGetColorDist16(clrb, clr3b);
 
-	if((cdd<ctx->ld_joint) || (dab<ctx->ld_flat) || (clra==clrb))
+//	if((cdd<ctx->ld_joint) || (dab<ctx->ld_flat) || (clra==clrb))
+	if(ctx->ld_flat>=4)
 	{
-		if((cd>=0) && (lcdy<8) && (cd2d<ctx->ld_flat))
+//		if((cd>=0) && (lcdy<8) && (cd2d<ctx->ld_flat))
+		if((cd>=0) && (lcdy<8))
 		{
 			if(cd==((1*9+1*3+1)*4+1))
 				return(1);
@@ -642,7 +842,7 @@ int BTIC5B_EncodeEndpoint(BTIC5B_EncodeContext *ctx,
 	int cd, cda, cdd, cpa, dab, cdy;
 	int clr2a, clr2b;
 	int cd2a, clr3a, clr3b, cd2d;
-	int lcda, lcdy;
+	int lcda, lcdy, lcda2;
 	
 	ct=*rct;
 	
@@ -656,11 +856,16 @@ int BTIC5B_EncodeEndpoint(BTIC5B_EncodeContext *ctx,
 			BTIC5B_EncodeGetColorDist16(clrb, clr2b);
 
 	lcda=ctx->clrc;
+	lcda2=ctx->lclrc;
 	lcdy=ctx->clrdy;
 
 	cd=BTIC5B_EncodeEndpoint_FindDeltaRGBD15(ctx,
-		cda&0x7BDE, cdy, lcda, lcdy);
+		cda&0x7BDE, cdy, lcda, lcdy, lcda2);
+
 	cd2a=lcda+bt5b_delta5[cd>>2];
+	if((cd>>2)==0x1B)
+		cd2a=2*lcda-lcda2;
+	
 	clr3a=cd2a+bt5b_dystep[cdy];
 	clr3b=cd2a-bt5b_dystep[cdy];
 
@@ -684,6 +889,9 @@ int BTIC5B_EncodeEndpoint(BTIC5B_EncodeContext *ctx,
 //		if(0)
 		{
 			*ct++=(cd<<1)|1;
+
+			ctx->lclrc=ctx->clrc;
+//			ctx->lclrc=lcda;
 			
 			ctx->clra=clr3a;
 			ctx->clrb=clr3b;
@@ -693,6 +901,9 @@ int BTIC5B_EncodeEndpoint(BTIC5B_EncodeContext *ctx,
 			ctx->stat_cd5++;
 		}else
 		{
+			ctx->lclrc=ctx->clrc;
+//			ctx->lclrc=lcda;
+		
 			cpa=cda<<1;
 			*ct++=cpa>>0;
 			*ct++=cpa>>8;
@@ -767,14 +978,33 @@ int BTPIC_QuantizeEndpoint(BTIC5B_EncodeContext *ctx,
 	return(0);
 }
 
-static byte bt5b_ebitcnt[16]=
-	{ 0, 1, 1, 2,  1, 2, 2, 3,  1, 2, 2, 3,  2, 3, 3, 4 };
-
 int BTIC5B_EncodeCheckBlockPat6(BTIC5B_EncodeContext *ctx,
 	u16 px, u16 ca, u16 cb)
 {
 	int cd, ce;
 	int i, j, k, px1, pxe, pbi, pbe;
+	
+	i=bt5b_pat6lut[px];
+	if(i!=0xFF)
+	{
+		px1=bt5b_pat6[i];
+		if(px1==px)
+			return(i);
+		
+		pbi=i;
+
+		pxe=px^px1;
+		pbe=	bt5b_ebitcnt[(pxe   )&15]+bt5b_ebitcnt[(pxe>> 4)&15]+
+				bt5b_ebitcnt[(pxe>>8)&15]+bt5b_ebitcnt[(pxe>>12)&15];
+
+		cd=BTIC5B_EncodeGetColorDist16(ca, cb);
+		ce=pbe*(cd>>4);
+
+		if(ce<ctx->ld_2x2)
+			return(pbi);
+		
+		return(-1);
+	}
 	
 	pbi=0; pbe=999;
 	for(i=0; i<64; i++)
@@ -789,6 +1019,8 @@ int BTIC5B_EncodeCheckBlockPat6(BTIC5B_EncodeContext *ctx,
 			{ pbi=i; pbe=j; }
 	}
 
+	bt5b_pat6lut[px]=pbi;
+
 	cd=BTIC5B_EncodeGetColorDist16(ca, cb);
 	ce=pbe*(cd>>4);
 
@@ -797,6 +1029,15 @@ int BTIC5B_EncodeCheckBlockPat6(BTIC5B_EncodeContext *ctx,
 	
 	return(-1);
 }
+
+static int btic5b_mvpat[(5*4)*2] = 
+{
+ 1, 0,   0, 1,  -1,  0,  0, -1,
+ 1, 1,  -1, 1,  -1, -1,  1, -1,
+ 2, 0,   0, 2,  -2,  0,  0, -2,
+ 2, 1,  -1, 2,  -2, -1,  1, -2,
+ 2, 2,  -2, 2,  -2, -2,  2, -2,
+};
 
 int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 	byte *obuf, int obsz, u16 *img, int ystr, int qfl, int clrs)
@@ -813,14 +1054,16 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 	u32 ui;
 	int ca, cb, lca, lcb, lcc;
 	int ca1, ca2, ca3, cb1, cb2, cb3;
-	int bxs, bys, nfca, nfcb, nfcc, nfcfl;
-	int dvx, dvy, dvofs, dskip;
+	int bxs, bys;
+	int nfca, nfcb, nfcc, nfcfl;
+	int dvx, dvy, dvx1, dvy1, ldvx, ldvy, dvofs, dskip;
 	int x, y, n, mm, mcm, mdm, m2x, mfc;
 	int i, j, k, k1;
 		
 	BTIC5B_EncodeContextSetupQuality(ctx, qfl);
 
-	BTIC5B_InitDeltas();
+//	BTIC5B_InitDeltas();
+	BTIC5B_InitDeltasEncode();
 
 	blka=ctx->blka;
 	lblka=ctx->lblka;
@@ -851,6 +1094,9 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 		{
 			BTIC5B_EncodeBlockBasic(ctx, cs, ystr, &px, &cb, &ca);
 			cs+=4;
+			
+			ca=ca&0x7FFF;
+			cb=cb&0x7FFF;
 			
 			px=~px;
 			if(ca==cb)
@@ -893,22 +1139,83 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 #endif
 
 #if 1
-	dvx=0; dvy=0;
-	for(i=0; i<n; i++)
+	if(lblka)
 	{
-		blk=blka[i];
-		if(lblka)
+		dvx=0; dvy=0;
+		ldvx=0; ldvy=0;
+		for(i=0; i<n; i++)
 		{
+			blk=blka[i];
+
 			blk1=lblka[i];
 			if(BTIC5B_EncodeCheckCanSkipBlock(ctx, blk1, blk))
 			{
-				blka[i]=blk1;
+//				blka[i]=blk1;
+				dvx=0;		dvy=0;
+				blka[i]=0x8000|((dvy&255)<<16)|((dvx&255)<<0);
+				ldvx=0;		ldvy=0;
+				continue;
+			}
+
+			dvofs=dvy*bxs+dvx;
+			k=i+dvofs;
+			if((k<0) || (k>=n))
+			{
+				dvx=0;		dvy=0;
+				dvofs=0;
+				k=i;
+			}
+
+			blk1=lblka[k];
+			if(BTIC5B_EncodeCheckCanSkipBlock(ctx, blk1, blk))
+			{
+//				blka[i]=blk1;
+				blka[i]=0x8000|((dvy&255)<<16)|((dvx&255)<<0);
+				ldvx=dvx;	ldvy=dvy;
+				continue;
+			}
+			
+			if(ctx->fl&1)
+//			if(1)
+				continue;
+			
+			for(j=0; j<(5*4); j++)
+			{
+				dvx1=ldvx+btic5b_mvpat[j*2+0];
+				dvy1=ldvy+btic5b_mvpat[j*2+1];
+				
+				if(((signed char)(dvx1*8))!=(dvx1*8))
+					continue;
+				if(((signed char)(dvy1*8))!=(dvy1*8))
+					continue;
+
+				dvofs=dvy1*bxs+dvx1;
+				k=i+dvofs;
+				if((k<0) || (k>=n))
+					continue;
+
+				x=(dvx1-ldvx)+3;
+				y=(dvy1-ldvy)+3;
+				if((x<0) || (x>6))
+					continue;
+				if((y<0) || (y>6))
+					continue;
+
+				blk1=lblka[k];
+				if(BTIC5B_EncodeCheckCanSkipBlock(ctx, blk1, blk))
+				{
+					blka[i]=0x8000|((dvy1&255)<<16)|((dvx1&255)<<0);
+					dvx=dvx1;		dvy=dvy1;
+					ldvx=dvx1;		ldvy=dvy1;
+					break;
+				}
 			}
 		}
 	}
 #endif
 
 	dvx=0; dvy=0;
+	ldvx=0;	ldvy=0;
 	ct=obuf; lca=-1; lcb=-1; lcc=-1;
 	nfca=0; nfcb=0; nfcc=0;
 	for(i=0; i<n; i++)
@@ -938,18 +1245,59 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 		dskip=0;
 
 #if 1
-		if(lblka)
+//		if(lblka)
+		if(lblka && (blk0&0x8000))
 		{
+			dvx=(signed char)(blk0    );
+			dvy=(signed char)(blk0>>16);
+		
 			dvofs=dvy*bxs+dvx;
 			for(j=0; (i+j)<n; j++)
 			{
+				blk2=blka[i+j];
+
 				k=i+j+dvofs;
 				if((k<0) || (k>=n))
 					break;
-				if(blka[i+j]!=lblka[k])
-					break;
+
+				if(blk2&0x8000)
+				{
+					dvx1=(signed char)(blk2    );
+					dvy1=(signed char)(blk2>>16);
+					if((dvx1!=dvx) || (dvy1!=dvy))
+						break;
+				}else
+				{
+//					break;
+
+					if(dvofs)
+						break;
+				
+					blk3=lblka[k];
+					if(blk2!=blk3)
+						break;
+				}
+
+				blk3=lblka[k];
+				blka[i+j]=blk3;
 			}
 			dskip=j;
+
+//			if(!(blk0&0x8000))
+//				dskip=0;
+		}else if(lblka)
+		{
+			if((ldvx==0) && (ldvy==0))
+			{
+				for(j=0; (i+j)<n; j++)
+				{
+					blk2=blka[i+j];
+					blk3=lblka[i+j];
+					if(blk2!=blk3)
+						break;
+				}
+				dskip=j;
+			}
 		}
 #endif
 
@@ -1033,6 +1381,33 @@ int BTIC5B_EncodeImageBasic(BTIC5B_EncodeContext *ctx,
 		{
 			if(nfca || nfcb)
 				printf("BT5B: Skip and in run\n");
+
+			if((dvx!=ldvx) || (dvy!=ldvy))
+			{
+				if((dvx==0) && (dvy==0))
+				{
+					k=dskip-1;
+					if(k>6)k=6;
+					*ct++=0xE1|(k<<2);
+					i+=k;
+
+					ldvx=0;
+					ldvy=0;
+					continue;
+				}
+				
+				x=(dvx-ldvx)+3;
+				y=(dvy-ldvy)+3;
+				if((x<0) || (y<0) || (x>6) || (y>6))
+				{
+					__debugbreak();
+				}
+
+				*ct++=0x01|(x<<2)|(y<<5);
+				ldvx=dvx;
+				ldvy=dvy;
+				continue;
+			}
 
 			j=dskip;
 			if(j>=1)
@@ -1643,6 +2018,7 @@ int BTIC5B_EncodeFrameImage(BTIC5B_EncodeContext *ctx,
 //	set_u32le(tbuf, 0x00000000|tsz);
 	
 	zctx=TgvLz_CreateContext();
+	TgvLz_SetLevel(zctx, 4);
 	t2sz=TgvLz_DoEncode(zctx, tbuf, t2buf+10, tsz);
 	TgvLz_DestroyContext(zctx);
 	sz=t2sz+10;

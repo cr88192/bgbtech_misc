@@ -77,7 +77,7 @@ Note that these calculations will not saturate and carry may effect the LSB of t
 
 Delta Endpoints:
 * (  0): 1
-* (2:1): dDy
+* (2:1): dDy (Conjoined), Selector (Pair)
 ** 0: dDy=-1 / A and B
 ** 1: dDy= 0 / A only
 ** 2: dDy=+1 / B only
@@ -87,11 +87,16 @@ Delta Endpoints:
 *** Each delta is 0/1/2 -> -1/0/+1
 *** Dv5=(dCr*9)+(dCg*3)+dCb;
 *** Valid range is 00..1A
-** 1B    : 15 / 30 bit Delta (3x 5-bit / 6x 5-bit)
-** 1C..1D: 17-bit Delta (2x 7^3, Mod 360^2)
-** 1E..1F: 9-bit Delta (7^3)
-*** Each component encodes -3..+3
-*** These deltas are only valid for Endpoint Pairs.
+** Conjoined Only:
+*** 1B: Linear Extrapolation
+**** Extrapolate based on the last 2 endpoints.
+**** Crgb = 2*Crgb1 - Crgb2
+** Endpoint Pair Only:
+*** 1B    : 15 / 30 bit Delta (3x 5-bit / 6x 5-bit)
+*** 1C..1D: 17-bit Delta (2x 7^3, Mod 360^2)
+*** 1E..1F: 9-bit Delta (7^3)
+**** Each component encodes -3..+3
+**** These deltas are only valid for Endpoint Pairs.
 
 
 Endpoint Pair:

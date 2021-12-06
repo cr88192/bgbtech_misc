@@ -195,6 +195,7 @@ byte *cs;
 byte *ct;
 int maxlen;
 int maxdist;
+int maxdepth;
 u32	csum;
 byte cmp;
 
@@ -410,7 +411,10 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 
 	h=TgvLz_CalcHashB(str);
 
-	i=ctx->chn_hash[h]; n=1024; ld=0;
+	n=ctx->maxdepth;
+	i=ctx->chn_hash[h];
+//	n=1024;
+	ld=0;
 	while(n--)
 	{
 		cs1=ctx->chn_ptrs[i];
@@ -1484,6 +1488,7 @@ TgvLz_Context *TgvLz_CreateContext()
 	memset(ctx, 0, sizeof(TgvLz_Context));
 	ctx->maxlen=16383;
 	ctx->maxdist=(1<<22)-1;
+	ctx->maxdepth=1024;
 
 	ctx->EncodeBuffer=TgvLz_EncodeBufferRP2;
 	ctx->DecodeBuffer=TgvLz_DecodeBufferRP2;
@@ -1502,6 +1507,7 @@ TgvLz_Context *TgvLz_CreateContextLZ4()
 	memset(ctx, 0, sizeof(TgvLz_Context));
 	ctx->maxlen=16383;
 	ctx->maxdist=65535;
+	ctx->maxdepth=1024;
 
 	ctx->EncodeBuffer=TgvLz_EncodeBufferLZ4;
 	ctx->DecodeBuffer=TgvLz_DecodeBufferLZ4;
@@ -1509,6 +1515,13 @@ TgvLz_Context *TgvLz_CreateContextLZ4()
 	ctx->cmp=4;
 
 	return(ctx);
+}
+
+int TgvLz_SetLevel(TgvLz_Context *ctx, int lvl)
+{
+	ctx->maxdepth=1<<(lvl+3);
+	if(lvl<4)
+		ctx->maxdepth=0;
 }
 
 int TgvLz_DestroyContext(TgvLz_Context *ctx)
