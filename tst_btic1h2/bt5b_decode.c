@@ -70,6 +70,7 @@ struct BTIC5B_DecodeContext_s {
 	u16 clra;
 	u16 clrb;
 	u16 clrc;
+	u16 lclrc;
 	byte clrdy;
 	
 	byte *zfbuf;		//LZ Frame temporary buffer
@@ -406,6 +407,8 @@ u32 bt5b_pat6x2[64];
 byte bt5b_pat6chn[64];
 byte bt5b_pat6hix[16];
 
+byte *bt5b_pat6lut;
+
 int bt5b_initdeltas=0;
 
 int btpic_clamp(int v, int m, int n)
@@ -614,6 +617,8 @@ void BTIC5B_DecodeEndpoint(BTIC5B_DecodeContext *ctx, byte **rcs)
 			printf("BT5B: Joined B Overflow\n");
 #endif
 
+		ctx->lclrc=ctx->clrc;
+
 		ctx->clra=ca;
 		ctx->clrb=cb;
 		ctx->clrc=cc;
@@ -625,30 +630,38 @@ void BTIC5B_DecodeEndpoint(BTIC5B_DecodeContext *ctx, byte **rcs)
 		cdi=(tgv>>3)&31;
 		if(cdi>=0x1B)
 		{
-			if(cdi>=0x1E)
+			if(cdy<128)
 			{
-				cs+=2;
-				cdi=((tgv>>8)&255)|((cdi<<8)&1);
-				cdv=bt5b_delta9[cdi];
-			}else if(cdi>=0x1C)
-			{
-				cs+=3;
-				cdi=((tgv>>8)&65535)|((cdi<<16)&1);
-				cdj=cdi%360;
-				cdk=cdi/360;
-				cdva=bt5b_delta9[cdj];
-				cdvb=bt5b_delta9[cdk];
+				cs++;
+
+				if(cdi==0x1B)
+				{
+					cdv=ctx->clrc-ctx->lclrc;
+					cdva=cdv;
+					cdvb=cdv;
+				}
 			}else
 			{
-				cs+=3;
-				cdv=(tgv>>9)&0x7FFF;
-				cdva=cdv;
-				cdvb=cdv;
-
-//				cs+=1;
-//				cdv=bt5b_delta5[cdi];
-//				cdva=cdv;
-//				cdvb=cdv;
+				if(cdi>=0x1E)
+				{
+					cs+=2;
+					cdi=((tgv>>8)&255)|((cdi<<8)&1);
+					cdv=bt5b_delta9[cdi];
+				}else if(cdi>=0x1C)
+				{
+					cs+=3;
+					cdi=((tgv>>8)&65535)|((cdi<<16)&1);
+					cdj=cdi%360;
+					cdk=cdi/360;
+					cdva=bt5b_delta9[cdj];
+					cdvb=bt5b_delta9[cdk];
+				}else
+				{
+					cs+=3;
+					cdv=(tgv>>9)&0x7FFF;
+					cdva=cdv;
+					cdvb=cdv;
+				}
 			}
 		}else
 		{
@@ -672,8 +685,12 @@ void BTIC5B_DecodeEndpoint(BTIC5B_DecodeContext *ctx, byte **rcs)
 			if((ca&0x7BDE)!=ca)
 				printf("BT5B: Delta A Overflow\n");
 			if((cb&0x7BDE)!=cb)
-				printf("BT5B: Delta B Overflow\n");
+				printf("BT5B: Delta B Overflow cc=%04X cb=%04X dy=%d "
+						"cdv=%04X clrc=%04X lclrc=%04X\n",
+					cc, cb, cdy, cdv, ctx->clrc, ctx->lclrc);
 #endif
+
+			ctx->lclrc=ctx->clrc;
 
 			ctx->clra=ca;
 			ctx->clrb=cb;
@@ -756,7 +773,6 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 			dx=(tgv>>2)&63;
 			
 			if((ca^cb)&0x6318)
-//			if(0)
 			{
 				px=bt5b_pat6x2[dx];
 
@@ -849,8 +865,8 @@ void BTIC5B_DecodeFrameData(BTIC5B_DecodeContext *ctx,
 			px=(tgv>>4)&15;
 			
 //			blk=(((u64)px)<<16)|(((u64)ca)<<32)|(((u64)cb)<<48)|3;
-//			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|1;
-			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|(ca!=cb);
+			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|1;
+//			blk=(((u64)ca)<<32)|(((u64)cb)<<48)|(px<<16)|(ca!=cb);
 			*ct++=blk;
 			continue;
 		}

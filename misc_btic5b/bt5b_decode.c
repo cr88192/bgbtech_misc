@@ -509,6 +509,8 @@ u32 bt5b_pat6x2[64];
 byte bt5b_pat6chn[64];
 byte bt5b_pat6hix[16];
 
+byte *bt5b_pat6lut;
+
 int bt5b_initdeltas=0;
 
 int btpic_clamp(int v, int m, int n)
@@ -684,6 +686,58 @@ void BTIC5B_InitDeltas()
 		k=((px*4093)>>12)&15;
 		bt5b_pat6chn[i]=bt5b_pat6hix[k];
 		bt5b_pat6hix[k]=i;
+	}
+}
+
+void BTIC5B_InitDeltasEncode()
+{
+	int x, y, xn1, xp1, yn1, yp1, ix, p;
+	int pxn1, pxp1, pyn1, pyp1;
+
+	u16 px1, px1b;
+	u32 px2;
+	int i, j, k;
+
+	BTIC5B_InitDeltas();
+	
+	if(bt5b_pat6lut)
+		return;
+		
+	bt5b_pat6lut=malloc(65536);
+	memset(bt5b_pat6lut, 0xFF, 65536);
+
+	for(i=0; i<64; i++)
+	{
+		px1=bt5b_pat6[i];
+		px2=bt5b_pat6x2[i];
+		bt5b_pat6lut[px1]=i;
+		
+		for(y=0; y<4; y++)
+			for(x=0; x<4; x++)
+		{
+			ix=y*4+x;
+			p=(px2>>(ix*2))&3;
+
+			if((p==1) || (p==2))
+			{
+				px1b=px1^(1<<ix);
+				if(bt5b_pat6lut[px1b]==0xFF)
+					bt5b_pat6lut[px1b]=i;
+			}
+
+			xn1=(x>0)?(x-1):x;	xp1=(x<3)?(x+1):x;
+			yn1=(y>0)?(y-1):y;	yp1=(y<3)?(y+1):y;
+			
+			pxn1=(px2>>((y*4+xn1)*2))&3;	pxp1=(px2>>((y*4+xp1)*2))&3;
+			pyn1=(px2>>((yn1*4+x)*2))&3;	pyp1=(px2>>((yp1*4+x)*2))&3;
+
+			if((pxn1!=pxp1) || (pyn1!=pyp1))
+			{
+				px1b=px1^(1<<ix);
+				if(bt5b_pat6lut[px1b]==0xFF)
+					bt5b_pat6lut[px1b]=i;
+			}
+		}
 	}
 }
 
