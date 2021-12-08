@@ -29,9 +29,7 @@ VLN's are encoded in MSB-first order.
 // #define TKULZ_MAX_MATCH	(1<<8)
 
 #define TKULZ_TBLK_SZ	(1<<16)
-#define TKULZ_TBUF_SZ	((1<<16)+4096)
-
-#define TKULZ_LVL_FASTDEC	16
+#define TKULZ_TBUF_SZ	((1<<16)+1024)
 
 #ifndef TKULZ_BYTE
 #define TKULZ_BYTE
@@ -51,7 +49,6 @@ struct TKuLZ_EncState_s {
 	u32 win;
 	sbyte pos;
 	byte status;
-	byte lvl;
 
 //	byte *hash_pos[TKULZ_HASH_SZ*TKULZ_HASH_LVL];
 //	byte hash_rov[TKULZ_HASH_SZ];
@@ -72,14 +69,6 @@ struct TKuLZ_EncState_s {
 	int hstab_t[256];
 	int hstab_l[256];
 	int hstab_d[256];
-	
-	byte hparm_t;
-	byte hparm_l;
-	byte hparm_d;
-
-	void (*EncodeTagSym)(TKuLZ_EncState *ctx, int sym);
-	void (*EncodeLitSym)(TKuLZ_EncState *ctx, int sym);
-	void (*EncodeDistSym)(TKuLZ_EncState *ctx, int sym);
 
 //	byte *cs;
 //	u16 htab_t[4096];
@@ -150,63 +139,14 @@ void TKuLZ_EncodeHuffSym(TKuLZ_EncState *ctx, u32 *hetab, int sym)
 	TKuLZ_WriteBits(ctx, b, b>>16);
 }
 
-void TKuLZ_EncodeRiceSym(TKuLZ_EncState *ctx, int sym, int rck)
-{
-	int b, q;
-	
-	q=sym>>rck;
-
-	if(q>=4)
-	{
-		TKuLZ_WriteBits(ctx, 15, 4);
-		TKuLZ_WriteBits(ctx, sym, 8);
-		return;
-	}
-	TKuLZ_WriteBits(ctx, (1<<q)-1, q+1);
-	TKuLZ_WriteBits(ctx, sym, rck);
-}
-
-void TKuLZ_EncodeRice2Sym(TKuLZ_EncState *ctx, int sym, int rck)
-{
-	TKuLZ_EncodeRiceSym(ctx, (sym   )&15, (rck   )&3);
-	TKuLZ_EncodeRiceSym(ctx, (sym>>4)&15, (rck>>2)&3);
-}
-
-void TKuLZ_EncodeTagSymHuff(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_EncodeHuffSym(ctx, ctx->hetab_t, sym); }
-void TKuLZ_EncodeLitSymHuff(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_EncodeHuffSym(ctx, ctx->hetab_l, sym); }
-void TKuLZ_EncodeDistSymHuff(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_EncodeHuffSym(ctx, ctx->hetab_d, sym); }
-
-void TKuLZ_EncodeTagSymFixed(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_WriteBits(ctx, sym, ctx->hparm_t); }
-void TKuLZ_EncodeLitSymFixed(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_WriteBits(ctx, sym, ctx->hparm_l); }
-void TKuLZ_EncodeDistSymFixed(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_WriteBits(ctx, sym, ctx->hparm_d); }
-
-void TKuLZ_EncodeTagSymRice(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_EncodeRiceSym(ctx, sym, ctx->hparm_t); }
-void TKuLZ_EncodeLitSymRice(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_EncodeRiceSym(ctx, sym, ctx->hparm_l); }
-void TKuLZ_EncodeDistSymRice(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_EncodeRiceSym(ctx, sym, ctx->hparm_d); }
-
-void TKuLZ_EncodeTagSymRice2(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_EncodeRice2Sym(ctx, sym, ctx->hparm_t); }
-void TKuLZ_EncodeLitSymRice2(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_EncodeRice2Sym(ctx, sym, ctx->hparm_l); }
-void TKuLZ_EncodeDistSymRice2(TKuLZ_EncState *ctx, int sym)
-	{ TKuLZ_EncodeRice2Sym(ctx, sym, ctx->hparm_d); }
-
 void TKuLZ_EncodeTagSym(TKuLZ_EncState *ctx, int sym)
-	{ ctx->EncodeTagSym(ctx, sym); }
-void TKuLZ_EncodeLitSym(TKuLZ_EncState *ctx, int sym)
-	{ ctx->EncodeLitSym(ctx, sym); }
-void TKuLZ_EncodeDistSym(TKuLZ_EncState *ctx, int sym)
-	{ ctx->EncodeDistSym(ctx, sym); }
+	{ TKuLZ_EncodeHuffSym(ctx, ctx->hetab_t, sym); }
 
+void TKuLZ_EncodeLitSym(TKuLZ_EncState *ctx, int sym)
+	{ TKuLZ_EncodeHuffSym(ctx, ctx->hetab_l, sym); }
+
+void TKuLZ_EncodeDistSym(TKuLZ_EncState *ctx, int sym)
+	{ TKuLZ_EncodeHuffSym(ctx, ctx->hetab_d, sym); }
 
 void TKuLZ_EncodeDistance(TKuLZ_EncState *ctx, int val)
 {
@@ -465,7 +405,6 @@ int TKuLZ_WritePackedLengths(TKuLZ_EncState *ctx, byte *cls)
 		
 		__debugbreak();
 	}
-	return(0);
 }
 
 
@@ -853,171 +792,9 @@ int TKuLZ_TransEncodeBlock(TKuLZ_EncState *ctx,
 	return(ct-dst);
 }
 
-int TKuLZ_EncodeCalcModelCostHuff(TKuLZ_EncState *ctx,
-	int *stat, byte *cls)
-{
-	int cv;
-	int i, j, k, n;
-	
-	/* constant cost for Huffman table */
-	cv=256*4;
-
-	if(ctx->lvl&TKULZ_LVL_FASTDEC)
-	{
-		/* Extra setup-cost penalty.
-		 * Add a constant cost
-		 */
-		cv+=1024;
-
-		/*
-		 * Add an extra penalty for small symbol counts.
-		 * Initializing a Huffman table is expensive.
-		 */
-		n=0;
-		for(i=0; i<256; i++)
-			n+=stat[i];
-		if(n<1024)
-			cv+=(1024-n)*8;
-	}
-
-	for(i=0; i<256; i++)
-		{ cv+=stat[i]*cls[i]; }
-	return(cv);
-}
-
-int TKuLZ_EncodeCalcModelCostFixed(TKuLZ_EncState *ctx,
-	int tn, int *stat, int ptag, int parm)
-{
-	int cv;
-	int i, j, k, n;
-	
-	cv=-1;
-	
-	if(ptag==0)
-	{
-		if((parm<1) || (parm>8))
-			return(-1);
-		n=1<<parm;
-		for(i=n; i<256; i++)
-		{
-			if(stat[i])
-				return(-1);
-		}
-
-		cv=0;
-		for(i=0; i<n; i++)
-		{
-			cv+=stat[i]*parm;
-		}
-//		return(cv);
-	}else
-		if(ptag==1)
-	{
-		if((parm<0) || (parm>=8))
-			return(-1);
-
-		cv=0;
-		if(ctx->lvl&TKULZ_LVL_FASTDEC)
-			cv+=32;
-		
-		for(i=0; i<256; i++)
-		{
-			j=(i>>parm);
-			if(j>=4)
-				k=12;
-			else
-				k=j+parm+1;
-			cv+=stat[i]*k;
-		}
-//		return(cv);
-	}else
-		if(ptag==2)
-	{
-		cv=0;
-		if(ctx->lvl&TKULZ_LVL_FASTDEC)
-		{
-			if(tn!=0)
-				cv+=256;
-		}
-
-		for(i=0; i<256; i++)
-		{
-			if(!(stat[i]))
-				continue;
-		
-			j=(i>>4);
-			j=j>>((parm>>2)&3);
-			if(j>=4)
-				break;
-			j=j+((parm>>2)&3)+1;
-
-			k=(i>>0)&15;
-			k=k>>((parm>>0)&3);
-			if(k>=4)
-				break;
-			k=k+((parm>>0)&3)+1;
-			
-			k=j+k;
-			if(k>12)
-				break;
-			
-			cv+=stat[i]*k;
-		}
-		if(i<256)
-			return(-1);
-//		return(cv);
-	}
-
-	if((ctx->lvl&TKULZ_LVL_FASTDEC) && (ptag!=0))
-	{
-		/* If prioritizing speed, add a penalty based on symbol count.
-		 * This assumes the Rice-based decoders to be linearly slower,
-		 * but Rice has a lower constant-time cost vs Huffman.
-		 */
-		n=0;
-		for(i=0; i<256; i++)
-			n+=stat[i];
-		cv=(cv*(256+(n>>10)))>>8;
-	}
-	
-	return(cv);
-}
-
-int TKuLZ_EncodeFindBestModelCost(TKuLZ_EncState *ctx,
-	int tn, int *stat, byte *cls, int *rptag, int *rparm)
-{
-	int cvh, bcv, cv1;
-	int tag, parm, btag, bparm;
-	
-	cvh=TKuLZ_EncodeCalcModelCostHuff(ctx, stat, cls);
-	
-	bcv=cvh;
-	btag=-1;
-	bparm=-1;
-	
-	for(tag=0; tag<4; tag++)
-		for(parm=0; parm<16; parm++)
-	{
-		cv1=TKuLZ_EncodeCalcModelCostFixed(ctx, tn, stat, tag, parm);
-		if(cv1<0)
-			continue;
-		if(cv1<bcv)
-			{ bcv=cv1; btag=tag; bparm=parm; }
-	}
-	
-//	printf("tn=%d btag=%d bparm=%X bcv=%d cvh=%d\n", tn, btag, bparm, bcv, cvh);
-	
-	*rptag=btag;
-	*rparm=bparm;
-	return(btag>=0);
-}
-
 int TKuLZ_EncodeBlock(TKuLZ_EncState *ctx,
 	byte *src, int ssz)
 {
-	int h_tag_t, h_parm_t;
-	int h_tag_l, h_parm_l;
-	int h_tag_d, h_parm_d;
 	int tsz;
 	int i;
 
@@ -1057,76 +834,16 @@ int TKuLZ_EncodeBlock(TKuLZ_EncState *ctx,
 	TKuLZ_BuildLengths(ctx, ctx->hstab_l, ctx->hltab_l);
 	TKuLZ_BuildLengths(ctx, ctx->hstab_d, ctx->hltab_d);
 	
-	TKuLZ_EncodeFindBestModelCost(ctx, 0,
-		ctx->hstab_t, ctx->hltab_t, &h_tag_t, &h_parm_t);
-	TKuLZ_EncodeFindBestModelCost(ctx, 1,
-		ctx->hstab_l, ctx->hltab_l, &h_tag_l, &h_parm_l);
-	TKuLZ_EncodeFindBestModelCost(ctx, 2,
-		ctx->hstab_d, ctx->hltab_d, &h_tag_d, &h_parm_d);
+	TKuLZ_SetupEncTableLengths(ctx, ctx->hetab_t, ctx->hltab_t);
+	TKuLZ_SetupEncTableLengths(ctx, ctx->hetab_l, ctx->hltab_l);
+	TKuLZ_SetupEncTableLengths(ctx, ctx->hetab_d, ctx->hltab_d);
 
-	ctx->hparm_t=h_parm_t;
-	ctx->hparm_l=h_parm_l;
-	ctx->hparm_d=h_parm_d;
-	
-	if(h_tag_t>=0)
-	{
-		if(h_tag_t==0)
-			{ ctx->EncodeTagSym=TKuLZ_EncodeTagSymFixed; }
-		else if(h_tag_t==1)
-			{ ctx->EncodeTagSym=TKuLZ_EncodeTagSymRice; }
-		else if(h_tag_t==2)
-			{ ctx->EncodeTagSym=TKuLZ_EncodeTagSymRice2; }
-		TKuLZ_WriteBits(ctx, 0x8, 4);
-		TKuLZ_WriteBits(ctx, 0x0, 2);
-		TKuLZ_WriteBits(ctx, h_tag_t, 2);
-		TKuLZ_WriteBits(ctx, h_parm_t, 4);
-	}else
-	{
-		TKuLZ_SetupEncTableLengths(ctx, ctx->hetab_t, ctx->hltab_t);
-		ctx->EncodeTagSym=TKuLZ_EncodeTagSymHuff;
-		TKuLZ_WriteBits(ctx, 0x4, 4);
-		TKuLZ_WritePackedLengths(ctx, ctx->hltab_t);
-	}
-
-	if(h_tag_l>=0)
-	{
-		if(h_tag_l==0)
-			{ ctx->EncodeLitSym=TKuLZ_EncodeLitSymFixed; }
-		else if(h_tag_l==1)
-			{ ctx->EncodeLitSym=TKuLZ_EncodeLitSymRice; }
-		else if(h_tag_l==2)
-			{ ctx->EncodeLitSym=TKuLZ_EncodeLitSymRice2; }
-		TKuLZ_WriteBits(ctx, 0x8, 4);
-		TKuLZ_WriteBits(ctx, 0x1, 2);
-		TKuLZ_WriteBits(ctx, h_tag_l, 2);
-		TKuLZ_WriteBits(ctx, h_parm_l, 4);
-	}else
-	{
-		TKuLZ_SetupEncTableLengths(ctx, ctx->hetab_l, ctx->hltab_l);
-		ctx->EncodeLitSym=TKuLZ_EncodeLitSymHuff;
-		TKuLZ_WriteBits(ctx, 0x5, 4);
-		TKuLZ_WritePackedLengths(ctx, ctx->hltab_l);
-	}
-
-	if(h_tag_d>=0)
-	{
-		if(h_tag_d==0)
-			{ ctx->EncodeDistSym=TKuLZ_EncodeDistSymFixed; }
-		else if(h_tag_d==1)
-			{ ctx->EncodeDistSym=TKuLZ_EncodeDistSymRice; }
-		else if(h_tag_d==2)
-			{ ctx->EncodeDistSym=TKuLZ_EncodeDistSymRice2; }
-		TKuLZ_WriteBits(ctx, 0x8, 4);
-		TKuLZ_WriteBits(ctx, 0x2, 2);
-		TKuLZ_WriteBits(ctx, h_tag_d, 2);
-		TKuLZ_WriteBits(ctx, h_parm_d, 4);
-	}else
-	{
-		TKuLZ_SetupEncTableLengths(ctx, ctx->hetab_d, ctx->hltab_d);
-		ctx->EncodeDistSym=TKuLZ_EncodeDistSymHuff;
-		TKuLZ_WriteBits(ctx, 0x6, 4);
-		TKuLZ_WritePackedLengths(ctx, ctx->hltab_d);
-	}
+	TKuLZ_WriteBits(ctx, 0x4, 4);
+	TKuLZ_WritePackedLengths(ctx, ctx->hltab_t);
+	TKuLZ_WriteBits(ctx, 0x5, 4);
+	TKuLZ_WritePackedLengths(ctx, ctx->hltab_l);
+	TKuLZ_WriteBits(ctx, 0x6, 4);
+	TKuLZ_WritePackedLengths(ctx, ctx->hltab_d);
 
 	TKuLZ_WriteBits(ctx, 0x2, 4);
 	TKuLZ_EncodeTransBuf(ctx, ctx->tbuf, tsz);
@@ -1142,25 +859,20 @@ int TKuLZ_SetupEncodeBuffer(TKuLZ_EncState *ctx,
 	ctx->pos=0;
 	ctx->status=0;
 
-	if(!ctx->hash_pos)
-	{
-		ctx->hash_pos=malloc(TKULZ_HASH_SZ*TKULZ_HASH_LVL*sizeof(byte *));
-		ctx->hash_rov=malloc(TKULZ_HASH_SZ*sizeof(byte));
-	}
+	ctx->hash_pos=malloc(TKULZ_HASH_SZ*TKULZ_HASH_LVL*sizeof(byte *));
+	ctx->hash_rov=malloc(TKULZ_HASH_SZ*sizeof(byte));
 	
 	memset(ctx->hash_pos, 0, TKULZ_HASH_SZ*TKULZ_HASH_LVL*sizeof(byte *));
 	memset(ctx->hash_rov, 0, TKULZ_HASH_SZ*sizeof(byte));
-	return(0);
 }
 
 int TKuLZ_EncodeBuffer(TKuLZ_EncState *ctx,
-	byte *dst, byte *src, int dsz, int ssz, int lvl)
+	byte *dst, byte *src, int dsz, int ssz)
 {
 	byte *cs, *cse;
 	int bsz;
 	
 	TKuLZ_SetupEncodeBuffer(ctx, dst, dsz);
-	ctx->lvl=lvl;
 	
 	cs=src; cse=cs+ssz;
 	while(cs<cse)
@@ -1175,17 +887,4 @@ int TKuLZ_EncodeBuffer(TKuLZ_EncState *ctx,
 	TKuLZ_FlushWriteBits(ctx);
 
 	return(ctx->ct-dst);
-}
-
-int TKuLZ_EncodeBufferNoCtx(
-	byte *dst, byte *src, int dsz, int ssz, int lvl)
-{
-	static TKuLZ_EncState *ctx=NULL;
-	
-	if(!ctx)
-	{
-		ctx=malloc(sizeof(TKuLZ_EncState));
-		memset(ctx, 0, sizeof(TKuLZ_EncState));
-	}
-	return(TKuLZ_EncodeBuffer(ctx, dst, src, dsz, ssz, lvl));
 }

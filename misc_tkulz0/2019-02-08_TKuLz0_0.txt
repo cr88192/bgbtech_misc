@@ -24,7 +24,7 @@ Top level bitstream will consist of a series of 4 bit tags.
 * 5: Packed Huffman Table, Literal
 * 6: Packed Huffman Table, Distance
 * 7: Reserved
-* 8: Fixed Table
+* 8: Reserved
 * 9: Raw Uncompressed Data, Stream Ends.
 * A: LZ Packed Data, Stream Ends.
 * B..F: Reserved
@@ -71,43 +71,6 @@ Symbols will be assigned code patterns such that:
 * Symbols with the same length will be be ordered by symbol value.
 
 Symbols will be effectively transposed in the bitstream, such that the high-order bit of the symbol's codeword appears in LSB position in the bitstream.
-
-
-=== Fixed Table ===
-
-These tables will contained a fixed pattern (not necessarily Huffman).
-
-These will contain:
-* 2 bits: Table Number
-* 2 bits: Table Tag
-* 4 bits: Table Parameter
-
-Table Number:
-* 0: Tag
-* 1: Literal
-* 2: Distance
-
-Table Tag:
-* 0: Fixed Bit-Length
-** Parameter: Number of symbol bits from 1 to 8
-* 1: Length-Limited Rice
-** Parameter gives the number of suffix bits (K).
-** Parameter Range is 0 to 7 bits.
-* 2: Length-Limited Rice-Pair
-** Symbol encoded as two Rice-Coded values (Low, High).
-** The parameter is split into two 2-bit K values.
-
-
-The Rice scheme will consist of zero or more 1 bits (Q), terminated by a 0 bit. The 0 bit will be followed by an K-bit suffix.
-
-The Rice symbol will be length-limited, such that four 1 bits will be followed by an 8 bit suffix giving the raw value. This means that the longest possible Rice symbol will be 12 bits.
-
-The Rice-Pair case will be similar to the Rice case.
-The pair will be encoded first with the low nybble, then the high nybble.
-
-However, some combinations will not be allowed:
-* No encoded symbol may have a Rice code with a Q greater than 3.
-* No encoded symbol may have a combined length exceeding 12 bits.
 
 
 === LZ Compressed Data ===

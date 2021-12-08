@@ -2054,9 +2054,11 @@ int BTIC5B_EncodeFrameImage(BTIC5B_EncodeContext *ctx,
 	t4sz=obsz;
 	
 #ifdef TKULZ_HASH_SZ
-	if(tsz>2048)
+//	if(tsz>2048)
+	if(tsz>1536)
 	{
-		t3sz=TKuLZ_EncodeBufferNoCtx(t3buf+10, tbuf, obsz, tsz, 4);
+		t3sz=TKuLZ_EncodeBufferNoCtx(t3buf+10,
+			tbuf, obsz, tsz, TKULZ_LVL_FASTDEC|4);
 		sz=t3sz+10;
 		t3buf[0]=0x40|(sz>>24);
 		t3buf[1]=sz>>16;
@@ -2100,11 +2102,13 @@ int BTIC5B_EncodeFrameImage(BTIC5B_EncodeContext *ctx,
 #endif
 
 //	if((t2sz*1.3)<tsz)
-	if((t2sz*1.25)<tsz)
+//	if((t2sz*1.25)<tsz)
+	if((t2sz*1.20)<tsz)
 //	if(0)
 	{
-		if((t3sz*1.2)<t2sz)
+//		if((t3sz*1.2)<t2sz)
 //		if((t3sz*1.15)<t2sz)
+		if((t3sz*1.12)<t2sz)
 //		if(1)
 		{
 			sz=t3sz;
@@ -2127,10 +2131,10 @@ int BTIC5B_EncodeFrameImage(BTIC5B_EncodeContext *ctx,
 		stat_z0++;
 	}
 	
-//	printf("tsz=%d t2sz=%d t3sz=%d t4sz=%d tg=%c%c (%d/%d/%d)\n",
-//		tsz, t2sz, t3sz, t4sz,
-//		tg&255, (tg>>8)&255,
-//		stat_z0, stat_z3, stat_z6);
+	printf("tsz=%d t2sz=%d t3sz=%d t4sz=%d tg=%c%c (%d/%d/%d)\n",
+		tsz, t2sz, t3sz, t4sz,
+		tg&255, (tg>>8)&255,
+		stat_z0, stat_z3, stat_z6);
 	
 //	free(tbuf);
 //	free(t2buf);
