@@ -405,3 +405,62 @@ int TkDeLz_DecodeBuffer(TkDeLz_DecState *ctx,
 	
 	return(ctx->ct-dst);
 }
+
+
+int TkDeLz_SkipChunk(TkDeLz_DecState *ctx)
+{
+	byte *cs;
+	int btag;
+	int i, j, k;
+	
+	cs=ctx->cs;
+	btag=tkdelz_getu16le(cs);
+	cs+=2;
+
+	if((btag>>12)==0)
+	{
+		k=tkdelz_getu32le(cs);
+		k&=0x00FFFFFF;
+		cs+=3;
+		cs+=k;
+		ctx->cs=cs;
+		return(0);
+	}
+	
+	if(	((btag>>12)==1) ||
+		((btag>>12)==2) ||
+		((btag>>12)==3))
+	{
+		cs=TkDeLz_SkipBihChunk(ctx->bih_t, cs);
+		cs=TkDeLz_SkipBihChunk(ctx->bih_l, cs);
+		cs=TkDeLz_SkipBihChunk(ctx->bih_d, cs);
+		cs=TkDeLz_SkipBihChunk(ctx->bih_e, cs);
+		ctx->cs=cs;
+
+		return(0);
+	}
+
+	return(0);
+}
+
+int TkDeLz_EstimateSizeBuffer(TkDeLz_DecState *ctx,
+	byte *src, int ssz)
+{
+	int btag, esz;
+
+	TkDeLz_SetupDecChunk(ctx, src);
+
+	ctx->cs=src;
+	ctx->ct=NULL;
+	esz=0;
+	
+	btag=tkdelz_getu16le(ctx->cs);
+	while(btag)
+	{
+		esz+=1<<(((btag>>4)&15)+8);
+		TkDeLz_SkipChunk(ctx);
+		btag=tkdelz_getu16le(ctx->cs);
+	}
+	
+	return(esz);
+}

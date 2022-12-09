@@ -23,6 +23,7 @@ randbits.txt
 *.wad
 *.wad.gz
 *.bin
+*.dlz
 
 *.db-wal
 *.db-shm

@@ -37,6 +37,8 @@ struct TkDeLz_EncState_s {
 
 	byte **hash_pos;
 	byte *hash_rov;
+	int hash_sz;
+	int hash_lvl;
 	
 //	byte tbuf[TKDELZ_TBUF_SZ];
 
@@ -96,19 +98,26 @@ int TkDeLz_HashForBytePos(TkDeLz_EncState *ctx, byte *cs)
 	int h;
 
 	h=cs[0];			h=(h*251)+cs[1];
-	h=(h*251)+cs[2];	h=h*251+1;
-	h&=(TKDELZ_HASH_SZ-1);
+	h=(h*251)+cs[2];
+	h=h^(h>>16);
+	h=h*251+1;
+//	h&=(TKDELZ_HASH_SZ-1);
+//	h&=(ctx->hash_sz-1);
+	h=(h>>8)&(ctx->hash_sz-1);
 	return(h);
 }
 
 void TkDeLz_EncHashBytePos(TkDeLz_EncState *ctx, byte *cs)
 {
-	int h, r;
+	int h, r, hlvl;
 	
+	hlvl=ctx->hash_lvl;
 	h=TkDeLz_HashForBytePos(ctx, cs);
 	r=ctx->hash_rov[h];
-	r=(r-1)&(TKDELZ_HASH_LVL-1);
-	ctx->hash_pos[(h*TKDELZ_HASH_LVL)+r]=cs;
+//	r=(r-1)&(TKDELZ_HASH_LVL-1);
+//	ctx->hash_pos[(h*TKDELZ_HASH_LVL)+r]=cs;
+	r=(r-1)&(hlvl-1);
+	ctx->hash_pos[(h*hlvl)+r]=cs;
 	ctx->hash_rov[h]=r;
 }
 
@@ -124,18 +133,23 @@ int TkDeLz_LookupMatch(TkDeLz_EncState *ctx,
 	byte *cs, byte *cse, int *rml, int *rmd)
 {
 	byte *ct, *cs1, *ct1, *cs1e;
-	int bl, bd;
+	int bl, bd, hlvl;
 	int h, r, d;
 	int i, j;
 
 	h=TkDeLz_HashForBytePos(ctx, cs);
 	r=ctx->hash_rov[h];
-	
+
+	hlvl=ctx->hash_lvl;
+
 	bl=0; bd=0;
-	for(i=0; i<TKDELZ_HASH_LVL; i++)
+//	for(i=0; i<TKDELZ_HASH_LVL; i++)
+	for(i=0; i<hlvl; i++)
 	{
-		j=(r+i)&(TKDELZ_HASH_LVL-1);
-		ct=ctx->hash_pos[(h*TKDELZ_HASH_LVL)+j];
+//		j=(r+i)&(TKDELZ_HASH_LVL-1);
+		j=(r+i)&(hlvl-1);
+//		ct=ctx->hash_pos[(h*TKDELZ_HASH_LVL)+j];
+		ct=ctx->hash_pos[(h*hlvl)+j];
 		if(!ct)break;
 		
 		cs1=cs; ct1=ct;
@@ -369,7 +383,7 @@ int TkDeLz_EncodeBlock(TkDeLz_EncState *ctx,
 }
 
 int TkDeLz_SetupEncodeBuffer(TkDeLz_EncState *ctx,
-	byte *dst, int dsz)
+	byte *dst, int dsz, int lvl)
 {
 	int btag;
 
@@ -385,15 +399,74 @@ int TkDeLz_SetupEncodeBuffer(TkDeLz_EncState *ctx,
 	ctx->win=0;
 	ctx->pos=0;
 	ctx->status=0;
+	
+	ctx->hash_sz=TKDELZ_HASH_SZ;
+	ctx->hash_lvl=TKDELZ_HASH_LVL;
+	
+	if(lvl!=ctx->lvl)
+	{
+		free(ctx->hash_pos);
+		free(ctx->hash_rov);
+		ctx->hash_pos=NULL;
+		ctx->hash_rov=NULL;
+	}
+	
+	
+	switch(lvl&0x0F)
+	{
+		case 1:
+			ctx->hash_sz=256;
+			ctx->hash_lvl=1;
+			break;
+		case 2:
+			ctx->hash_sz=1024;
+			ctx->hash_lvl=2;
+			break;
+		case 3:
+			ctx->hash_sz=4096;
+			ctx->hash_lvl=8;
+			break;
+		case 4:
+			ctx->hash_sz=4096;
+			ctx->hash_lvl=16;
+			break;
+		case 5:
+			ctx->hash_sz=4096;
+			ctx->hash_lvl=64;
+			break;
+		case 6:
+			ctx->hash_sz=4096;
+			ctx->hash_lvl=128;
+			break;
+		case 7:
+			ctx->hash_sz=8192;
+			ctx->hash_lvl=128;
+			break;
+
+		case 8:
+			ctx->hash_sz=16384;
+			ctx->hash_lvl=256;
+			break;
+		case 9:
+			ctx->hash_sz=32768;
+			ctx->hash_lvl=256;
+			break;
+	}
 
 	if(!ctx->hash_pos)
 	{
-		ctx->hash_pos=malloc(TKDELZ_HASH_SZ*TKDELZ_HASH_LVL*sizeof(byte *));
-		ctx->hash_rov=malloc(TKDELZ_HASH_SZ*sizeof(byte));
+//		ctx->hash_pos=malloc(TKDELZ_HASH_SZ*TKDELZ_HASH_LVL*sizeof(byte *));
+//		ctx->hash_rov=malloc(TKDELZ_HASH_SZ*sizeof(byte));
+
+		ctx->hash_pos=malloc(ctx->hash_sz*ctx->hash_lvl*sizeof(byte *));
+		ctx->hash_rov=malloc(ctx->hash_sz*sizeof(byte));
 	}
 	
-	memset(ctx->hash_pos, 0, TKDELZ_HASH_SZ*TKDELZ_HASH_LVL*sizeof(byte *));
-	memset(ctx->hash_rov, 0, TKDELZ_HASH_SZ*sizeof(byte));
+//	memset(ctx->hash_pos, 0, TKDELZ_HASH_SZ*TKDELZ_HASH_LVL*sizeof(byte *));
+//	memset(ctx->hash_rov, 0, TKDELZ_HASH_SZ*sizeof(byte));
+
+	memset(ctx->hash_pos, 0, ctx->hash_sz*ctx->hash_lvl*sizeof(byte *));
+	memset(ctx->hash_rov, 0, ctx->hash_sz*sizeof(byte));
 
 	ctx->bih_t=&ctx->t_bih_t;
 	ctx->bih_l=&ctx->t_bih_l;
@@ -426,9 +499,14 @@ int TkDeLz_EncodeBuffer(TkDeLz_EncState *ctx,
 	byte *cs, *cse;
 	int bsz;
 	
-	TkDeLz_SetupEncodeBuffer(ctx, dst, dsz);
+	TkDeLz_SetupEncodeBuffer(ctx, dst, dsz, lvl);
+
 	ctx->lvl=lvl;
-	
+	ctx->bih_t->lvl=lvl;
+	ctx->bih_l->lvl=lvl;
+	ctx->bih_d->lvl=lvl;
+	ctx->bih_e->lvl=lvl;
+
 	cs=src; cse=cs+ssz;
 	while(cs<cse)
 	{

@@ -1,8 +1,8 @@
-#define TKDELZ_HTABSZ 4096
-#define TKDELZ_HTABNB 12
+// #define TKDELZ_HTABSZ 4096
+// #define TKDELZ_HTABNB 12
 
-//#define TKDELZ_HTABSZ 8192
-//#define TKDELZ_HTABNB 13
+#define TKDELZ_HTABSZ 8192
+#define TKDELZ_HTABNB 13
 
 #ifndef TKDELZ_BYTE
 #define TKDELZ_BYTE
@@ -54,6 +54,7 @@ struct TkDeLz_BihState_s {
 //	u32 win;
 //	byte pos;
 	byte status;
+	byte lvl;
 
 	byte *bbuf;
 	int bbufsz;
@@ -68,6 +69,7 @@ struct TkDeLz_BihState_s {
 	byte pos3;
 
 	u16 htab[TKDELZ_HTABSZ];
+	u16	htmask;
 
 	u32 win0;
 	u32 win1;
@@ -224,6 +226,8 @@ int TkDeLz_ReadPackedLengths(TkDeLz_BihState *ctx, byte *cls)
 	return(0);
 }
 
+static byte tkdelz_trans8[256];
+
 byte TkDeLz_TransposeByte(byte v)
 {
 	static const byte trans4[16]={
@@ -235,14 +239,54 @@ byte TkDeLz_TransposeByte(byte v)
 u16 TkDeLz_TransposeWord(u16 v)
 	{ return((TkDeLz_TransposeByte(v&255)<<8)|TkDeLz_TransposeByte(v>>8)); }
 
+u16 TkDeLz_TransposeWordB(u16 v)
+	{ return((tkdelz_trans8[v&255]<<8)|tkdelz_trans8[v>>8]); }
+
 void TkDeLz_SetupTableLengths(TkDeLz_BihState *ctx, u16 *htab, byte *cls)
 {
-	int c, l, tc, ntc;
+	int c, l, tc, ntc, max;
 	int i, j, k;
+	
+	if(tkdelz_trans8[0xFF]!=0xFF)
+	{
+		for(i=0; i<256; i++)
+			tkdelz_trans8[i]=TkDeLz_TransposeByte(i);
+	}
 
+	ctx->htmask=TKDELZ_HTABSZ-1;
 	for(i=0; i<TKDELZ_HTABSZ; i++)
 		htab[i]=0;
+
+	max=6;
+	for(i=0; i<256; i++)
+	{
+		if(cls[i]>max)
+			max=cls[i];
+	}
+
+#if 1
+	ctx->htmask=(1<<max)-1;
+	c=0;
+	for(l=1; l<(max+1); l++)
+	{
+		for(i=0; i<256; i++)
+			if(cls[i]==l)
+		{
+			ntc=1<<(max-l);
+			tc=c<<(max-l);
+			for(j=0; j<ntc; j++)
+			{
+//				k=TkDeLz_TransposeWord(tc+j)>>(16-TKDELZ_HTABNB);
+				k=TkDeLz_TransposeWordB(tc+j)>>(16-max);
+				htab[k]=(l<<8)|i;
+			}
+			c++;
+		}
+		c=c<<1;
+	}
+#endif
 	
+#if 0
 	c=0;
 	for(l=1; l<(TKDELZ_HTABNB+1); l++)
 	{
@@ -253,13 +297,15 @@ void TkDeLz_SetupTableLengths(TkDeLz_BihState *ctx, u16 *htab, byte *cls)
 			tc=c<<(TKDELZ_HTABNB-l);
 			for(j=0; j<ntc; j++)
 			{
-				k=TkDeLz_TransposeWord(tc+j)>>(16-TKDELZ_HTABNB);
+//				k=TkDeLz_TransposeWord(tc+j)>>(16-TKDELZ_HTABNB);
+				k=TkDeLz_TransposeWordB(tc+j)>>(16-TKDELZ_HTABNB);
 				htab[k]=(l<<8)|i;
 			}
 			c++;
 		}
 		c=c<<1;
 	}
+#endif
 }
 
 u32 TkDeLz_DecodeBihSym4x(TkDeLz_BihState *ctx)
@@ -267,11 +313,12 @@ u32 TkDeLz_DecodeBihSym4x(TkDeLz_BihState *ctx)
 	u16 *htab;
 	byte *cs0, *cs1, *cs2, *cs3;
 	u32 w0, w1, w2, w3;
+	u16 msk;
 	int c0, c1, c2, c3;
 	int p0, p1, p2, p3;
 	int b, c;
 
-	htab=ctx->htab;
+	htab=ctx->htab;					msk=ctx->htmask;
 	cs0=ctx->csa0;					cs1=ctx->csa1;
 	cs2=ctx->csa2;					cs3=ctx->csa3;
 //	w0=*(u32 *)(cs0);				w1=*(u32 *)(cs1);
@@ -280,8 +327,10 @@ u32 TkDeLz_DecodeBihSym4x(TkDeLz_BihState *ctx)
 	w2=tkdelz_getu32le(cs2);		w3=tkdelz_getu32le(cs3);
 	p0=ctx->pos0;					p1=ctx->pos1;
 	p2=ctx->pos2;					p3=ctx->pos3;
-	c0=(w0>>p0)&(TKDELZ_HTABSZ-1);	c1=(w1>>p1)&(TKDELZ_HTABSZ-1);
-	c2=(w2>>p2)&(TKDELZ_HTABSZ-1);	c3=(w3>>p3)&(TKDELZ_HTABSZ-1);
+//	c0=(w0>>p0)&(TKDELZ_HTABSZ-1);	c1=(w1>>p1)&(TKDELZ_HTABSZ-1);
+//	c2=(w2>>p2)&(TKDELZ_HTABSZ-1);	c3=(w3>>p3)&(TKDELZ_HTABSZ-1);
+	c0=(w0>>p0)&msk;				c1=(w1>>p1)&msk;
+	c2=(w2>>p2)&msk;				c3=(w3>>p3)&msk;
 	c0=htab[c0];					c1=htab[c1];
 	c2=htab[c2];					c3=htab[c3];
 	p0+=(c0>>8)&15;					p1+=(c1>>8)&15;
@@ -424,6 +473,73 @@ byte *TkDeLz_DecodeBihChunk(TkDeLz_BihState *ctx, byte *sptr)
 
 	return(ctx->cs);
 }
+
+
+int TkDeLz_SkipBihBlock(TkDeLz_BihState *ctx)
+{
+	byte *cs, *ct;
+	u64 v0, v1;
+	u32 lb, lb1;
+	int i, nn3;
+	
+	cs=ctx->cs;
+	lb=tkdelz_getu32le(cs);
+	cs+=4;
+	
+	ctx->csa0=cs;
+	cs+=(lb>> 0)&255;
+	ctx->csa1=cs;
+	cs+=(lb>> 8)&255;
+	ctx->csa2=cs;
+	cs+=(lb>>16)&255;
+	ctx->csa3=cs;
+	cs+=(lb>>24)&255;
+
+	ctx->cs=cs;
+
+	return(0);
+}
+
+byte *TkDeLz_SkipBihChunk(TkDeLz_BihState *ctx, byte *sptr)
+{
+	byte *ct, *cs;
+	int i, j, k, n;
+	
+	cs=sptr;
+//	j=*(u16 *)cs;
+	j=tkdelz_getu16le(cs);
+	cs+=2;
+	ctx->cs=cs;
+	
+	if((j>>14)==0)
+	{
+		k=(j&16383)*4;
+		cs+=k;
+		ctx->cs=cs;
+		return(cs);
+	}else
+		if((j>>14)==1)
+	{
+		TkDeLz_ReadPackedLengths(ctx, ctx->hltab);
+		n=j&16383;
+	}else
+		if((j>>14)==2)
+	{
+		/* Reuse prior table. */
+		n=j&16383;
+	}else
+	{
+		printf("TkDeLz_DecodeBihChunk: Bad Chunk\n");
+		return(cs);
+	}
+	
+	ct=ctx->bbuf;
+	for(i=0; i<n; i+=128)
+		{ TkDeLz_SkipBihBlock(ctx); }
+
+	return(ctx->cs);
+}
+
 
 int TkDeLz_InitBihContext(TkDeLz_BihState *ctx, int lg2sz)
 {
@@ -712,10 +828,18 @@ int PDZ2_BuildLengthsAdjust(int *stat, int nc, byte *cl, int ml)
 
 int TkDeLz_BuildLengths(TkDeLz_BihState *ctx, int *stat, byte *cls)
 {
-	int i, j, k;
+	int i, j, k, nb;
+
+	nb=TKDELZ_HTABNB;
+	if((ctx->lvl&0x30)==0x10)
+		nb=12;
+	if((ctx->lvl&0x30)==0x20)
+		nb=11;
 
 //	PDZ2_BuildLengthsAdjust(stat, 256, cls, 12);
-	PDZ2_BuildLengthsAdjust(stat, 256, cls, TKDELZ_HTABNB);
+//	PDZ2_BuildLengthsAdjust(stat, 256, cls, TKDELZ_HTABNB);
+//	PDZ2_BuildLengthsAdjust(stat, 256, cls, 11);
+	PDZ2_BuildLengthsAdjust(stat, 256, cls, nb);
 	
 //	for(i=0; i<256; i++)
 //		cls[i]=8;
@@ -872,7 +996,7 @@ byte *TkDeLz_EncodeBihChunk(TkDeLz_BihState *ctx, byte *sptr,
 {
 	byte hltab2[256];
 	byte *cs, *ct;
-	int i, j, k, n, tg, reuse;
+	int i, j, k, n, tg, reuse, dobyte;
 
 	n=(tsz+3)/4;
 
@@ -921,8 +1045,20 @@ byte *TkDeLz_EncodeBihChunk(TkDeLz_BihState *ctx, byte *sptr,
 	}
 	k=(k+7)>>3;
 
-	if((k*1.15)>=tsz)
+	dobyte=0;
+
+	if(((k*1.05)>=tsz) && ((ctx->lvl&0x30)==0x00))
+		dobyte=1;
+	if(((k*1.15)>=tsz) && ((ctx->lvl&0x30)==0x10))
+		dobyte=1;
+	if(((k*1.20)>=tsz) && ((ctx->lvl&0x30)==0x20))
+		dobyte=1;
+	if((ctx->lvl&0x30)==0x30)
+		dobyte=1;
+
+//	if((k*1.15)>=tsz)
 //	if(1)
+	if(dobyte)
 	{
 		ct=sptr;
 		tg=0x0000|n;
