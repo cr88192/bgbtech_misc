@@ -20,6 +20,14 @@ randbits.txt
 *.dat
 *.avi
 
+*.wad
+*.wad.gz
+*.bin
+
+*.db-wal
+*.db-shm
+*.ipch
+
 *.sln
 *.idb
 *.opendb

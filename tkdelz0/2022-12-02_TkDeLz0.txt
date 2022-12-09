@@ -1,0 +1,128 @@
+Delta LZ:
+* Intended for delta-encoding a buffer.
+
+The encoded stream will be organized into compressed chunks.
+* There may be multiple chunks in a stream.
+
+
+Each chunk will consist of a Tag Word followed by several "symbol chunks" which will then be decoded as a combined LZ stream.
+
+Tag Word:
+* 0000: End Of Stream
+* (15:12): Chunk Type
+* (11: 8): Symbol Chunk Log2 - 8
+* ( 7: 4): Stream Chunk Log2 - 8
+* ( 3: 0): Window Size Log2 - 8
+
+The Log2 values are not allowed to change after the first stream chunk (may be used as a sanity check).
+
+Symbol Chunk will give the log2 for the number of bytes for the symbol chunk buffers.
+
+Stream Chunk will give the uncompressed size of the payload that may be encoded within a single stream chunk. This may be larger than the value for the Symbol chunk.
+
+Window size will give the maximum distance for window offsets.
+
+
+Chunk Types:
+* 0: Special | Raw Data
+* 1: Plain LZ
+* 2: Delta, Single Buffer
+* 3: Delta, Double Buffer
+
+If Single or Double buffering is used, the first chunk will be required to be encoded in the appropriate mode. If the first chunk is Raw Data or Plain LZ, the stream may not contain any Delta Chunks.
+
+Raw Data:
+* Type is 0, but other fields non-zero.
+* Will be followed by a 24 bit length, followed by unencoded data.
+* The length will be required to be less than or equal to the stream chunk size.
+
+
+Symbol Chunks:
+* Tag (T)
+* Literal (L)
+* Length/Distance (D)
+* Extra (E)
+
+Basic Match Format:
+* Tag (RawLength) (MatchLength) (Distance) (LiteralBytes)
+
+Tag:
+* (7:5): Number of Literal Bytes (0..6), or 7=RawLength or Escape
+* (4:0): Match Length (3..33), 34=MatchLength Follows
+
+If a RawLength is Present (Tag encodes the Escape case):
+* 0..7: Special Commands
+** 0: EOB (End Of Block)
+* 8+: This gives the number of Literal Bytes.
+
+If a Match Length is present:
+* 0: EOB (Literals Only)
+* 1: Literals Only
+* 2: Predict Length and Distance
+* 3..33: Literal Length, Predict Distance
+* 34+: Literal Length
+
+The Length or Distance will consist of a Prefix (in the Distance context) optionally followed by Extra symbols.
+
+Length/Distance:
+* 0xxxxxxx  //0..127
+* 10xxxxxx  //128..16K (1x Extra)
+* 110xxxxx  //16K..2M (2x Extra)
+* 1110xxxx  //2M..256M (3x Extra)
+
+In plain LZ Mode, distances are used directly as an unsigned offset into the sliding window.
+
+For deltas, distances will be encoded with a zigzag sign-folding scheme:
+* 0, -1, 1, -2, 2, ...
+
+With sign influencing the meaning of the distance:
+* 0: Skip Bytes (Delta Encode)
+* Positive: Offset within sliding window (LZ)
+* Negative: Relative Offset within previous contents (Delta).
+** This may be encoded with another stage of zigzag sign folding.
+
+Traditional LZ compression may only use positive distances here.
+* The Double-Negative case is only valid for double-buffered delta decoding.
+
+
+=== Block Interleaved Huffman ===
+
+Idea:
+* Huffman symbols will be length limited to 13 bits.
+* Symbols are encoded in "blocks" of up to 512 symbols with a 4x interleave.
+
+
+Each chunk will begin with a 16-bit Header Tag:
+* (15:14): Gives chunk encoding mode.
+** 0: Raw Bytes
+** 1: Huffman Table + Blocks
+** 2: Blocks (reuses previous Huffman table);
+** 3: Escape Case
+* (13:0): Gives the chunk payload size as a multiple of 4 symbols (N).
+
+In Mode 0, the header tag is followed by a series of non-encoded bytes.
+
+
+In Mode 1, the Header Tag is followed by a Huffman Table. This is encoded as a series of symbol lengths.
+
+Table Encoding will be in term of 8-bit bytes:
+* 00..CF: Pair of Lengths (Encoded as (Len1*14)+Len2)
+* D0..DF: Run of 4..34 zeroes (2x Zero)
+* E0..EF: Run of 4..34 of prior length (2x Len2)
+* F0..FE: Special
+* FF: End Of Table
+
+A table does not necessarily end with an End of Table marker, but may also end upon reaching its total number of lengths. A table may not encode more than 256 lengths.
+
+If an End of Table is seen, any remaining lengths are set to zero.
+
+The table will encode pairs of lengths of 0..13 using a Mod-14 scheme:
+* Index = (Len1*14)+Len2
+
+
+In Modes 1 and 2, the Tag and optional Huffman table are followed by blocks.
+
+Each block will start with 4 bytes, which give the encoded lengths of the four bitstreams. These four bitstreams will be decoded in parallel, each representing a group of four 8-bit symbol packed into a 32-bit word.
+
+Each block will encode up to 512 symbols (or 128 four-symbol words), with the final block potentially holding less than 512 symbols (N mod 128).
+
