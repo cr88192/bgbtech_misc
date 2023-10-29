@@ -11,6 +11,26 @@ typedef signed int			s32;
 typedef signed long long		s64;
 #endif
 
+/*
+ * QOI_CASTDEREF: Flag whether or not it is safe to cast and deref.
+ * This generally works fine on MSVC and BGBCC.
+ * But, GCC and Clang may cause incorrect behavior.
+ * However, they are better able to optimize memcpy(), so...
+ *
+ * QOI_SMALLSTACK: Flag if the stack is small.
+ * Say: If the target has 64K or 128K stack, don't put big arrays there.
+ * But, say, for MSVC, we have 1MB, so...
+ */
+
+#ifdef _MSC_VER
+#define QOI_CASTDEREF
+#endif
+
+#ifdef __BGBCC__
+#define QOI_CASTDEREF
+#define QOI_SMALLSTACK
+#endif
+
 void QOILZ_LzMemCpy(byte *dst, byte *src, int sz);
 
 byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
@@ -202,7 +222,9 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 				ml+=4;
 			}else
 			{
-				ml=0;
+//				ml=0;
+				ml=62;
+				md=1;
 			}
 			
 			if(ml>0)
@@ -225,6 +247,8 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 void QOILZ_LzMemCpy(byte *dst, byte *src, int sz)
 {
 	byte *cs, *ct, *cte;
+	u64 tv;
+//	int i0, i1, i2, i3;
 	int i, d;
 	
 	d=dst-src;
@@ -240,6 +264,12 @@ void QOILZ_LzMemCpy(byte *dst, byte *src, int sz)
 
 	if(d>sz)
 	{
+		if(sz<=16)
+		{
+			memcpy(dst, src, 16);
+			return;
+		}
+	
 		memcpy(dst, src, sz);
 		return;
 	}
@@ -251,22 +281,51 @@ void QOILZ_LzMemCpy(byte *dst, byte *src, int sz)
 		cs=src; ct=dst; cte=ct+sz;
 		while(ct<cte)
 		{
+#ifdef QOI_CASTDEREF
+// #if 0
+			*(u64 *)ct=*(u64 *)cs;
+#else
 			memcpy(ct, cs, 8);
+#endif
+			ct+=8; cs+=8;
+		}
+	}else
+		if(d>=4)
+	{
+		cs=src; ct=dst; cte=ct+sz;
+		while(ct<cte)
+		{
+#ifdef QOI_CASTDEREF
+			((u32 *)ct)[0]=((u32 *)cs)[0];
+			((u32 *)ct)[1]=((u32 *)cs)[1];
+#else
+			memcpy(ct+0, cs+0, 4);
+			memcpy(ct+4, cs+4, 4);
+#endif
 			ct+=8; cs+=8;
 		}
 	}else
 	{
+		if(d==1)
+		{
+			if(sz<=16)
+			{
+				memset(dst, *src, 16);
+				return;
+			}
+			memset(dst, *src, sz);
+			return;
+		}
+	
 		cs=src; ct=dst; cte=ct+sz;
-		for(i=0; i<sz; i++)
-			ct[i]=cs[i];
-#if 0
 		while(ct<cte)
 		{
-			*(u64 *)ct=*(u64 *)cs;
-//			memcpy(ct, cs, 8);
-			ct+=8; cs+=8;
+			ct[0]=cs[0];	ct[1]=cs[1];
+			ct[2]=cs[2];	ct[3]=cs[3];
+			ct[4]=cs[4];	ct[5]=cs[5];
+			ct[6]=cs[6];	ct[7]=cs[7];
+			ct+=8;			cs+=8;
 		}
-#endif
 	}
 }
 
@@ -277,6 +336,7 @@ u32 QOILZ_HashBuffer(byte *buf, int sz)
 	u32 v;
 	int i, j, k, n;
 	
+#ifdef QOI_CASTDEREF
 	bufi=(u32 *)buf;
 	n=sz/4; s0=1; s1=1;
 	for(i=0; i<n; i++)
@@ -285,6 +345,20 @@ u32 QOILZ_HashBuffer(byte *buf, int sz)
 		s0+=v;
 		s1+=s0;
 	}
+#else
+	n=sz/4; s0=1; s1=1;
+	for(i=0; i<n; i++)
+	{
+//		v=bufi[i];
+		j=i<<2;
+		v=	(buf[j+0]<< 0) |
+			(buf[j+1]<< 8) |
+			(buf[j+2]<<16) |
+			(buf[j+3]<<24) ;
+		s0+=v;
+		s1+=s0;
+	}
+#endif
 	
 	s0=((u32)s0)+(s0>>32);
 	s1=((u32)s1)+(s1>>32);

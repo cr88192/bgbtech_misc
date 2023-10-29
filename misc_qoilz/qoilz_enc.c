@@ -11,6 +11,24 @@ typedef signed int			s32;
 typedef signed long long		s64;
 #endif
 
+// #define QOILI_HASHSZ	4096
+// #define QOILI_HASHSZ	8192
+#define QOILI_HASHSZ	16384
+#define QOILI_HASHMSK	(QOILI_HASHSZ-1)
+
+// #define	QOILI_HROVMSK	31
+// #define	QOILI_SDEPTH	32
+
+// #define	QOILI_HROVMSK	63
+// #define	QOILI_SDEPTH	59
+
+#define	QOILI_HROVMSK	127
+#define	QOILI_SDEPTH	121
+
+#ifdef QOI_SMALLSTACK
+#define QOILI_MALLOCHASH
+#endif
+
 int QOILZ_CheckMatchLz4(byte *str1, byte *str2, int nl);
 
 int QOI_EncLiHash4(byte *cs)
@@ -18,31 +36,67 @@ int QOI_EncLiHash4(byte *cs)
 	u32 v0, v1, v2, v3;
 	u64 h;
 	
+#ifdef QOI_CASTDEREF
 	v0=((u32 *)cs)[0];
 	v1=((u32 *)cs)[1];
 	v2=((u32 *)cs)[2];
 	v3=((u32 *)cs)[3];
+#else
+	memcpy(&v0, cs+ 0, 4);
+	memcpy(&v1, cs+ 4, 4);
+	memcpy(&v2, cs+ 8, 4);
+	memcpy(&v3, cs+12, 4);
+#endif
+
+#if 1
 	h=v0;
 	h=h*65521+v1;
 	h=h*65521+v2;
 	h=h*65521+v3;
 	h=h*65521+(h>>16);
+#endif
+
+#if 0
+	h=v0^(((u64)v1)<<7)^(((u64)v2)<<11)^(((u64)v3)<<17);
+//	h=(h<<11)^(h>>32);
+	h=(h<<5)^(h>>16);
+//	h=(h<<3)^(h>>16);
+#endif
+
 	h=h*65521+(h>>16);
 //	return((h>>16)&255);
-	return((h>>16)&4095);
+	return((h>>16)&QOILI_HASHMSK);
 }
 
 int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 {
 	byte pixtab[64*4];
-	int hofs[4096];
-	byte hrov[4096];
+#ifdef QOILI_MALLOCHASH
+	int *hofs;
+	byte *hrov;
+	byte tdummy[QOILI_HROVMSK*5];
+#else
+	int hofs[QOILI_HASHSZ];
+	byte hrov[QOILI_HASHSZ];
+#endif
 	byte *cs, *ct, *cs1, *cse, *imgbuf;
 	int cr, cg, cb, ca;
 	int dr, dg, db;
 	int crl, cgl, cbl, cal;
 	int n, run, bl, bd;
-	int i, j, k, h, hli, hr;
+	int i, j, k, h, hli, hr, nl;
+
+#ifdef QOILI_MALLOCHASH
+	if(doli&1)
+	{
+		hofs=malloc(QOILI_HASHSZ*sizeof(int));
+		hrov=malloc(QOILI_HASHSZ);
+	}else
+	{
+		hofs=(int *)tdummy;
+		hrov=tdummy;
+	}
+#endif
 	
 	dstbuf[ 0]='q';
 	dstbuf[ 1]='o';
@@ -83,10 +137,13 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 //		hofs[i]=0;
 	}
 
-	for(i=0; i<4096; i++)
+	if(doli&1)
 	{
-		hofs[i]=0;
-		hrov[i]=0;
+		for(i=0; i<QOILI_HASHSZ; i++)
+		{
+			hofs[i]=0;
+			hrov[i]=0;
+		}
 	}
 	
 	crl=0;	cgl=0;
@@ -94,9 +151,16 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 	run=0;
 	while(cs<cse)
 	{
-//		hli=((j*251+1)>>8)&255;
-		hli=QOI_EncLiHash4(cs);
-		hr=hrov[hli];
+		if(doli&1)
+		{
+//			hli=((j*251+1)>>8)&255;
+			hli=QOI_EncLiHash4(cs);
+			hr=hrov[hli];
+		}else
+		{
+			hli=0;
+			hr=0;
+		}
 
 		cr=cs[0];
 		cg=cs[1];
@@ -114,6 +178,33 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 		{
 			if(doli&1)
 			{
+				while(run>=1027)
+				{
+					*ct++=0xFB;
+					*ct++=0xFF;
+					*ct++=0x00;
+					*ct++=0x01;
+					run-=1027;
+				}
+			
+				if(run>=240)
+				{
+					j=run-4;
+					*ct++=0xF8|(j>>8);
+					*ct++=j;
+					*ct++=0x00;
+					*ct++=0x01;
+					run=0;
+				}
+
+#if 0
+				while(run>=62)
+				{
+					*ct++=0xFD;
+					run-=62;
+				}
+#endif
+
 				while(run>=48)
 				{
 					*ct++=0xEF;
@@ -136,14 +227,20 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 
 		if(doli&1)
 		{
+			nl=cse-cs;
+			if(nl>16384)
+				nl=16384;
+		
 			bl=0;	bd=0;
-			for(i=0; i<32; i++)
+			for(i=0; i<QOILI_SDEPTH; i++)
 			{
-				cs1=img+hofs[(hli+((hr-i)&31))&4095];
+				cs1=img+hofs[(hli+((hr-i)&QOILI_HROVMSK))&QOILI_HASHMSK];
 				if((cs1>=(cs-4)) || (cs1<img))
 					continue;
 				
-				j=QOILZ_CheckMatchLz4(cs1, cs-4, 16384);
+				j=QOILZ_CheckMatchLz4(cs1, cs-4, nl);
+//				if(j>nl)
+//					j=nl;
 				j=j>>2;
 				k=((cs-4)-cs1)>>2;
 				
@@ -203,8 +300,8 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 //					j=cr*3+cg*5+cb*7+ca*11;
 //					hli=((j*251+1)>>8)&255;
 //					hofs[hli]=(cs-4)-img;
-					hofs[(hli+hr)&4095]=(cs-4)-img;
-					hrov[hli]=(hr+1)&31;
+					hofs[(hli+hr)&QOILI_HASHMSK]=(cs-4)-img;
+					hrov[hli]=(hr+1)&QOILI_HROVMSK;
 				}
 				
 //				cs+=(j-1)*4;
@@ -256,8 +353,8 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 			pixtab[k+0]=cr;	pixtab[k+1]=cg;
 			pixtab[k+2]=cb;	pixtab[k+3]=ca;
 //			hofs[hli]=(cs-4)-img;
-			hofs[(hli+hr)&4095]=(cs-4)-img;
-			hrov[hli]=(hr+1)&31;
+			hofs[(hli+hr)&QOILI_HASHMSK]=(cs-4)-img;
+			hrov[hli]=(hr+1)&QOILI_HROVMSK;
 			crl=cr;	cgl=cg;
 			cbl=cb;	cal=ca;
 			continue;
@@ -278,8 +375,8 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 			pixtab[k+0]=cr;	pixtab[k+1]=cg;
 			pixtab[k+2]=cb;	pixtab[k+3]=ca;
 //			hofs[hli]=(cs-4)-img;
-			hofs[(hli+hr)&4095]=(cs-4)-img;
-			hrov[hli]=(hr+1)&31;
+			hofs[(hli+hr)&QOILI_HASHMSK]=(cs-4)-img;
+			hrov[hli]=(hr+1)&QOILI_HROVMSK;
 			crl=cr;	cgl=cg;
 			cbl=cb;	cal=ca;
 			continue;
@@ -305,8 +402,8 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 		pixtab[k+0]=cr;	pixtab[k+1]=cg;
 		pixtab[k+2]=cb;	pixtab[k+3]=ca;
 //		hofs[hli]=(cs-4)-img;
-		hofs[(hli+hr)&4095]=(cs-4)-img;
-		hrov[hli]=(hr+1)&31;
+		hofs[(hli+hr)&QOILI_HASHMSK]=(cs-4)-img;
+		hrov[hli]=(hr+1)&QOILI_HROVMSK;
 		
 		crl=cr;
 		cgl=cg;
@@ -346,7 +443,15 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 	*ct++=0x00;
 	*ct++=0x00;
 	*ct++=0x01;
-	
+
+#ifdef QOILI_MALLOCHASH
+	if(doli&1)
+	{
+		free(hofs);
+		free(hrov);
+	}
+#endif
+
 	return(ct-dstbuf);
 }
 
@@ -408,19 +513,32 @@ int QOI_EncodeImageBuffer555(byte *dstbuf, u16 *img, int xs, int ys)
 
 int QOILZ_CheckMatchLz4(byte *str1, byte *str2, int nl)
 {
-	byte *cs1, *cs1e, *cs2;
+	byte *cs1, *cs1e, *cs1e0, *cs2;
 
+#ifdef QOI_CASTDEREF
 	if((*(u32 *)str1)!=(*(u32 *)str2))
 		return(0);
 	cs1=str1+4;
 	cs2=str2+4;
+	cs1e0=str1+(nl-8);
 	cs1e=str1+nl;
-	while(cs1<cs1e)
+//	while(cs1<cs1e)
+	while(cs1<cs1e0)
 	{
 		if((*(u64 *)cs1)!=(*(u64 *)cs2))
 			break;
 		cs1+=8; cs2+=8;
 	}
+#else
+	if(	(str1[0]!=str2[0]) ||
+		(str1[1]!=str2[1]) ||
+		(str1[2]!=str2[2]) ||
+		(str1[3]!=str2[3]) )
+			return(0);
+	cs1=str1+4;
+	cs2=str2+4;
+	cs1e=str1+nl;
+#endif
 
 	while(cs1<cs1e)
 	{
@@ -680,9 +798,9 @@ int QOILZ_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys)
 	byte *t1buf, *t2buf, *t3buf;
 	int sz1, sz2, sz3, sz0, sz;
 	
-	t1buf=malloc(2*xs*ys);
-	t2buf=malloc(2*xs*ys);
-	t3buf=malloc(2*xs*ys);
+	t1buf=malloc(6*xs*ys);
+	t2buf=malloc(6*xs*ys);
+	t3buf=malloc(6*xs*ys);
 	sz1=QOI_EncodeImageBuffer(t1buf, img, xs, ys, 0);
 
 	sz3=QOI_EncodeImageBuffer(t3buf, img, xs, ys, 1);
@@ -729,7 +847,7 @@ int QOILZ_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys)
 //	if(1)
 	{
 		if((sz2*1.25)<sz3)
-//		if(0)
+//		if(1)
 		{
 			memcpy(dstbuf, t2buf, sz2);
 			sz=sz2;
