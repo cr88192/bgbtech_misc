@@ -11,20 +11,40 @@ typedef signed int			s32;
 typedef signed long long		s64;
 #endif
 
+void QOILZ_LzMemCpy(byte *dst, byte *src, int sz);
+
 byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 {
 	byte pixtab[64*4];
 	byte *cs, *ct, *cte, *imgbuf;
-	int cr, cg, cb, ca;
-	int xs, ys, n;
-	int i, j, k, h;
+	int cr, cg, cb, ca, qoli;
+	int xs, ys, n, ml, md;
+	int i, j, k, l, h;
 	
+//	if(	(inbuf[0]!='q') ||
+//		(inbuf[1]!='o') ||
+//		(inbuf[2]!='i') ||
+//		(inbuf[3]!='f') )
+//	{
+//		return(NULL);
+//	}
+
+	qoli=0;
 	if(	(inbuf[0]!='q') ||
-		(inbuf[1]!='o') ||
-		(inbuf[2]!='i') ||
-		(inbuf[3]!='f') )
+		(inbuf[1]!='o') )
 	{
 		return(NULL);
+	}
+
+	if(	(inbuf[2]!='i') ||
+		(inbuf[3]!='f') )
+	{
+		if(	(inbuf[2]!='l') ||
+			(inbuf[3]!='i') )
+		{
+			return(NULL);
+		}
+		qoli=1;
 	}
 
 	xs=	(inbuf[ 4]<<24) |
@@ -51,6 +71,9 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 	{
 		j=*cs++;
 		i=j>>6;
+
+		if((j==0) && (cs[0]==0))
+			break;
 
 		if(i==0)
 		{
@@ -101,7 +124,8 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 		}
 
 		k=j&63;
-		if(k<62)
+//		if(k<62)
+		if((k<48) || (!qoli && (k<62)))
 		{
 			k++;
 			while(k--)
@@ -147,6 +171,49 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 			ct[2]=cb;	ct[3]=ca;
 			ct+=4;
 			continue;
+		}
+		
+		if(qoli)
+		{
+			if((j&0xF8)==0xF0)
+			{
+				k=cs[0];
+				l=cs[1];
+				cs+=2;
+				ml=((j&7)<<4)|(k>>4);
+				md=((k&15)<<8)|l;
+				ml+=4;
+			}
+			else if((j&0xFC)==0xF8)
+			{
+				k=cs[0];
+				l=cs[1];
+				ml=((j&3)<<8)|k;
+				md=(l<<8)|cs[2];
+				cs+=3;
+				ml+=4;
+			}else if((j&0xFF)==0xFC)
+			{
+				k=cs[0];
+				l=cs[1];
+				ml=(k<<4)|(l>>4);
+				md=((l&15)<<16)|(cs[2]<<8)|cs[3];
+				cs+=4;
+				ml+=4;
+			}else
+			{
+				ml=0;
+			}
+			
+			if(ml>0)
+			{
+				QOILZ_LzMemCpy(ct, ct-md*4, ml*4);
+				ct+=ml*4;
+				
+				cr=ct[-4];	cg=ct[-3];
+				cb=ct[-2];	ca=ct[-1];
+				continue;
+			}
 		}
 	}
 	
@@ -303,6 +370,14 @@ byte *QOILZ_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 		(inbuf[1]=='o') &&
 		(inbuf[2]=='i') &&
 		(inbuf[3]=='f') )
+	{
+		return(QOI_DecImageBuffer(inbuf, rxs, rys));
+	}
+
+	if(	(inbuf[0]=='q') &&
+		(inbuf[1]=='o') &&
+		(inbuf[2]=='l') &&
+		(inbuf[3]=='i') )
 	{
 		return(QOI_DecImageBuffer(inbuf, rxs, rys));
 	}

@@ -31,11 +31,15 @@ U32BE  csize;  //14, packed size of QOI data
 };
 
 
-For QOILZ, an additional LZ4 compressor stage is added.
+For QOILZ with the 'qol4', an additional LZ4 compressor stage is added.
 Went with LZ4 as this seemed like the most straightforward option at the moment.
 
 In this case, the image data is first encoded as in QOI, but then an LZ stage is used to further compress the data. The encoder may just spit out a plain QOI image though if the LZ stage doesn't gain much in terms of compression.
 
+
+Possible (QOLI):
+* Magic: 'qoli'
+* Similar format to 'qoif', but with inline LZ.
 
 
 === QOI Data ===
@@ -64,6 +68,17 @@ Encoded Tokens:
 ** Raw RGBA color.
 
 The encoded stream is terminated by a series of seven 00 bytes and an 01 byte.
+
+
+QOLI (Possible):
+* 110rrrrr, RLE 1 .. 32
+* 1110rrrr, RLE 32 .. 48
+* 11110rrr rrrrdddd dddddddd
+** Copy 4..131 pixels, within a 4K pixel window.
+* 111110rr rrrrrrrr dddddddd dddddddd
+** Copy 4..1027 pixels, within a 64K pixel window.
+* 1111110r rrrrrrrr rrrrdddd dddddddd dddddddd
+** Copy 4..8195 pixels, within a 1M pixel window.
 
 
 === LZ4 ===
