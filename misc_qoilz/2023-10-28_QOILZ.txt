@@ -17,6 +17,7 @@ BYTE chan;     //0C, 3=RGB, 4=RGBA
 BYTE clrs;     //0D, 0=sRGB, 1=Linear RGB
 //0E, Start of Data
 };
+//Also shared with QOLI
 
 qoilz_head {
 FOURCC magic;  //00, Magic, 'qol4'
@@ -30,6 +31,19 @@ U32BE  csize;  //14, packed size of QOI data
 //18, Start of LZ4 Data
 };
 
+qoila_head {
+FOURCC magic;  //00, Magic, 'qola'
+U32BE xsize;   //04, X size (big endian)
+U32BE ysize;   //08, Y size (big endian)
+BYTE chan;     //0C, 3=RGB, 4=RGBA
+BYTE clrs;     //0D, 0=sRGB, 1=Linear RGB
+U16BE frmt;    //0E, frame-time
+U32BE frames;  //10, frame count
+U32BE pad1;    //14, pad
+//18, U32BE frame-offsets.
+};
+
+
 
 For QOILZ with the 'qol4', an additional LZ4 compressor stage is added.
 Went with LZ4 as this seemed like the most straightforward option at the moment.
@@ -42,6 +56,14 @@ Possible (QOLI):
 * Same basic format as 'qoif', but with inline pixel-oriented LZ.
 
 
+Also Possible (QOLA):
+* Magic: 'qola'
+* Similar encoding as 'qoli'.
+** But, intended to function like an animated GIF.
+* Header adds a frame-count and array of frame offsets.
+* Frame-time will be specified in units of 100us.
+
+
 === QOI Data ===
 
 The QOI data encodes pixels and pixel deltas in a byte oriented format, using a 64-entry color lookup table. Each time a new color is encoded, it is added to this lookup table. This table starts out containing all zeros.
@@ -49,7 +71,7 @@ The QOI data encodes pixels and pixel deltas in a byte oriented format, using a 
 Index into the table is a hash of the color:
 * (r*3+g*5+b*7+a*11)&63
 
-Initial starting RGBA values are 0,0,0,255.
+Initial starting RGBA values are R=0, G=0, B=0, A=255.
 
 Encoded Tokens:
 * 00iiiiii
@@ -82,7 +104,9 @@ QOLI (Possible):
 
 So, QOLI will reduce the maximum RLE run from 62 to 48, to make space for the LZ match copy.
 
-When copying a run, the current RGBA value will be set to the final pixel from the run.
+Dropped: When copying a run, the current RGBA value will be set to the final pixel from the run.
+
+New: When copying a run, the current RGBA will be reset to R=0, G=0, B=0, A=255.
 
 
 === LZ4 ===

@@ -232,8 +232,10 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 				QOILZ_LzMemCpy(ct, ct-md*4, ml*4);
 				ct+=ml*4;
 				
-				cr=ct[-4];	cg=ct[-3];
-				cb=ct[-2];	ca=ct[-1];
+				cr=0;	cg=0;
+				cb=0;	ca=255;
+//				cr=ct[-4];	cg=ct[-3];
+//				cb=ct[-2];	ca=ct[-1];
 				continue;
 			}
 		}
@@ -544,4 +546,229 @@ u16 *QOILZ_DecImageBuffer555(byte *inbuf, int *rxs, int *rys)
 	*rxs=xs;
 	*rys=ys;
 	return(i2buf);
+}
+
+
+
+int QOI_DecImageBufferFlat555(u16 *dstbuf, byte *inbuf, int *rxs, int *rys)
+{
+	byte pixtab[64*4];
+	u16 *ct, *cte;
+	byte *cs;
+	int cr, cg, cb, ca, qoli;
+	int xs, ys, n, ml, md;
+	int i, j, k, l, h, px;
+	
+	qoli=0;
+	if(	(inbuf[0]!='q') ||
+		(inbuf[1]!='o') )
+	{
+		return(-1);
+	}
+
+	if(	(inbuf[2]!='i') ||
+		(inbuf[3]!='f') )
+	{
+		if(	(inbuf[2]!='l') ||
+			(inbuf[3]!='i') )
+		{
+			return(-1);
+		}
+		qoli=1;
+	}
+
+	xs=	(inbuf[ 4]<<24) |
+		(inbuf[ 5]<<16) |
+		(inbuf[ 6]<< 8) |
+		(inbuf[ 7]<< 0) ;
+	ys=	(inbuf[ 8]<<24) |
+		(inbuf[ 9]<<16) |
+		(inbuf[10]<< 8) |
+		(inbuf[11]<< 0) ;
+	cs=inbuf+14;
+
+	if(!dstbuf)
+	{
+		*rxs=xs;
+		*rys=ys;
+		return(0);
+	}
+
+	n=xs*ys;
+	ct=dstbuf;
+	cte=ct+n*4;
+	
+	for(i=0; i<256; i++)
+		pixtab[i]=0;
+	
+	cr=0;	cg=0;
+	cb=0;	ca=255;
+	while(ct<cte)
+	{
+		j=*cs++;
+		i=j>>6;
+
+		if((j==0) && (cs[0]==0))
+			break;
+
+		if(i==0)
+		{
+			k=j&63;
+			k=k<<2;
+			cr=pixtab[k+0];	cg=pixtab[k+1];
+			cb=pixtab[k+2];	ca=pixtab[k+3];
+			px=((cr>>3)<<10)|((cg>>3)<<5)|((cb>>3)<<0);
+			if(ca<128) { px&=0x7BDE; px|=0x8000; }
+			*ct++=px;
+			continue;
+		}
+
+		if(i==1)
+		{
+			cr+=((j>>4)&3)-2;
+			cg+=((j>>2)&3)-2;
+			cb+=((j>>0)&3)-2;
+			h=(cr*3+cg*5+cb*7+ca*11)&63;
+			k=h<<2;
+			pixtab[k+0]=cr;	pixtab[k+1]=cg;
+			pixtab[k+2]=cb;	pixtab[k+3]=ca;
+			px=((cr>>3)<<10)|((cg>>3)<<5)|((cb>>3)<<0);
+			if(ca<128) { px&=0x7BDE; px|=0x8000; }
+			*ct++=px;
+			continue;
+		}
+
+		if(i==2)
+		{
+			k=(j&63)-32;
+			cr+=k;
+			cg+=k;
+			cb+=k;
+
+			j=*cs++;
+			cr+=((j>>4)&15)-8;
+			cb+=((j>>0)&15)-8;
+
+			h=(cr*3+cg*5+cb*7+ca*11)&63;
+			k=h<<2;
+			pixtab[k+0]=cr;	pixtab[k+1]=cg;
+			pixtab[k+2]=cb;	pixtab[k+3]=ca;
+			px=((cr>>3)<<10)|((cg>>3)<<5)|((cb>>3)<<0);
+			if(ca<128) { px&=0x7BDE; px|=0x8000; }
+			*ct++=px;
+			continue;
+		}
+
+		k=j&63;
+//		if(k<62)
+		if((k<48) || (!qoli && (k<62)))
+		{
+			k++;
+			while(k--)
+			{
+				px=((cr>>3)<<10)|((cg>>3)<<5)|((cb>>3)<<0);
+				if(ca<128) { px&=0x7BDE; px|=0x8000; }
+				*ct++=px;
+			}
+			continue;
+		}
+		
+		if(j==0xFE)
+		{
+			cr=cs[0];
+			cg=cs[1];
+			cb=cs[2];
+			cs+=3;
+
+			h=(cr*3+cg*5+cb*7+ca*11)&63;
+			k=h<<2;
+			pixtab[k+0]=cr;	pixtab[k+1]=cg;
+			pixtab[k+2]=cb;	pixtab[k+3]=ca;
+			px=((cr>>3)<<10)|((cg>>3)<<5)|((cb>>3)<<0);
+			if(ca<128) { px&=0x7BDE; px|=0x8000; }
+			*ct++=px;
+			continue;
+		}
+
+		
+		if(j==0xFF)
+		{
+			cr=cs[0];
+			cg=cs[1];
+			cb=cs[2];
+			ca=cs[3];
+			cs+=4;
+
+			h=(cr*3+cg*5+cb*7+ca*11)&63;
+			k=h<<2;
+			pixtab[k+0]=cr;	pixtab[k+1]=cg;
+			pixtab[k+2]=cb;	pixtab[k+3]=ca;
+			px=((cr>>3)<<10)|((cg>>3)<<5)|((cb>>3)<<0);
+			if(ca<128) { px&=0x7BDE; px|=0x8000; }
+			*ct++=px;
+			continue;
+		}
+		
+		if(qoli)
+		{
+			if((j&0xF8)==0xF0)
+			{
+				k=cs[0];
+				l=cs[1];
+				cs+=2;
+				ml=((j&7)<<4)|(k>>4);
+				md=((k&15)<<8)|l;
+				ml+=4;
+			}
+			else if((j&0xFC)==0xF8)
+			{
+				k=cs[0];
+				l=cs[1];
+				ml=((j&3)<<8)|k;
+				md=(l<<8)|cs[2];
+				cs+=3;
+				ml+=4;
+			}else if((j&0xFF)==0xFC)
+			{
+				k=cs[0];
+				l=cs[1];
+				ml=(k<<4)|(l>>4);
+				md=((l&15)<<16)|(cs[2]<<8)|cs[3];
+				cs+=4;
+				ml+=4;
+			}else
+			{
+//				ml=0;
+				ml=62;
+				md=1;
+			}
+			
+			if(ml>0)
+			{
+				QOILZ_LzMemCpy(ct, ct-md, ml*2);
+				ct+=ml;
+				cr=0;	cg=0;
+				cb=0;	ca=255;
+
+#if 0
+				px=ct[-1];
+				cr=(px>>10)&31;
+				cg=(px>> 5)&31;
+				cb=(px>> 0)&31;
+				cr=(cr<<3)|(cr>>2);
+				cg=(cg<<3)|(cg>>2);
+				cb=(cb<<3)|(cb>>2);
+				ca=(px&1)?0:255;
+#endif
+
+//				cr=ct[-4];	cg=ct[-3];
+//				cb=ct[-2];	ca=ct[-1];
+				continue;
+			}
+		}
+	}
+	
+	*rxs=xs;
+	*rys=ys;
+	return(1);
 }
