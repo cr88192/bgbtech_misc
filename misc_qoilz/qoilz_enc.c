@@ -430,6 +430,7 @@ int QOI_EncodeImageBufferLossy(
 		{
 			if(doli&1)
 			{
+#if 1
 				while(run>=1027)
 				{
 					*ct++=0xFB;
@@ -437,6 +438,8 @@ int QOI_EncodeImageBufferLossy(
 					*ct++=0x00;
 					*ct++=0x01;
 					run-=1027;
+//					crl=-255;	cgl=-255;
+//					cbl=-255;	cal=-255;
 				}
 			
 				if(run>=240)
@@ -447,7 +450,10 @@ int QOI_EncodeImageBufferLossy(
 					*ct++=0x00;
 					*ct++=0x01;
 					run=0;
+//					crl=-255;	cgl=-255;
+//					cbl=-255;	cal=-255;
 				}
+#endif
 
 #if 0
 				while(run>=62)
@@ -930,6 +936,7 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 		{
 			if(doli&1)
 			{
+#if 1
 				while(run>=1027)
 				{
 					*ct++=0xFB;
@@ -948,6 +955,7 @@ int QOI_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int doli)
 					*ct++=0x01;
 					run=0;
 				}
+#endif
 
 #if 0
 				while(run>=62)

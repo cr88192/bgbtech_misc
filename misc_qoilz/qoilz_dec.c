@@ -232,8 +232,8 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 				QOILZ_LzMemCpy(ct, ct-md*4, ml*4);
 				ct+=ml*4;
 				
-				cr=0;	cg=0;
-				cb=0;	ca=255;
+//				cr=0;	cg=0;
+//				cb=0;	ca=255;
 //				cr=ct[-4];	cg=ct[-3];
 //				cb=ct[-2];	ca=ct[-1];
 				continue;
@@ -747,8 +747,8 @@ int QOI_DecImageBufferFlat555(u16 *dstbuf, byte *inbuf, int *rxs, int *rys)
 			{
 				QOILZ_LzMemCpy(ct, ct-md, ml*2);
 				ct+=ml;
-				cr=0;	cg=0;
-				cb=0;	ca=255;
+//				cr=0;	cg=0;
+//				cb=0;	ca=255;
 
 #if 0
 				px=ct[-1];

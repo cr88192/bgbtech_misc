@@ -1,0 +1,135 @@
+Idea: Low-complexity lossy codec.
+* Probably use modified QOI-like design for the color endpoints.
+* Use a separate coding for the color-cells.
+
+Colorspace:
+* 2x YUV
+* Possibly, encode the color planes separately.
+* Probably: Y=(8*G+5*R+3*B)/16, U=(R-Y)/2+128, V=(B-Y)/2+128
+
+* Y=(8*G+5*R+3*B)/16
+* U=(B-Y)/2+128
+* V=(R-Y)/2+128
+
+* R=Y+(V-128)*2
+* B=Y+(U-128)*2
+* G=(16*Y-5*R-3*B)/8
+
+
+
+
+Headers:
+  lcif_head {
+  FOURCC magic;  //00, Magic, 'lcif'
+  U32  xsize;    //04, X size
+  U32  ysize;    //08, Y size
+  BYTE chan;     //0C, 3=RGB, 4=RGBA
+  BYTE clrs;     //0D, 0=YUV1
+  BYTE pad[2];
+  };
+
+The header will be followed by the color endpoint plane.
+The color endpoint plane will be followed by the block plane.
+Each plane will be followed by two 00 bytes.
+
+If an alpha channel is present, there will be an additional block plane holding the alpha blocks. Howver, the largest allowed block type in this plane will be 4x4x2. In this case, the color plane will also encode an alpha channel.
+
+If no alpha channel is present, the alpha value in the color plane will be ignored.
+
+
+=== Color Endpoint Plane ===
+
+The endpoint plane encodes endpoints and endpoint deltas in a byte oriented format, using a 64-entry color lookup table. Each time a new color is encoded, it is added to this lookup table. This table starts out containing all zeros.
+
+Index into the table is a hash of the color:
+* (y*3+u*5+v*7+a*11)&63
+
+Initial starting RGBA values are Y=0, U=0, V=0, A=255.
+
+Encoded Tokens:
+* 00iiiiii
+** Intex into lookup table.
+* 01yyuuvv
+** Delta to each YUV value, -2 .. 1
+* 10yyyyyy uuuuvvvv
+** Apply a delta Y, -32 .. 31.
+** Apply deltas to the U and V channels, -8 .. 7.
+* 110rrrrr, RLE 1 .. 32
+* 1110rrrr, RLE 32 .. 48
+* 11110rrr rrrrdddd dddddddd
+** Copy 4..131 pixels, within a 4K pixel window.
+* 111110rr rrrrrrrr dddddddd dddddddd
+** Copy 4..1027 pixels, within a 64K pixel window.
+* 11111100 rrrrrrrr rrrrdddd dddddddd dddddddd
+** Copy 4..4099 pixels, within a 1M pixel window.
+* 11111101
+** RLE run of 64 pixels.
+* 11111110 yyyyyyyy uuuuuuuu vvvvvvvv
+** Raw YUV color.
+* 11111111 yyyyyyyy uuuuuuuu vvvvvvvv aaaaaaaa
+** Raw YUVA color.
+
+The endpoint plane will encode 2 endpoints per block on alternating scanlines, for example, a 320x200 image will be 80x50 in terms of the endpoint plane.
+
+
+=== Block Plane ===
+
+Color-Cell Formats:
+* 4x4x3(Y) + 2x2x2(U) + 2x2x2(V)
+* 4x4x2
+* 4x4x1
+* 2x2x2 (pixels)
+* 2x2x1 (gradient)
+* Fixed pattern
+* Flat color.
+
+
+Tag Stream:
+* 00iiiiii
+** Repeat Recent Block.
+
+* 01pppppp
+** Fixed Pattern
+
+* 1000-nnnn
+** 1-16x Flat Color
+
+* 1001-nnnn yyyyyyyy
+** 1-16x 2x2x2
+
+* 1010-nnnn yyyyyyyy-yyyyyyyy
+** 1-16x 4x4x1
+
+* 1011-nnnn yyyyyyyy-yyyyyyyy-yyyyyyyy-yyyyyyyy
+** 1-16x 4x4x2
+
+* 110zzzzz -
+
+* 11100ppp
+** Simple Gradient
+
+* 11101nnn  yy yy yy yy yy yy uu vv
+** 1-8x Y4x4x3+U2x2x2+V2x2x2
+
+* 11110rrr rrrrdddd dddddddd
+** LZ Match: Copy 4..131 blocks, within a 4K block window.
+* 111110rr rrrrrrrr dddddddd dddddddd
+** Copy 4..1027 blocks, within a 64K block window.
+* 11111100 rrrrrrrr rrrrdddd dddddddd dddddddd
+** Copy 4..4099 blocks, within a 1M block window.
+
+* 11111101
+** Run of 64 Flat Color Blocks.
+
+* 11111110 -
+
+
+Gradients:
+* 0: Left-Right Rise (0123-0123-0123-0123)
+* 1: Left-Right Fall (3210-3210-3210-3210)
+* 2: Top-Bottom Rise (0000-1111-2222-3333)
+* 3: Left-Right Fall (3333-2222-1111-0000)
+* 4: Top-Left Lower-Right Rise (0011-0122-1223-1233)
+* 5: Top-Left Lower-Right Fall (3322-3211-2110-2100)
+* 6: Lower-Left Top-Right Rise (1233-1223=0122-0011)
+* 7: Lower-Left Top-Right Fall (3322-3211-2110-2100)

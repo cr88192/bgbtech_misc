@@ -106,7 +106,7 @@ So, QOLI will reduce the maximum RLE run from 62 to 48, to make space for the LZ
 
 Dropped: When copying a run, the current RGBA value will be set to the final pixel from the run.
 
-New: When copying a run, the current RGBA will be reset to R=0, G=0, B=0, A=255.
+Change: When copying a run, the current RGBA will be left as-is.
 
 
 === LZ4 ===
