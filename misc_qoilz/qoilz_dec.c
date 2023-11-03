@@ -33,11 +33,12 @@ typedef signed long long		s64;
 
 void QOILZ_LzMemCpy(byte *dst, byte *src, int sz);
 
-byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
+int QOI_DecImageBufferFlat(
+	byte *imgbuf, byte *inbuf, int *rxs, int *rys, int decfl)
 {
 	byte pixtab[64*4];
-	byte *cs, *ct, *cte, *imgbuf;
-	int cr, cg, cb, ca, qoli;
+	byte *cs, *ct, *cte;
+	int cr, cg, cb, ca, qoli, dobgra;
 	int xs, ys, n, ml, md;
 	int i, j, k, l, h;
 	
@@ -53,7 +54,7 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 	if(	(inbuf[0]!='q') ||
 		(inbuf[1]!='o') )
 	{
-		return(NULL);
+		return(-1);
 	}
 
 	if(	(inbuf[2]!='i') ||
@@ -62,10 +63,14 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 		if(	(inbuf[2]!='l') ||
 			(inbuf[3]!='i') )
 		{
-			return(NULL);
+			return(-1);
 		}
 		qoli=1;
 	}
+	
+	dobgra=0;
+	if(decfl&1)
+		dobgra=1;
 
 	xs=	(inbuf[ 4]<<24) |
 		(inbuf[ 5]<<16) |
@@ -77,8 +82,15 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 		(inbuf[11]<< 0) ;
 	cs=inbuf+14;
 
+	if(!imgbuf)
+	{
+		if(rxs)		*rxs=xs;
+		if(rys)		*rys=ys;
+		return(1);
+	}
+
 	n=xs*ys;
-	imgbuf=malloc(n*4);
+//	imgbuf=malloc(n*4);
 	ct=imgbuf;
 	cte=ct+n*4;
 	
@@ -103,6 +115,8 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 			cb=pixtab[k+2];	ca=pixtab[k+3];
 			ct[0]=cr;	ct[1]=cg;
 			ct[2]=cb;	ct[3]=ca;
+			if(dobgra)
+				{ ct[0]=cb; ct[2]=cr; }
 			ct+=4;
 			continue;
 		}
@@ -118,6 +132,8 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 			pixtab[k+2]=cb;	pixtab[k+3]=ca;
 			ct[0]=cr;	ct[1]=cg;
 			ct[2]=cb;	ct[3]=ca;
+			if(dobgra)
+				{ ct[0]=cb; ct[2]=cr; }
 			ct+=4;
 			continue;
 		}
@@ -139,6 +155,8 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 			pixtab[k+2]=cb;	pixtab[k+3]=ca;
 			ct[0]=cr;	ct[1]=cg;
 			ct[2]=cb;	ct[3]=ca;
+			if(dobgra)
+				{ ct[0]=cb; ct[2]=cr; }
 			ct+=4;
 			continue;
 		}
@@ -152,6 +170,8 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 			{
 				ct[0]=cr;	ct[1]=cg;
 				ct[2]=cb;	ct[3]=ca;
+				if(dobgra)
+					{ ct[0]=cb; ct[2]=cr; }
 				ct+=4;
 			}
 			continue;
@@ -170,6 +190,8 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 			pixtab[k+2]=cb;	pixtab[k+3]=ca;
 			ct[0]=cr;	ct[1]=cg;
 			ct[2]=cb;	ct[3]=ca;
+			if(dobgra)
+				{ ct[0]=cb; ct[2]=cr; }
 			ct+=4;
 			continue;
 		}
@@ -189,6 +211,8 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 			pixtab[k+2]=cb;	pixtab[k+3]=ca;
 			ct[0]=cr;	ct[1]=cg;
 			ct[2]=cb;	ct[3]=ca;
+			if(dobgra)
+				{ ct[0]=cb; ct[2]=cr; }
 			ct+=4;
 			continue;
 		}
@@ -241,8 +265,27 @@ byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
 		}
 	}
 	
-	*rxs=xs;
-	*rys=ys;
+	if(rxs) *rxs=xs;
+	if(rys) *rys=ys;
+	return(1);
+}
+
+byte *QOI_DecImageBuffer(byte *inbuf, int *rxs, int *rys)
+{
+	byte *imgbuf;
+	int xs, ys;
+	
+	xs=0; ys=0;
+	QOI_DecImageBufferFlat(NULL, inbuf, &xs, &ys, 0);
+	if((xs<=0) || (ys<=0))
+	{
+		return(NULL);
+	}
+	
+	imgbuf=malloc(xs*ys*4);
+	QOI_DecImageBufferFlat(imgbuf, inbuf, &xs, &ys, 0);
+	if(rxs) *rxs=xs;
+	if(rys) *rys=ys;
 	return(imgbuf);
 }
 
@@ -430,8 +473,8 @@ int QOILZ_UnpackLz4(byte *dst, byte *src, int dsz, int ssz)
 	if((cs!=cse) || (ct!=cte))
 	{
 		printf("QOILZ_UnpackLz4: Size Issue dst=%d/%d src=%d/%d",
-			ct-dst, dsz,
-			cs-src, ssz);
+			(int)(ct-dst), dsz,
+			(int)(cs-src), ssz);
 	}
 	
 	return(cs-src);
@@ -745,7 +788,7 @@ int QOI_DecImageBufferFlat555(u16 *dstbuf, byte *inbuf, int *rxs, int *rys)
 			
 			if(ml>0)
 			{
-				QOILZ_LzMemCpy(ct, ct-md, ml*2);
+				QOILZ_LzMemCpy((byte *)ct, (byte *)(ct-md), ml*2);
 				ct+=ml;
 //				cr=0;	cg=0;
 //				cb=0;	ca=255;

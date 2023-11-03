@@ -1,4 +1,8 @@
 Idea: Low-complexity lossy codec.
+* Goals
+** Moderately fast to decode;
+** Not excessively complicated;
+** Could be used in a similar way to T.81 JPEG.
 * Probably use modified QOI-like design for the color endpoints.
 * Use a separate coding for the color-cells.
 
@@ -21,11 +25,12 @@ Colorspace:
 Headers:
   lcif_head {
   FOURCC magic;  //00, Magic, 'lcif'
-  U32  xsize;    //04, X size
-  U32  ysize;    //08, Y size
+  S32LE xsize;   //04, X size
+  S32LE ysize;   //08, Y size
   BYTE chan;     //0C, 3=RGB, 4=RGBA
-  BYTE clrs;     //0D, 0=YUV1
-  BYTE pad[2];
+  BYTE clrs;     //0D, 0=YUV
+  BYTE pad1;     //0E, Reserved, MBZ
+  BYTE pad2;     //0F, Reserved, MBZ
   };
 
 The header will be followed by the color endpoint plane.
@@ -35,6 +40,9 @@ Each plane will be followed by two 00 bytes.
 If an alpha channel is present, there will be an additional block plane holding the alpha blocks. Howver, the largest allowed block type in this plane will be 4x4x2. In this case, the color plane will also encode an alpha channel.
 
 If no alpha channel is present, the alpha value in the color plane will be ignored.
+
+Nominally, the image will be stored with its origin in the lower-left corner.
+* If the Y size is negative, upper left.
 
 
 === Color Endpoint Plane ===
@@ -83,6 +91,26 @@ Color-Cell Formats:
 * Fixed pattern
 * Flat color.
 
+Block pixels will be stored in little-endian order, with a low-to-high pixel ordering.
+
+Within the Block Plane, the blocks will behave as-if they were expanded to a 64-bit nominal format:
+* (47:0): Y Pixels, 4x4 at 3 bits per pixel.
+* (55:48): U Pixels, 2x2 at 2 bits per pixel.
+* (55:48): V Pixels, 2x2 at 2 bits per pixel.
+* When Expanding 2 to 3 bits, 00=000, 01=010, 10=101, 11=111
+** The U/V bits will be filled with 0x6969
+* For the Alpha Block Plane, the block will be normalized as 4x4x2.
+
+The block hash will be defined as:
+* v1=(v<<5)^(v>>31);
+* v1=(v1<<3)^(v1>>17);
+* v1=(v1<<1)^(v1>>11);
+* h=(v1^(v1>>7))&63;
+
+The block-bits and hash will effectively give the location in the lookup table.
+
+
+
 
 Tag Stream:
 * 00iiiiii
@@ -125,11 +153,11 @@ Tag Stream:
 
 
 Gradients:
-* 0: Left-Right Rise (0123-0123-0123-0123)
-* 1: Left-Right Fall (3210-3210-3210-3210)
-* 2: Top-Bottom Rise (0000-1111-2222-3333)
-* 3: Left-Right Fall (3333-2222-1111-0000)
-* 4: Top-Left Lower-Right Rise (0011-0122-1223-1233)
-* 5: Top-Left Lower-Right Fall (3322-3211-2110-2100)
-* 6: Lower-Left Top-Right Rise (1233-1223=0122-0011)
-* 7: Lower-Left Top-Right Fall (3322-3211-2110-2100)
+* 0: Horizontal Rise (0123-0123-0123-0123)
+* 1: Horizontal Fall (3210-3210-3210-3210)
+* 2: Verical Rise (0000-1111-2222-3333)
+* 3: Vertical Fall (3333-2222-1111-0000)
+* 4: Diagonal Top-Left Lower-Right Rise (0011-0122-1223-1233)
+* 5: Diagonal Top-Left Lower-Right Fall (3322-3211-2110-2100)
+* 6: Diagonal Lower-Left Top-Right Rise (1233-1223=0122-0011)
+* 7: Diagonal Lower-Left Top-Right Fall (3322-3211-2110-2100)

@@ -111,24 +111,56 @@ byte *LCIF_DecColorPlane(byte *outbuf, byte *inbuf, int xs, int ys)
 		if(k<48)
 		{
 			k++;
+#ifdef LCIF_CASTDEREF
+// #if 0
+			l=cr|(cg<<8)|(cb<<16)|(ca<<24);
+			while(k>=4)
+			{
+				((u32 *)ct)[0]=l;
+				((u32 *)ct)[1]=l;
+				((u32 *)ct)[2]=l;
+				((u32 *)ct)[3]=l;
+				k-=4;
+				ct+=16;
+			}
+			while(k--)
+			{
+				*(u32 *)ct=l;
+				ct+=4;
+			}
+#else
 			while(k--)
 			{
 				ct[0]=cr;	ct[1]=cg;
 				ct[2]=cb;	ct[3]=ca;
 				ct+=4;
 			}
+#endif
 			continue;
 		}
 		
 		if(j==0xFD)
 		{
 			k=64;
+#ifdef LCIF_CASTDEREF
+// #if 0
+			l=cr|(cg<<8)|(cb<<16)|(ca<<24);
+			while(k>0)
+			{
+				((u32 *)ct)[0]=l;
+				((u32 *)ct)[1]=l;
+				((u32 *)ct)[2]=l;
+				((u32 *)ct)[3]=l;
+				k-=4;	ct+=16;
+			}
+#else
 			while(k--)
 			{
 				ct[0]=cr;	ct[1]=cg;
 				ct[2]=cb;	ct[3]=ca;
 				ct+=4;
 			}
+#endif
 			continue;
 		}
 		
@@ -338,6 +370,7 @@ u32 LCIF_HashBuffer(byte *buf, int sz)
 	return(v);
 }
 
+#if 0
 int LCIF_UnpackLz4(byte *dst, byte *src, int dsz, int ssz)
 {
 	byte *ct, *cte, *cs, *cse;
@@ -403,6 +436,7 @@ int LCIF_UnpackLz4(byte *dst, byte *src, int dsz, int ssz)
 	
 	return(cs-src);
 }
+#endif
 
 u64 LCIF_ExpandCell_2x2x2(int v0)
 {
@@ -450,6 +484,8 @@ u64 LCIF_ExpandCell_4x4x1(int v0)
 
 static u16 lcif_exptab_4x4x2[256];
 static u64 lcif_pattab_2x2x2[256];
+static u64 lcif_pattab_fixed[256];
+
 static u64 lcif_pattab_grad[8];
 static u32 lcif_pattab_grad0[4]={
 	0x1B1B1B1B,	0x0055AAFF,
@@ -473,41 +509,99 @@ u64 LCIF_ExpandCell_4x4x2(u32 v0)
 	return(v1);
 }
 
+char lcif_pat6gen[8*4]={
+	 2,  2,  2,  2,
+	 4,  2, -2, -4,
+	 4, -1,  1, -4,
+	 4, -4,  4, -4,
+	-2, -2, -2, -2,
+	-4, -2,  2,  4,
+	-4,  1, -1,  4,
+	-4,  4, -4,  4
+};
+
+
 int LCIF_ExpandCell_Init()
 {
 	int i0, i1, i2, i3;
+	int ph0, ph1, ph2, ph3;
+	int pv0, pv1, pv2, pv3;
+	int p0, p1, p2, p3;
+	u32 px;
 //	int cr, cg, cb, ca, qoli;
 //	int n, ml, md;
 	int i, j, k, l, h;
 
-	if(!lcif_exptab_4x4x2[255])
-	{
-		for(i=0; i<256; i++)
-		{
-			i0=(i>>6)&3;	i1=(i>>4)&3;
-			i2=(i>>2)&3;	i3=(i>>0)&3;
-			i0=(i0<<1)|(i0>>1);
-			i1=(i1<<1)|(i1>>1);
-			i2=(i2<<1)|(i2>>1);
-			i3=(i3<<1)|(i3>>1);
-			j=(i0<<9)|(i1<<6)|(i2<<3)|i3;
-			lcif_exptab_4x4x2[i]=j;
-		}
+	if(lcif_exptab_4x4x2[255])
+		return(0);
 
-		for(i=0; i<256; i++)
-		{
-			lcif_pattab_2x2x2[i]=LCIF_ExpandCell_2x2x2(i);
-		}
-		
-		lcif_pattab_grad[0]=LCIF_ExpandCell_4x4x2( lcif_pattab_grad0[0]);
-		lcif_pattab_grad[1]=LCIF_ExpandCell_4x4x2(~lcif_pattab_grad0[0]);
-		lcif_pattab_grad[2]=LCIF_ExpandCell_4x4x2( lcif_pattab_grad0[1]);
-		lcif_pattab_grad[3]=LCIF_ExpandCell_4x4x2(~lcif_pattab_grad0[1]);
-		lcif_pattab_grad[4]=LCIF_ExpandCell_4x4x2( lcif_pattab_grad0[2]);
-		lcif_pattab_grad[5]=LCIF_ExpandCell_4x4x2(~lcif_pattab_grad0[2]);
-		lcif_pattab_grad[6]=LCIF_ExpandCell_4x4x2( lcif_pattab_grad0[3]);
-		lcif_pattab_grad[7]=LCIF_ExpandCell_4x4x2(~lcif_pattab_grad0[3]);
+	for(i=0; i<256; i++)
+	{
+		i0=(i>>6)&3;	i1=(i>>4)&3;
+		i2=(i>>2)&3;	i3=(i>>0)&3;
+		i0=(i0<<1)|(i0>>1);
+		i1=(i1<<1)|(i1>>1);
+		i2=(i2<<1)|(i2>>1);
+		i3=(i3<<1)|(i3>>1);
+		j=(i0<<9)|(i1<<6)|(i2<<3)|i3;
+		lcif_exptab_4x4x2[i]=j;
 	}
+
+	for(i=0; i<256; i++)
+	{
+		lcif_pattab_2x2x2[i]=LCIF_ExpandCell_2x2x2(i);
+	}
+	
+	lcif_pattab_grad[0]=LCIF_ExpandCell_4x4x2( lcif_pattab_grad0[0]);
+	lcif_pattab_grad[1]=LCIF_ExpandCell_4x4x2(~lcif_pattab_grad0[0]);
+	lcif_pattab_grad[2]=LCIF_ExpandCell_4x4x2( lcif_pattab_grad0[1]);
+	lcif_pattab_grad[3]=LCIF_ExpandCell_4x4x2(~lcif_pattab_grad0[1]);
+	lcif_pattab_grad[4]=LCIF_ExpandCell_4x4x2( lcif_pattab_grad0[2]);
+	lcif_pattab_grad[5]=LCIF_ExpandCell_4x4x2(~lcif_pattab_grad0[2]);
+	lcif_pattab_grad[6]=LCIF_ExpandCell_4x4x2( lcif_pattab_grad0[3]);
+	lcif_pattab_grad[7]=LCIF_ExpandCell_4x4x2(~lcif_pattab_grad0[3]);
+
+	for(i0=0; i0<8; i0++)
+		for(i1=0; i1<8; i1++)
+	{
+		ph0=lcif_pat6gen[i1*4+0];
+		ph1=lcif_pat6gen[i1*4+1];
+		ph2=lcif_pat6gen[i1*4+2];
+		ph3=lcif_pat6gen[i1*4+3];
+
+		pv0=lcif_pat6gen[i0*4+0];
+		pv1=lcif_pat6gen[i0*4+1];
+		pv2=lcif_pat6gen[i0*4+2];
+		pv3=lcif_pat6gen[i0*4+3];
+	
+		px=0;
+		p0=ph0+pv0;		p1=ph1+pv0;
+		p2=ph2+pv0;		p3=ph3+pv0;
+		if(p0>=0)px|=0x0001;
+		if(p1>=0)px|=0x0002;
+		if(p2>=0)px|=0x0004;
+		if(p3>=0)px|=0x0008;
+		p0=ph0+pv1;		p1=ph1+pv1;
+		p2=ph2+pv1;		p3=ph3+pv1;
+		if(p0>=0)px|=0x0010;
+		if(p1>=0)px|=0x0020;
+		if(p2>=0)px|=0x0040;
+		if(p3>=0)px|=0x0080;
+		p0=ph0+pv2;		p1=ph1+pv2;
+		p2=ph2+pv2;		p3=ph3+pv2;
+		if(p0>=0)px|=0x0100;
+		if(p1>=0)px|=0x0200;
+		if(p2>=0)px|=0x0400;
+		if(p3>=0)px|=0x0800;
+		p0=ph0+pv3;		p1=ph1+pv3;
+		p2=ph2+pv3;		p3=ph3+pv3;
+		if(p0>=0)px|=0x1000;
+		if(p1>=0)px|=0x2000;
+		if(p2>=0)px|=0x4000;
+		if(p3>=0)px|=0x8000;
+		lcif_pattab_fixed[i0*8+i1]=LCIF_ExpandCell_4x4x1(px);
+	}
+	return(0);
 }
 
 byte *LCIF_DecBlockPlane(u64 *outbuf, byte *inbuf, int xs, int ys)
@@ -540,6 +634,12 @@ byte *LCIF_DecBlockPlane(u64 *outbuf, byte *inbuf, int xs, int ys)
 		if(i==0)
 		{
 			*ct++=blktab[j&63];
+			continue;
+		}
+
+		if(i==1)
+		{
+			*ct++=lcif_pattab_fixed[j&63];
 			continue;
 		}
 
@@ -693,6 +793,7 @@ int LCIF_UnpackCellBlockPixels(byte *dst, int xstr,
 	u32 px;
 	int cy0, cu0, cv0, cy1, cu1, cv1;
 	int cr0, cg0, cb0, cr1, cg1, cb1;
+	int cu2, cv2;
 	int cy, cu, cv;
 	int cr, cg, cb;
 	int i, j, k, x, y;
@@ -700,17 +801,37 @@ int LCIF_UnpackCellBlockPixels(byte *dst, int xstr,
 	if(!blk)
 	{
 		cy0=yuv0[0];	cu0=yuv0[1];	cv0=yuv0[2];
-		cy1=yuv1[0];	cu1=yuv1[1];	cv1=yuv1[2];
-		cy0=(cy0+cy1)>>1;	cu0=(cu0+cu1)>>1;	cv0=(cv0+cv1)>>1;
-		
+//		cy1=yuv1[0];	cu1=yuv1[1];	cv1=yuv1[2];
+//		cy0=(cy0+cy1)>>1;	cu0=(cu0+cu1)>>1;	cv0=(cv0+cv1)>>1;
+
+#if 0
 		cb0=((cu0-128)<<1)+cy0;
 		cr0=((cv0-128)<<1)+cy0;
 //		cg0=(cy0*4-cr0-cb0)>>1;
 		cg0=((cy0<<4)-5*cr0-3*cb0)>>3;
-		
+//		cg0=cy0;
+#endif
+
+		cu2=(cu0-128)<<1;
+		cv2=(cv0-128)<<1;
+		cb0=cu2+cy0;
+		cr0=cv2+cy0;
+		cg0=(8*cy0-5*cv2-3*cu2)>>3;
+
 		px=0xFF000000|(cr0<<16)|(cg0<<8)|cb0;
 		
 		ct=(u32 *)dst;
+
+		ct[0]=px;	ct[1]=px;	ct[2]=px;	ct[3]=px;
+		ct+=xstr;
+		ct[0]=px;	ct[1]=px;	ct[2]=px;	ct[3]=px;
+		ct+=xstr;
+		ct[0]=px;	ct[1]=px;	ct[2]=px;	ct[3]=px;
+		ct+=xstr;
+		ct[0]=px;	ct[1]=px;	ct[2]=px;	ct[3]=px;
+//		ct+=xstr;
+
+#if 0
 		for(y=0; y<4; y++)
 		{
 			ct[0]=px;
@@ -719,6 +840,7 @@ int LCIF_UnpackCellBlockPixels(byte *dst, int xstr,
 			ct[3]=px;
 			ct+=xstr;
 		}
+#endif
 		
 		return(0);
 	}
@@ -730,59 +852,66 @@ int LCIF_UnpackCellBlockPixels(byte *dst, int xstr,
 		
 		cb0=((cu0-128)<<1)+cy0;
 		cr0=((cv0-128)<<1)+cy0;
-//		cg0=(cy0*4-cr0-cb0)>>1;
 		cg0=((cy0<<4)-5*cr0-3*cb0)>>3;
+//		cg0=cy0;
 
 		cb1=((cu1-128)<<1)+cy1;
 		cr1=((cv1-128)<<1)+cy1;
-//		cg1=(cy1*4-cr1-cb1)>>1;
 		cg1=((cy1<<4)-5*cr1-3*cb1)>>3;
-
-#if 0
-		for(i=0; i<4; i++)
-		{
-			j=(i*2+1);	k=8-j;
-			if(i==0)
-				{ j=0; k=8; }
-			if(i==3)
-				{ j=8; k=0; }
-
-			cr=(cr0*k+cr1*j)>>3;
-			cg=(cg0*k+cg1*j)>>3;
-			cb=(cb0*k+cb1*j)>>3;
-			px=0xFF000000|(cr<<16)|(cg<<8)|cb;
-			ytab[i*2+0]=px;
-			ytab[i*2+1]=px;
-		}
-#endif
+//		cg1=cy1;
 
 		px=0xFF000000|(cr0<<16)|(cg0<<8)|cb0;
-		ytab[0]=px;		ytab[1]=px;
+		ytab[0]=px;
 		px=0xFF000000|(cr1<<16)|(cg1<<8)|cb1;
-		ytab[6]=px;		ytab[7]=px;
+		ytab[3]=px;
 
 		cr=(cr0*5+cr1*3)>>3;
 		cg=(cg0*5+cg1*3)>>3;
 		cb=(cb0*5+cb1*3)>>3;
 		px=0xFF000000|(cr<<16)|(cg<<8)|cb;
-		ytab[2]=px;		ytab[3]=px;
+		ytab[1]=px;
 
 		cr=(cr0*3+cr1*5)>>3;
 		cg=(cg0*3+cg1*5)>>3;
 		cb=(cb0*3+cb1*5)>>3;
 		px=0xFF000000|(cr<<16)|(cg<<8)|cb;
-		ytab[4]=px;		ytab[5]=px;
+		ytab[2]=px;
 		
 		ct=(u32 *)dst;
+
+		i=blk>>(0*12);
+		ct[0]=ytab[(i>> 1)&3];	ct[1]=ytab[(i>> 4)&3];
+		ct[2]=ytab[(i>> 7)&3];	ct[3]=ytab[(i>>10)&3];
+		ct+=xstr;
+		i=blk>>(1*12);
+		ct[0]=ytab[(i>> 1)&3];	ct[1]=ytab[(i>> 4)&3];
+		ct[2]=ytab[(i>> 7)&3];	ct[3]=ytab[(i>>10)&3];
+		ct+=xstr;
+		i=blk>>(2*12);
+		ct[0]=ytab[(i>> 1)&3];	ct[1]=ytab[(i>> 4)&3];
+		ct[2]=ytab[(i>> 7)&3];	ct[3]=ytab[(i>>10)&3];
+		ct+=xstr;
+		i=blk>>(3*12);
+		ct[0]=ytab[(i>> 1)&3];	ct[1]=ytab[(i>> 4)&3];
+		ct[2]=ytab[(i>> 7)&3];	ct[3]=ytab[(i>>10)&3];
+//		ct+=xstr;
+
+#if 0
 		for(y=0; y<4; y++)
 		{
 			i=blk>>(y*12);
-			ct[0]=ytab[(i>>0)&7];
-			ct[1]=ytab[(i>>3)&7];
-			ct[2]=ytab[(i>>6)&7];
-			ct[3]=ytab[(i>>9)&7];
+//			ct[0]=ytab[(i>>0)&7];
+//			ct[1]=ytab[(i>>3)&7];
+//			ct[2]=ytab[(i>>6)&7];
+//			ct[3]=ytab[(i>>9)&7];
+
+			ct[0]=ytab[(i>> 1)&3];
+			ct[1]=ytab[(i>> 4)&3];
+			ct[2]=ytab[(i>> 7)&3];
+			ct[3]=ytab[(i>>10)&3];
 			ct+=xstr;
 		}
+#endif
 		
 		return(0);
 	}
@@ -791,25 +920,14 @@ int LCIF_UnpackCellBlockPixels(byte *dst, int xstr,
 	cy0=yuv0[0];	cu0=yuv0[1];	cv0=yuv0[2];
 	cy1=yuv1[0];	cu1=yuv1[1];	cv1=yuv1[2];
 
-	for(i=0; i<8; i++)
-	{
-		j=(i*2+1);	k=16-j;
-		cy=(cy0*k+cy1*j)>>4;
-		cytab[i]=cy;
-	}
 	cytab[0]=cy0;
+	cytab[1]=(13*cy0+ 3*cy1)>>4;
+	cytab[2]=(11*cy0+ 5*cy1)>>4;
+	cytab[3]=( 9*cy0+ 7*cy1)>>4;
+	cytab[4]=( 7*cy0+ 9*cy1)>>4;
+	cytab[5]=( 5*cy0+11*cy1)>>4;
+	cytab[6]=( 3*cy0+13*cy1)>>4;
 	cytab[7]=cy1;
-
-#if 0
-	for(i=0; i<4; i++)
-	{
-		j=(i*2+1);	k=8-j;
-		cu=(cu0*k+cu1*j)>>3;
-		cv=(cv0*k+cv1*j)>>3;
-		cutab[i]=cu;
-		cvtab[i]=cv;
-	}
-#endif
 
 	cutab[0]=cu0;
 	cvtab[0]=cv0;
@@ -833,23 +951,19 @@ int LCIF_UnpackCellBlockPixels(byte *dst, int xstr,
 			cu=cutab[(j>>(x&2))&3];
 			cv=cvtab[(k>>(x&2))&3];
 
-//			cu=128;
-//			cv=128;
-			
+#if 0			
 			cb=((cu-128)<<1)+cy;
 			cr=((cv-128)<<1)+cy;
 //			cg=(cy*4-cr-cb)>>1;
 			cg=((cy<<4)-5*cr-3*cb)>>3;
-
-#if 0
-			if(cr<0)cr=0;
-			if(cg<0)cg=0;
-			if(cb<0)cb=0;
-
-			if(cr>255)cr=255;
-			if(cg>255)cg=255;
-			if(cb>255)cb=255;
+//			cg=cy;
 #endif
+
+			cu2=(cu-128)<<1;
+			cv2=(cv-128)<<1;
+			cb=cu2+cy;
+			cr=cv2+cy;
+			cg=(8*cy-5*cv2-3*cu2)>>3;
 
 			px=0xFF000000|(cr<<16)|(cg<<8)|cb;
 			ct[x]=px;
@@ -860,14 +974,71 @@ int LCIF_UnpackCellBlockPixels(byte *dst, int xstr,
 	return(0);
 }
 
+int LCIF_UnpackCellBlockPixelsAlpha(byte *dst, int xstr,
+	u64 blk, byte *yuv0, byte *yuv1)
+{
+	byte cytab[8];
+	byte *ct;
+	int cy0, cy1;
+	int cy;
+	int i, j, k, x, y;
+
+	if(!blk)
+	{
+		cy0=yuv0[3];
+//		cy1=yuv1[3];
+//		cy=(cy0+cy1)>>1;
+		cy=cy0;
+		
+		ct=dst;
+		for(y=0; y<4; y++)
+		{
+			ct[ 3]=cy;
+			ct[ 7]=cy;
+			ct[11]=cy;
+			ct[15]=cy;
+			ct+=xstr<<2;
+		}
+		
+		return(0);
+	}
+
+	cy0=yuv0[0];
+	cy1=yuv1[0];
+	
+	cytab[0]=cy0;
+	cytab[1]=(13*cy0+ 3*cy1)>>4;
+	cytab[2]=(11*cy0+ 5*cy1)>>4;
+	cytab[3]=( 9*cy0+ 7*cy1)>>4;
+	cytab[4]=( 7*cy0+ 9*cy1)>>4;
+	cytab[5]=( 5*cy0+11*cy1)>>4;
+	cytab[6]=( 3*cy0+13*cy1)>>4;
+	cytab[7]=cy1;
+
+	ct=dst;
+	for(y=0; y<4; y++)
+	{
+		i=blk>>(y*12);
+		ct[ 3]=cytab[(i>>0)&7];
+		ct[ 7]=cytab[(i>>3)&7];
+		ct[11]=cytab[(i>>6)&7];
+		ct[15]=cytab[(i>>9)&7];
+		ct+=xstr<<2;
+	}
+	
+	return(0);
+}
+
 int LCIF_DecImageBuffer(byte *outbuf, byte *inbuf, int *rxs, int *rys)
 {
-	byte *clrbuf;
-	u64 *blkbuf, *bcs;
+	static byte *clrbuf=NULL;
+	static u64 *blkbuf, *ablkbuf;
+	static int clrbufsz=0;
+	u64 *bcs, *abcs;
 	byte *cs, *ct, *cte, *ycs1, *ycs2;
-	int xs, ys, xs2, ys2;
-	int x, y;
-	int i, j, k, l, h;
+	int ixs, iys, xs, ys, xs2, ys2;
+	int x, y, doflip, xstr;
+	int i, j, k, l, n, h;
 	
 	if(	(inbuf[0]!='l') ||
 		(inbuf[1]!='c') ||
@@ -877,27 +1048,62 @@ int LCIF_DecImageBuffer(byte *outbuf, byte *inbuf, int *rxs, int *rys)
 		return(-1);
 	}
 
-	xs=	(inbuf[ 7]<<24) |
+	ixs=(inbuf[ 7]<<24) |
 		(inbuf[ 6]<<16) |
 		(inbuf[ 5]<< 8) |
 		(inbuf[ 4]<< 0) ;
-	ys=	(inbuf[11]<<24) |
+	iys=(inbuf[11]<<24) |
 		(inbuf[10]<<16) |
 		(inbuf[ 9]<< 8) |
 		(inbuf[ 8]<< 0) ;
+
+	xs=ixs;
+	ys=iys;
+	if(xs<0)
+		xs=-xs;
+	if(ys<0)
+		ys=-ys;
 
 	xs2=(xs+3)>>2;
 	ys2=(ys+3)>>2;
 
 	if(!outbuf)
 	{
-		if(*rxs)	*rxs=xs;
-		if(*rys)	*rys=ys;
+		if(rxs)		*rxs=ixs;
+		if(rys)		*rys=iys;
 		return(1);	
 	}
 
-	clrbuf=malloc((xs2*ys2+256)*2*4);
-	blkbuf=malloc((xs2*ys2+256)*8);
+	doflip=0;
+	if(rys && (*rys)==(-ys))
+		doflip=1;
+
+	n=xs2*ys2;
+	
+	if(clrbuf && (n>clrbufsz))
+	{
+		free(clrbuf);
+		free(blkbuf);
+		if(ablkbuf)
+			free(blkbuf);
+		clrbuf=NULL;
+		blkbuf=NULL;
+		ablkbuf=NULL;
+	}
+
+	if(!clrbuf)
+	{
+		clrbuf=malloc((xs2*ys2+256)*2*4);
+		blkbuf=malloc((xs2*ys2+256)*8);
+		ablkbuf=NULL;
+		if(inbuf[12]==4)
+			ablkbuf=malloc((xs2*ys2+256)*8);
+		clrbufsz=n;
+	}else
+	{
+		if((inbuf[12]==4) && !ablkbuf)
+			{ ablkbuf=malloc((clrbufsz+256)*8); }
+	}
 
 	cs=inbuf+16;
 	cs=LCIF_DecColorPlane(clrbuf, cs, xs2, ys2*2);
@@ -913,6 +1119,20 @@ int LCIF_DecImageBuffer(byte *outbuf, byte *inbuf, int *rxs, int *rys)
 	
 	cs=LCIF_DecBlockPlane(blkbuf, cs, xs2, ys2);
 
+	if((cs[0]!=0) || (cs[1]!=0))
+	{
+		printf("Expect 00 00 following Block Plane, See %02X %02X\n",
+			cs[0], cs[1]);
+	}else
+	{
+		cs+=2;
+	}
+
+	if(ablkbuf)
+	{
+		cs=LCIF_DecBlockPlane(ablkbuf, cs, xs2, ys2);
+	}
+
 #if 0
 	printf("Dec Hash Color Plane %08X\n",
 		LCIF_HashBuffer((byte *)clrbuf, xs2*ys2*2*4));
@@ -922,25 +1142,45 @@ int LCIF_DecImageBuffer(byte *outbuf, byte *inbuf, int *rxs, int *rys)
 	BTIC1H_Img_SaveTGA("lciftst_deccplane.tga", clrbuf, xs2, ys2*2);
 #endif
 
+	xstr=xs;
+	if(doflip)
+		xstr=-xs;
+
+	abcs=NULL;
 	for(y=0; y<ys2; y++)
 	{
 		ct=outbuf+y*4*xs*4;
 		ycs1=clrbuf+(y*2+0)*xs2*4;
 		ycs2=clrbuf+(y*2+1)*xs2*4;
 		bcs=blkbuf+y*xs2;
+		if(doflip)
+			ct=outbuf+(ys-y*4-1)*xs*4;
+		if(ablkbuf)
+			abcs=ablkbuf+y*xs2;
+		
 		for(x=0; x<xs2; x++)
 		{
 			LCIF_UnpackCellBlockPixels(
-				ct+(x<<4), xs,
+				ct+(x<<4), xstr,
 				bcs[x],
 				ycs1+(x<<2), ycs2+(x<<2));
+
+			if(abcs)
+			{
+				LCIF_UnpackCellBlockPixelsAlpha(
+					ct+(x<<4), xstr,
+					abcs[x],
+					ycs1+(x<<2), ycs2+(x<<2));
+			}
 		}
 	}
+
+//	free(clrbuf);
+//	free(blkbuf);
+//	if(ablkbuf)
+//		free(blkbuf);
 	
-	free(clrbuf);
-	free(blkbuf);
-	
-	if(*rxs)	*rxs=xs;
-	if(*rys)	*rys=ys;
+	if(rxs)	*rxs=ixs;
+	if(rys)	*rys=iys;
 	return(1);
 }

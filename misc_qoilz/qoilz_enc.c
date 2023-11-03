@@ -215,7 +215,7 @@ int QOILZ_CheckMatchLossy(
 	int v0, v1, v2, v3;
 	int i, j, k, nl4, errt, errth, errtq;
 	
-	if(cs1==cs2)
+	if(str1==str2)
 		return(0);
 
 	dr=str1[0]^str2[0];

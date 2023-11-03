@@ -497,6 +497,7 @@ int LCIF_EncodeAdjustYuvRange(int *rcy, int *rcu, int *rcv)
 	cb=((cu-128)<<1)+cy;
 	cr=((cv-128)<<1)+cy;
 	cg=((cy<<4)-5*cr-3*cb)>>3;
+//	cg=cy;
 	rt=0;
 	
 	while(
@@ -515,6 +516,7 @@ int LCIF_EncodeAdjustYuvRange(int *rcy, int *rcu, int *rcv)
 		cb=((cu-128)<<1)+cy;
 		cr=((cv-128)<<1)+cy;
 		cg=((cy<<4)-5*cr-3*cb)>>3;
+//		cg=cy;
 		rt=1;
 	}
 	
@@ -581,6 +583,7 @@ int LCIF_EncodeCellBlockPixels(byte *pix, int xstr,
 		cr=pix[k+2];
 		
 		cy=(8*cg+5*cr+3*cb)>>4;
+//		cy=cg;
 		cu=((cb-cy)>>1)+128;
 		cv=((cr-cy)>>1)+128;
 		
@@ -919,7 +922,7 @@ int LCIF_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int flags)
 
 	LCIF_EncodeQuantizeColorPlane(clrbuf, blkbuf, xs2, ys2, errt);
 
-	BTIC1H_Img_SaveTGA("lciftst_enccplane.tga", clrbuf, xs2, ys2*2);
+//	BTIC1H_Img_SaveTGA("lciftst_enccplane.tga", clrbuf, xs2, ys2*2);
 
 	ctr0=ct;
 	ct=LCIF_EncodeColorPlane(ct, clrbuf, xs2, ys2*2);
@@ -930,7 +933,8 @@ int LCIF_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int flags)
 	ct=LCIF_EncodeBlockPlane(ct, blkbuf, xs2, ys2);
 	*ct++=0x00;
 	*ct++=0x00;
-	
+
+#if 0
 	printf("Color Plane %d\n", ctr1-ctr0);
 	printf("Block Plane %d\n", ct-ctr1);
 
@@ -940,6 +944,7 @@ int LCIF_EncodeImageBuffer(byte *dstbuf, byte *img, int xs, int ys, int flags)
 		LCIF_HashBuffer((byte *)blkbuf, xs2*ys2*8));
 
 	printf("Total %d\n", ct-dstbuf);
-	
+#endif
+
 	return(ct-dstbuf);
 }
