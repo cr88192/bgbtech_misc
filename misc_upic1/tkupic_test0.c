@@ -282,7 +282,8 @@ int main(int argc, char *argv[])
 		
 		ectx=&t_ectx;
 		
-		cbuf=malloc(1<<20);
+//		cbuf=malloc(1<<24);
+		cbuf=malloc(1024+xs*ys*6);
 
 		sz=TKuPI_EncodeImageBuffer(ectx, cbuf, 1<<20,
 			ibuf, xs, ys, qfl);
@@ -341,7 +342,8 @@ int main(int argc, char *argv[])
 		dctx=&t_dctx;
 		ectx=&t_ectx;
 		
-		cbuf=malloc(1<<20);
+//		cbuf=malloc(1<<24);
+		cbuf=malloc(1024+xs*ys*6);
 
 		sz=TKuPI_EncodeImageBuffer(ectx, cbuf, 1<<20,
 			ibuf, xs, ys, qfl);
