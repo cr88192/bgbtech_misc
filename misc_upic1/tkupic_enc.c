@@ -597,9 +597,9 @@ void TKuPI_EncodeMacroBlock(TKuPI_EncState *ctx, byte *img, int str)
 	}
 
 	TKuPI_WriteBlockCoeffs(ctx, blk_y0, ctx->qtab_y, &(ctx->pdc_y));
-	TKuPI_WriteBlockCoeffs(ctx, blk_y1, ctx->qtab_y, &(ctx->pdc_y));
 	TKuPI_WriteBlockCoeffs(ctx, blk_y2, ctx->qtab_y, &(ctx->pdc_y));
 	TKuPI_WriteBlockCoeffs(ctx, blk_y3, ctx->qtab_y, &(ctx->pdc_y));
+	TKuPI_WriteBlockCoeffs(ctx, blk_y1, ctx->qtab_y, &(ctx->pdc_y));
 
 	if(mbf==1)
 	{
@@ -610,22 +610,22 @@ void TKuPI_EncodeMacroBlock(TKuPI_EncState *ctx, byte *img, int str)
 	if((mbf==2) || (mbf==3))
 	{
 		TKuPI_WriteBlockCoeffs(ctx, blk_u0, ctx->qtab_uv, &(ctx->pdc_u));
-		TKuPI_WriteBlockCoeffs(ctx, blk_u1, ctx->qtab_uv, &(ctx->pdc_u));
 		TKuPI_WriteBlockCoeffs(ctx, blk_u2, ctx->qtab_uv, &(ctx->pdc_u));
 		TKuPI_WriteBlockCoeffs(ctx, blk_u3, ctx->qtab_uv, &(ctx->pdc_u));
+		TKuPI_WriteBlockCoeffs(ctx, blk_u1, ctx->qtab_uv, &(ctx->pdc_u));
 
 		TKuPI_WriteBlockCoeffs(ctx, blk_v0, ctx->qtab_uv, &(ctx->pdc_v));
-		TKuPI_WriteBlockCoeffs(ctx, blk_v1, ctx->qtab_uv, &(ctx->pdc_v));
 		TKuPI_WriteBlockCoeffs(ctx, blk_v2, ctx->qtab_uv, &(ctx->pdc_v));
 		TKuPI_WriteBlockCoeffs(ctx, blk_v3, ctx->qtab_uv, &(ctx->pdc_v));
+		TKuPI_WriteBlockCoeffs(ctx, blk_v1, ctx->qtab_uv, &(ctx->pdc_v));
 	}
 	
 	if(mbf==3)
 	{
 		TKuPI_WriteBlockCoeffs(ctx, blk_a0, ctx->qtab_y, &(ctx->pdc_a));
-		TKuPI_WriteBlockCoeffs(ctx, blk_a1, ctx->qtab_y, &(ctx->pdc_a));
 		TKuPI_WriteBlockCoeffs(ctx, blk_a2, ctx->qtab_y, &(ctx->pdc_a));
 		TKuPI_WriteBlockCoeffs(ctx, blk_a3, ctx->qtab_y, &(ctx->pdc_a));
+		TKuPI_WriteBlockCoeffs(ctx, blk_a1, ctx->qtab_y, &(ctx->pdc_a));
 	}
 }
 

@@ -135,3 +135,7 @@ Macroblock Layouts:
 * 3: YUVA 4:4:4:4
 ** Y Y Y Y U U U U V V V V A A A A
 
+When there are 4 blocks of a type in a macroblock, they will be encoded in Hilbert order.
+* 0 1
+* 2 3
+* Will be encoded as 0 2 3 1

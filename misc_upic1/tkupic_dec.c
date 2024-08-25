@@ -448,9 +448,9 @@ void TKuPI_DecodeMacroBlock(TKuPI_DecState *ctx, byte *oimg, int ostr)
 	mbf=ctx->mbform;
 	
 	TKuPI_ReadBlockCoeffs(ctx, blk_y0, ctx->qtab_y, &(ctx->pdc_y));
-	TKuPI_ReadBlockCoeffs(ctx, blk_y1, ctx->qtab_y, &(ctx->pdc_y));
 	TKuPI_ReadBlockCoeffs(ctx, blk_y2, ctx->qtab_y, &(ctx->pdc_y));
 	TKuPI_ReadBlockCoeffs(ctx, blk_y3, ctx->qtab_y, &(ctx->pdc_y));
+	TKuPI_ReadBlockCoeffs(ctx, blk_y1, ctx->qtab_y, &(ctx->pdc_y));
 
 	TKuPI_TransIBH(blk_y0, blk_y0);
 	TKuPI_TransIBH(blk_y1, blk_y1);
@@ -468,14 +468,14 @@ void TKuPI_DecodeMacroBlock(TKuPI_DecState *ctx, byte *oimg, int ostr)
 	if((mbf==2) || (mbf==3))
 	{
 		TKuPI_ReadBlockCoeffs(ctx, blk_u0, ctx->qtab_uv, &(ctx->pdc_u));
-		TKuPI_ReadBlockCoeffs(ctx, blk_u1, ctx->qtab_uv, &(ctx->pdc_u));
 		TKuPI_ReadBlockCoeffs(ctx, blk_u2, ctx->qtab_uv, &(ctx->pdc_u));
 		TKuPI_ReadBlockCoeffs(ctx, blk_u3, ctx->qtab_uv, &(ctx->pdc_u));
+		TKuPI_ReadBlockCoeffs(ctx, blk_u1, ctx->qtab_uv, &(ctx->pdc_u));
 
 		TKuPI_ReadBlockCoeffs(ctx, blk_v0, ctx->qtab_uv, &(ctx->pdc_v));
-		TKuPI_ReadBlockCoeffs(ctx, blk_v1, ctx->qtab_uv, &(ctx->pdc_v));
 		TKuPI_ReadBlockCoeffs(ctx, blk_v2, ctx->qtab_uv, &(ctx->pdc_v));
 		TKuPI_ReadBlockCoeffs(ctx, blk_v3, ctx->qtab_uv, &(ctx->pdc_v));
+		TKuPI_ReadBlockCoeffs(ctx, blk_v1, ctx->qtab_uv, &(ctx->pdc_v));
 
 		TKuPI_TransIBH(blk_u0, blk_u0);
 		TKuPI_TransIBH(blk_u1, blk_u1);
@@ -491,9 +491,9 @@ void TKuPI_DecodeMacroBlock(TKuPI_DecState *ctx, byte *oimg, int ostr)
 	if(mbf==3)
 	{
 		TKuPI_ReadBlockCoeffs(ctx, blk_a0, ctx->qtab_y, &(ctx->pdc_a));
-		TKuPI_ReadBlockCoeffs(ctx, blk_a1, ctx->qtab_y, &(ctx->pdc_a));
 		TKuPI_ReadBlockCoeffs(ctx, blk_a2, ctx->qtab_y, &(ctx->pdc_a));
 		TKuPI_ReadBlockCoeffs(ctx, blk_a3, ctx->qtab_y, &(ctx->pdc_a));
+		TKuPI_ReadBlockCoeffs(ctx, blk_a1, ctx->qtab_y, &(ctx->pdc_a));
 
 		TKuPI_TransIBH(blk_a0, blk_a0);
 		TKuPI_TransIBH(blk_a1, blk_a1);
