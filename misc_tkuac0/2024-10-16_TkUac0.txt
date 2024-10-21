@@ -1,0 +1,195 @@
+TK Low Complexity Audio Codec 0
+* Use Rice coding and a Haar style transform.
+* Audio may be separately encoded in variable-length blocks.
+** Each will contain a magic and length.
+
+Sync Marker:
+* 7B 8B 6B 94 75 8A 61 9E
+* This marker is followed by header tags and then by audio blocks.
+* Effectively a FOURCC with each character followed by its inverse.
+
+Tag:
+* TWOCC
+* 16-bit length, stored as a bitwise inverse.
+* Length also includes the tag.
+
+Header Tags:
+* 'qc': Gives the master quantization table for the center channel.
+** This has 64 bytes of payload data, giving an 8 bit scale for each coefficient.
+* 'qs': Gives the master quantization table for the side channel.
+* 'hp': Gives a header
+** First 3 bytes will give the sample range in samples per second.
+** Stored as a linear 24 bit number.
+** Next Byte is Reserved.
+** Next 6 bytes will give the timestamp of this header in samples.
+
+
+Audio Block Structure:
+* Magic, 2 bytes: 'A', 'B'
+* 16-bit block length in bytes, stored inverted.
+* Payload for the 'AB' tag is an AdRice coded bitstream.
+
+Stereo Audio:
+* Will be stored with a center-side transform
+** C=(L+R)/2, S=L-R
+** Side is encoded at 1/4 the sample rate of the center channel.
+
+Audio Block Encoding:
+* Transform will work on 64-sample sub-blocks.
+* Will be encoded in groups of 4 center blocks and 1 side block.
+** This will encode 256 samples.
+
+
+Bitstream:
+* LSB First
+* AdRice+STF
+
+Rice:
+* Q Prefix
+** Consists of 0 to 8 one bits.
+* If Q<8:
+** Q prefix is terminated by a zero bit.
+** Followed by a K bit suffix (R).
+** Value is (Q SHL K) OR R
+* If Q==8:
+** No zero bit.
+** Directly followed by a raw 8 bit symbol.
+
+AdRice:
+* The K value is adapted based on Q:
+** Q=0: if(K>0) K--
+** Q>1: K++
+* Default initial K will be 4.
+
+STF:
+* Rice encodes an index into a table of symbols.
+* Each encoded symbol is swapped towards the front (lower index).
+* Next Index: I1=(I0*15)/16
+
+Initial State of the DC STF Table:
+* Symbols 00..FF in ascending order.
+
+Initial State of the AC STF Table:
+* The Z3 and R5 Bits are reordered.
+* I = Z,Z,Z,R,R,R,R,R => J = R,Z,R,Z.R,Z,R,R
+* Table at index J holds I
+
+
+Coefficients:
+* Z3R5
+** Z = 3 bit Zero Count
+** R = 5 bit Range Prefix
+* Symbols are encoded with AdRice+STF with separate DC and AC contexts.
+** The Y, U, V, and A blocks all share the same DC and AC contexts AdRice+STF.
+* The first coefficient in each 8x8 block is the DC coefficient.
+** Its value will be predicted using on the prior DC coefficient from the same channel.
+** In effect, it is encoded as a delta from the last DC coefficient.
+* The DC will be followed by the AC coefficients encoded in ZigZag order.
+** Each AC coefficient may be preceded by 0 to 7 zeroes.
+* If both Z and R are zero in an AC Coefficient
+** This will encode an End of Block.
+** The rest of the block will be filled with zeroes.
+* This symbol may be followed by 0 or more extra bits.
+** This will encode a value according to the Prefix Table.
+
+
+Prefix Table (Prefix, Extra Bits, Value Range)
+*  0..3,  0, 0000..0003
+* 04/05,  1, 0004..0007
+* 06/07,  2, 0008..000F
+* 08/09,  3, 0010..001F
+* 0A/0B,  4, 0020..003F
+* 0C/0D,  5, 0040..007F
+* 0E/0F,  6, 0080..00FF
+* 10/11,  7, 0100..01FF
+* 12/13,  8, 0200..03FF
+* 14/15,  9, 0400..07FF
+* 16/17, 10, 0800..0FFF
+* 18/19, 11, 1000..1FFF
+* 1A/1B, 12, 2000..3FFF
+* 1C/1D, 13, 4000..7FFF
+* 1E/1F, 14, 8000..FFFF
+
+Each coefficient will be scaled by the Quantization Table values, in effect it will be stored in a form where it is divided by the quantization table value.
+
+Coefficients will be encoded in ZigZag order:
+*  0  1  5  6 14 15 27 28
+*  2  4  7 13 16 26 29 42
+*  3  8 12 17 25 30 41 43
+*  9 11 18 24 31 40 44 53
+* 10 19 23 32 39 45 52 54
+* 20 22 33 38 46 51 55 60
+* 21 34 37 47 50 56 59 61
+* 35 36 48 49 57 58 62 63
+
+
+Before each group of center and side blocks will be a Tag Coefficient giving the quantization scale as a Q.4 fixed-point number. In this case, Z will be 1, with V < 0.
+
+Tag Coefficients will be encoded similar to an AC coefficient, just using the DC table context. For Tag Coefficients, the Z value will indicate a tag type, which then has an associated parameter value (V).
+
+Coefficients encoded as DC coefficients with Z=0 may be used for numerical parameters for each tag.
+
+
+Before encoding a block, some additional tags may be used.
+
+A tag Z=1 may be used to set the center and side predictors (when V > 0):
+* Will be sollowed by 4 predictors:
+** DC Center
+** DC Side
+** Spline Center
+** Spline Side
+
+These predictors will be encoded as Spline Center predictors, with a quantization scale the same as that of spline values. Following these 4 values, the encoded predictor values will replace those of the 4 predictors.
+
+
+A Tag Coefficient with Z=1 and V=0, will signal the end of a block.
+
+
+
+A Tag Coefficient with Z=2 and V>0, will be used to encode a spline for the block.
+
+The value will give a quantization scale for the group of spline samples, which will be understood as a Q.4 fixed-point scale to be multiplied with the first entry from the center channel quantization table.
+
+The spline samples will consist of 7 center samples, followed by 2 side samples. The center samples will use a center-sample predictor, and the side samples a side sample predictor. Each will be encoded in the same way as a DC coefficient, encoded as a delta from the corresponding predictor, with the predictor value being updated to the value encoded via the coefficient.
+
+When decoding the sample blocks, the 7 points will form a half-linear cubic spline which will be added to the center channel. Between any two points, a half-linear extrapolation will be used from each side, and the two extrapolated points will be interpolated.
+
+For the side channel, the two points will be linearly interpolated, with the linear interpolation added to the side-channel value.
+
+
+For Z=2 and V<0, it may encode an additional group of 4 + 1 spline parameters:
+* Center 4..6 will become 0..2 for the next spline;
+* A new set of parameters for Center 3..6 are then encoded;
+* Side 1 will become Side 0 and a new Side 1 will be encoded.
+
+
+Whenver a new bitstream block begins, the initial state of the predictors and spline parameters will be reset to zero.
+
+
+Block Haar:
+* Works in 8 element Horizontal and Vertical steps.
+* Iteratively applies the Transform (A, B) to ((A+B)/2, A-B)
+** I0, I1, I2, I3, I4, I5, I6, I7
+** J0=(I0+I1)/2, J1=(I2+I3/2), ..., J4=I0-I1, J5=I2-I3, ...
+** K0=(J0+J1)/2, ..., K2=J0-J1, ...
+** L0=(K0+K1)/2, L1=K0-K1
+** Out: L0, L1, K2, K3, J4, J5, J6, J7
+* Decoding will reverse this process:
+** B=C-(D>>1), A=C+D
+
+A linear group of 64 samples will be put into an 8x8 block in raster order and then fed through the Haar transform.
+
+
+After unpacking and running the coefficients though the inverse Haar transform, the spline will be interpolated and added to the unpacked center and side samples, with the center/side transfoorm reversed to unpack the Left and Right channels.
+
+The spline will be evaluated for each group of 4 center samples with a shared side sample. In this case, all 4 center samples will have a shared bias value. This will give 16 points between each pair of spline coefficients, corresponding to the 64 samples in each center block.
+
+In this case, the spline interpolaction will be given as:
+* J = I / 16, K = I & 15, L = 15 - K
+* P0 = ( C(J+1)*(32+K) - C(J+0)*K ) / 32
+* P1 = ( C(J+2)*(32+L) - C(J+3)*L ) / 32
+* M = 2 * J + 1
+* P = ( P0*(32-M) + P1*M ) / 32
+
+Note that P0 and P1 would only extrapolate to the midpoint of a linear interpolation, This is intentional as this form of interpolation tends to work better for audio signals than a plain linear extrapolation.
+
