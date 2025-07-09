@@ -1,0 +1,219 @@
+BTAC1C will be a hacked superset of IMA ADPCM.
+
+If used, it will reuse the RIFF WAVE format:
+* If encoded without extensions, it may use the IMA ADPCM tag (wFormatTag=0x0011).
+** In this mode, only power-of-2 fudging is used.
+** The audio data will be approx 2% shorter if decoded as normal ADPCM.
+* With extensions, it will use a different tag (wFormatTag=0x7B1C).
+
+
+=== General Block Format ===
+
+Simple Case:
+* Block coded as in IMA ADPCM (Mono)
+** init:WORD    //Initial Predictor
+** step:BYTE    //Initial Step
+** pfcn:BYTE    //0 or Predictor Function
+** data:BYTE[]  //4 bits/sample
+
+* Block coded as in IMA ADPCM (Stereo)
+** init_l:WORD  //Left Initial Predictor
+** step_l:BYTE  //Left Initial Step
+** pfcn_l:BYTE  //0 or Predictor Function
+** init_r:WORD  //Right Initial Predictor
+** step_r:BYTE  //Right Initial Step
+** intr_r:BYTE  //0 or Interpolation Data
+** data:BYTE[]  //4 bits sample, interleaved left/right
+
+* Or, As extended Joint-Stereo (BTAC1C Stereo Only)
+** init_c:WORD  //Center Initial Predictor
+** step_c:BYTE  //Center Initial Step
+** pfcn_c:BYTE  //0 or Center Predictor Function
+** init_s:WORD  //Side Initial Predictor (or Offset)
+** step_s:BYTE  //Side Initial Step (128..216)
+** pfcn_s:BYTE  //0 or Side Predictor Function
+** data:BYTE[]  //3 or 4 bits/sample
+
+Step (Right/Side):
+* 0..88: Normal ADPCM Block (Split Stereo)
+** Samples encoded at 4 bit each.
+** Split stereo will have a separate left and right channel, with both in this range.
+** Split stereo will have 1/2 the effective sample rate as Mono or J-S encoding.
+* 89: Mono Channel (Stereo Ext)
+** Only left-channel predictor state is used.
+** Audio data encodes a mono channel, which is duplicated to both.
+** Right channel initial predictor interpreted as an L/R offset.
+** May encode an interleaved left/right channel offset towards center.
+* 90..127: Reserved
+* 128..216: Joint Stereo (Stereo Ext)
+** 16 bit sample blocks, 4x 3-bit center, 4 bit side.
+*** 0..2=Center0, 3..5=Center1, 6..8=Center2, 9..11=Center3, 12..15=Side
+** Side channel will be stored at 1/4 the sample rate of the center channel.
+** The 3 bit samples will behave the same as a 4 bit sample with the LSB padded with a 0.
+* 217..255: Reserved
+
+In mono samples, BTAC1C will use the same base format as IMA ADPCM.
+* Stereo blocks or stereo extensions may not be used in Mono mode.
+
+
+BTAC1C will impose a constraint over normal ADPCM that both the storage block and logical sample block are to be power of 2 sizes.
+
+The storage block will be a power-of-2 size, but will only encode 2^N-8 samples. Every 2^(N-3) samples, there will be a missing sample. During decoding, these missing samples are to be filled in with the average of the 2 adjacent samples (or a duplicate of the prior sample for the last sample).
+
+The result will be that the recording will be slightly shorter if decoded as normal ADPCM than as BTAC1C.
+
+Example, a block will be 512 bytes, and will encode 1016 samples. A filler sample will be inserted every 128 samples for this block size.
+
+For split stereo blocks (in BTAC1C mode), similarly samples will be either doubled or averaged to make up for the 2x difference in effective sample rate. 
+
+In extended stereo mode, the block will encode 2^N-16 samples (rather than 2^N-8), as a result 16 logical pad samples are inserted per block.
+
+For split stereo blocks (in ADPCM mode), then the stereo data is at the normal sample rate (and 8 logical samples are inserted).
+
+
+BTAC1C WAVEFORMATEX
+* Constists of a normal WAVEFORMATEX
+* Followed by 2 magic bytes (0xF9, 0x03), inherited from MS IMA ADPCM.
+** Don't actually know their purpose.
+* Any additional byes will be interpreted as TLV data.
+** TWOCC('PF')
+*** 4+ 9/18/27/36 bytes, interpreted as 1-4x 9-byte predictor functions.
+*** Each consists of 8 weight bytes (signed), and a scale byte.
+*** Internally, this is converted into a fixed-point FIR filter.
+*** Weight bytes are nominally 4.4 fixed-point (-8.0 to 7.94).
+*** Scale value is a 5.3 minifloat, which is multiplied with the weights.
+
+* TWOCC(T):
+** 8L-LL TT-TT
+*** Max Length=4kB (4092 bytes of payload)
+** 9L-LL-LL-LL TT-TT
+*** Max Length=256MB
+* FOURCC(T):
+** AL-LL TT-TT-TT-TT
+*** Max Length=4kB (4092 bytes of payload)
+** BL-LL-LL-LL TT-TT-TT-TT
+*** Max Length=256MB
+
+
+=== Sample Data (Mono and Split Stereo) ===
+
+Encoded with 4 bits per sample:
+* Bits 0..3=First Sample
+* Bits 4..7=Second Sample
+
+For split stereo, audio is encoded in blocks of 32 bits:
+* 32 bits, left channel
+* 32 bits, right channel
+
+
+=== Joint Stereo ===
+
+Definitions:
+* Audio data consists of a series of 16-bit sample words
+** Each sample word is little endian.
+** 16 bit sample blocks, 4x 3-bit center, 4 bit side.
+*** 0..2=Center0, 3..5=Center1, 6..8=Center2, 9..11=Center3, 12..15=Side
+* Center=(Left+Right)/2
+* Side=Left-Center
+* Otherwise it is functionally similar to other ADPCM blocks.
+
+In joint-stereo mode, if both predictor bytes are 0, then the LSB of the center values is padded with 0. If either predictor byte is non-zero, then the LSB is padded with 1 if the other two low bits are 1.
+
+
+=== Extended Predictors ===
+
+The low 4 bits of the reserved/pfcn byte are used as a predictor:
+* 0=A (Last Sample)
+* 1=2*A-B
+* 2=(3*A-B)/2
+* 3=(5*A-B)/4
+* 4=(A+B)-(C+D)/2
+* 5=(3*(A+B)-(C+D))/4
+* 6=(5*(A+B)-(C+D))/8
+* 7=(18*A-4*B+3*C-2*D+1*E)/16
+* 8=(72*A-16*B+12*C-8*D+5*E-3*F+3*G-1*H)/64
+* 9=(76*A-17*B+10*C-7*D+5*E-4*F+4*G-3*H)/64
+* 10=(5*(A+B+C+D)-(E+F+G+H))/16
+* 11=(A+B+C+D+E+F+G+H)/8
+* 12-15=One of 4 filters given in the WAVEFORMATEX.
+
+The high 4 bits are currently reserved.
+
+
+For joint-stereo resv_c and resv_s will be used.
+* The joint-stereo case will thus have two different predictor functions.
+
+
+For stereo, pfcn_l will be used.
+* The same predictor will apply to both channels.
+
+For split-stereo and mono-stereo intr_r byte will give an interpolation hint:
+* 0=Average (average of samples)
+* 1=Even (encodes even sample values)
+* 2=Odd (encodes odd sample values)
+* 3=Even/Odd (encodes Even for Left, and Odd for Right)
+* For Split Stereo:
+** Average: Samples were averaged temporally.
+** Others: These values are stored in the respective channels.
+* For Mono Stereo:
+** Average: Samples are the average of left and right channel.
+*** Offset is used to approximate L/R split.
+** Even: Even samples encoded in series (L,R).
+** Odd: Odd samples encoded in series (L,R).
+** Even/Odd: Even/Odd samples in series (L,R).
+*** Offset was used to pull channels together.
+
+While split-stereo and mono-stereo may encode similar information, split-stereo will favor disjoint stereo (at a lower sample rate), and mono-stereo will favor higher frequency (at the expense of L/R fidelity).
+
+
+=== Full-Rate (Stereo) ===
+
+The default format for stereo in BTAC1C will be Half-Rate Stereo, where the stereo is encoded at the same bitrate as mono (or 1/2 the bitrate of normal stereo ADPCM).
+
+Alternatively, stereo may be encoded in Full-Rate mode, where it will use split-stereo blocks at the full sample rate.
+
+The primary indicator of which mode is used will be the nAvgBytesPerSec field in the WAVEFORMATEX structure in relation to nSamplesPerSec:
+	nAvgBytesPerSec==(nSamplesPerSec/2): Half-Rate
+	nAvgBytesPerSec==nSamplesPerSec: Full-Rate
+
+
+=== (Drop) Possible Ext: Sub-Range Interpolation (Mono and Mono as Stereo) ===
+
+( Tested: Generally failed, average worse quality than baseline ADPCM )
+
+Extension of BTAC1C Mono case.
+* Will be encoded using the step of 128..216.
+
+Sample data is split into 32 bit sub-blocks.
+
+Sub-Block Base:
+* Encoded as a Float8
+* S.E4.F3
+* Covers the signed 16-bit integer range.
+
+Sub-Block Range:
+* E4.F2
+* Defines a range relative to the base (interpreted as a center point).
+* Defined as high-low, rather than as high-center.
+
+Variant 1:
+* 8 bits: Sub-Block Base (relative to last sub-block)
+* 24 bits: Samples (8x 3-bit ADPCM)
+* First Sample is 0 | 4
+** First sample uses the starting value.
+** If first sample is 0:
+*** ADPCM signal is decoded relative to the base value.
+** If first sample is 4:
+*** ADPCM signal is relative to a linearly interpolated value.
+*** The value is interpolated between the last and current base value.
+*** Effectively, the base value gives the ending value.
+
+
+Variant 2:
+* 8 bits: Sub-Block Base
+* 2 bits: Tag (1|2)
+* 6 bits: Sub-Block Range
+* 16 bits: 2 bits/sample.
+** Sample interpolates between the low and high value for the range.
+** Tag=1: Range is fixed.
+** Tag=2: Range interpolates between prior and next range.

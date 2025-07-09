@@ -1,0 +1,26 @@
+Genetic Algorithms for Neural Nets experiment.
+* Tried to throw together some code for Genetic Algoritms with a focus on NN use cases.
+* The Genetic Algo still focuses mostly on mutating raw bits.
+
+Each member/individual is effectively seen as a blob of binary data, and the data is bred and mutated to try to look for a solution. Any further structuring for the data will be imposed by the test function. All members will be assumed to have the same amount of data.
+
+One of several major data formats will be used:
+* Majority of 7 (repetition code);
+* Majority of 3 (repetition code);
+* Hamming(7,4).
+
+Where:
+* Majority of 7 will encode 8 bits per 64 bit word (more redundant).
+* Majority of 3 will encode 16 bits per 64 bit word.
+* Hamming will encode 32 bits per 64 bit word (less redundant).
+
+In this case, spending extra bits on redundancy means that it will take more internal bit-flips to change each bit, but the breeding process will be more probabilistic. In this case, higher redundancy allows breeding for more desirable bit-values, and against less desirable ones. Though, this does increase RAM use and causes these parts of the process to run more slowly.
+
+
+Several FPU formats will be used here:
+* FP4: S.E2.M1 (Bias=3)
+* FP8: S.E4.M3 (Bias=7)
+* BF16: S.E8.M7 (Bias=127)
+
+In this case, the use of BF16 as the 16-bit format was driven more by the ability to more cheaply convert to/from Binary32. In many cases, S.E7.M8 or S.E5.M10 would be preferable if these exist as a natively supported format.
+
