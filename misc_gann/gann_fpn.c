@@ -31,6 +31,7 @@ byte gann_fp3to4[8]=
 
 byte gann_fp8to4[256];
 u16 gann_fp8to16[256];
+u16 gann_fp8to16xs[256];		//XOR sign
 
 u16 gann_fp16to8t[4096];
 
@@ -40,6 +41,7 @@ byte *gann_fp4mul8;
 byte *gann_fp4add8;
 
 u16 *gann_fp8mul16;
+u16 *gann_fp8add16;
 float *gann_fp8mulf;
 
 #ifdef __GNUC__
@@ -291,6 +293,8 @@ int GANN_InitFp8Tab()
 	gann_fp8add8=malloc(256*256);
 
 	gann_fp8mul16=malloc(256*256*2);
+	gann_fp8add16=malloc(256*256*2);
+
 	gann_fp8mulf=malloc(256*256*sizeof(float));
 
 	gann_fp4mul8=malloc(16*16);
@@ -309,6 +313,11 @@ int GANN_InitFp8Tab()
 			GANN_CnvFp8ToFp16I(j));
 		gann_fp8mul16[i*256+j]=k;
 		gann_fp8mulf[i*256+j]=GANN_CnvFp16ToFloat(k);
+
+		k=GANN_AddFp16I(
+			GANN_CnvFp8ToFp16I(i),
+			GANN_CnvFp8ToFp16I(j));
+		gann_fp8add16[i*256+j]=k;
 	}
 	
 	for(i=0; i<16; i++)
@@ -324,6 +333,10 @@ int GANN_InitFp8Tab()
 	{	
 		gann_fp8to4[i]=GANN_CnvFp8ToFp4I(i);
 		gann_fp8to16[i]=GANN_CnvFp8ToFp16I(i);
+
+		gann_fp8to16xs[i]=gann_fp8to16[i];
+		if(i&0x80)
+			gann_fp8to16xs[i]=GANN_CnvFp8ToFp16I(i^0x7F);
 	}
 	
 	for(i=0; i<4096; i++)
@@ -466,6 +479,124 @@ u16 GANN_WeightBit16X3A_F16A(u16 bv, u64 wv, u16 acc)
 	v=GANN_AddFp16J(v, acc);
 //	v=GANN_AddFp16I(v, acc);
 
+	return(v);
+}
+
+u16 GANN_WeightBit16X3B_F16A(u16 bv, u64 wv, u16 acc)
+{
+//	u16 wtab[8];
+	float wftab[10];
+	u32 *witab;
+	float f, g;
+	int a0, a1;
+	int i, j, k, b, w, v, v0, v1;
+	
+	if(!bv)
+		return(acc);
+
+	a0=wv>>56;
+	witab=(u32 *)wftab;
+
+	if(!(a0&0x80))
+	{
+		if(a0<(9*4))
+			return(acc);
+	
+		b=(wv>>48)&255;
+		if(b&1)
+			b=0;
+		b<<=8;
+	
+		a1=a0^0x80;
+		
+#if 1
+		witab[0]=gann_fp8add16[b+a0    ]<<16;
+		witab[1]=gann_fp8add16[b+a0-1*4]<<16;
+		witab[2]=gann_fp8add16[b+a0-9*4]<<16;
+		witab[3]=gann_fp8add16[b+a0-3*4]<<16;
+		witab[4]=gann_fp8add16[b+a1    ]<<16;
+		witab[5]=gann_fp8add16[b+a1-1*4]<<16;
+		witab[6]=gann_fp8add16[b+a1-9*4]<<16;
+		witab[7]=gann_fp8add16[b+a1-3*4]<<16;
+#endif
+
+#if 0
+		witab[0]=gann_fp8add16[b+a0    ]<<16;
+		witab[1]=gann_fp8add16[b+a0-1*4]<<16;
+		witab[2]=gann_fp8add16[b+a0-3*4]<<16;
+		witab[3]=gann_fp8add16[b+a0-9*4]<<16;
+		witab[4]=gann_fp8add16[b+a1-9*4]<<16;
+		witab[5]=gann_fp8add16[b+a1-3*4]<<16;
+		witab[6]=gann_fp8add16[b+a1-1*4]<<16;
+		witab[7]=gann_fp8add16[b+a1    ]<<16;
+#endif
+
+#if 0
+		wtab[0]=gann_fp8add16[b+a0    ];
+		wtab[1]=gann_fp8add16[b+a0-1*4];
+		wtab[2]=gann_fp8add16[b+a0-3*4];
+		wtab[3]=gann_fp8add16[b+a0-9*4];
+		wtab[4]=gann_fp8add16[b+a1-9*4];
+		wtab[5]=gann_fp8add16[b+a1-3*4];
+		wtab[6]=gann_fp8add16[b+a1-1*4];
+		wtab[7]=gann_fp8add16[b+a1    ];
+#endif
+	}else
+	{
+		witab[0]=0;	witab[1]=0;
+		witab[2]=0;	witab[3]=0;
+		witab[4]=0;	witab[5]=0;
+		witab[6]=0;	witab[7]=0;
+
+#if 0
+		a0=(sbyte)(wv>>48);
+		a1=(sbyte)(wv>>56);
+		
+//		a0=~a1;
+		
+		wtab[0]=a0;
+		wtab[1]=(a0*15+a1* 1)>>4;
+		wtab[2]=(a0*12+a1* 3)>>4;
+		wtab[3]=(a0* 9+a1* 6)>>4;
+		wtab[4]=(a0* 6+a1* 9)>>4;
+		wtab[5]=(a0* 3+a1*12)>>4;
+		wtab[6]=(a0* 1+a1*15)>>4;
+		wtab[7]=a1;
+#endif
+	}
+	
+	witab[8]=0;
+
+//	v=acc;
+	*(u32 *)(&f)=((u32)acc)<<16;
+	for(i=0; i<16; i++)
+	{
+		b=(bv>>i)&1;
+		j=(wv>>(i*3))&7;
+		
+		j=(j&(-b))|((b<<3)^8);
+		f+=wftab[j];
+
+#if 0
+		if(b)
+		{
+			f+=wftab[j];
+		}
+#endif
+		
+#if 0
+		w=wtab[(wv>>(i*3))&7];
+		if(b)
+		{
+			v=w;
+//			v=gann_fp8to16xs[w];
+//			v=gann_fp8to16[w];
+			v=GANN_AddFp16J(v, acc);
+		}
+#endif
+	}
+
+	v=(*(u32 *)(&f))>>16;
 	return(v);
 }
 
@@ -626,9 +757,10 @@ u64 GANN_WeakenBit8X7(u64 wv)
 	vc=0;
 	for(i=0; i<8; i++)
 	{
-		v1=(wv>>(i*7))&127;
+		v1=(wv>>(i*7))&0x7E;
 		if(v1&0x3F)
 			v1--;
+		v1&=0x7E;
 		vc|=((u64)v1)<<(i*7);
 	}
 
@@ -640,4 +772,104 @@ u64 GANN_WeakenBit8X7(u64 wv)
 	vc=(vc&(~0x0081))|(wv&0x0081);
 
 	return(vc);
+}
+
+u64 GANN_AdjustInertiaVec8x7A(u64 wv0, u64 wv1)
+{
+	u64 wv2;
+	int v0, v1, v2;
+	int i, j, k;
+
+	wv2=0;
+	for(i=0; i<8; i++)
+	{
+		v0=(wv0>>(i*7))&0x7E;
+		v1=(wv1>>(i*7))&0x7E;
+//		v2=2*v0-v1;
+//		v2=3*v0-2*v1;
+		v2=5*v0-4*v1;
+		if((v2==v0) && (v1!=v0))
+			v2=2*v0-v1;
+		if((v2^v0)&(~0x3F))
+		{
+			v2=v0;
+			if((v0>=0x20) || (v1>=0x20))
+				break;
+		}
+		wv2|=((u64)v2)<<(i*7);
+	}
+	
+	if(i<8)
+		return(wv0);
+	
+	i=7;
+
+	v0=(wv0>>(i*8))&255;
+	v1=(wv1>>(i*8))&255;
+//	v2=2*v0-v1;
+//	v2=3*v0-2*v1;
+	v2=5*v0-4*v1;
+	if((v2==v0) && (v1!=v0))
+		v2=2*v0-v1;
+	if((v2^v0)&(~0x7F))
+	{
+		v2=v0;
+		if((v0>=0x40) || (v1>=0x40))
+			return(wv0);
+	}
+	wv2|=((u64)v2)<<(i*8);
+
+	wv2=(wv2&(~0x0081))|(wv0&0x0081);
+	return(wv2);
+}
+
+u64 GANN_AdjustInertiaVec8x8(u64 wv0, u64 wv1)
+{
+	u64 wv2;
+	int v0, v1, v2;
+	int i, j, k;
+
+	if(wv0==wv1)
+		return(wv0);
+
+	if(	!(wv0&0x0002040810204000ULL) &&
+		!(wv1&0x0002040810204000ULL))
+	{
+		wv2=GANN_AdjustInertiaVec8x7A(wv0, wv1);
+		return(wv2);
+	}
+
+//	for(i=0; i<8; i++)
+//	{
+//		v0=(wv0>>(i*8))&255;
+//		v1=(wv1>>(i*8))&255;
+//	}
+	
+	wv2=0;
+	for(i=0; i<8; i++)
+	{
+		v0=(wv0>>(i*8))&255;
+		v1=(wv1>>(i*8))&255;
+//		v2=2*v0-v1;
+//		v2=3*v0-2*v1;
+		v2=5*v0-4*v1;
+		if((v2==v0) && (v1!=v0))
+			v2=2*v0-v1;
+
+		if((v2^v0)&(~0x7F))
+		{
+			v2=v0;
+			if((v0>=0x40) || (v1>=0x40))
+				break;
+		}
+		wv2|=((u64)v2)<<(i*8);
+	}
+	
+	if(i<8)
+	{
+		wv2=GANN_AdjustInertiaVec8x7A(wv0, wv1);
+		return(wv2);
+	}
+	
+	return(wv2);
 }

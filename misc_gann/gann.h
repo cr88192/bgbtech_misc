@@ -1,6 +1,7 @@
 #define GANN_MODE_MAJ7		0		//majority of 7
 #define GANN_MODE_MAJ3		1		//majority of 3
 #define GANN_MODE_HAMM		2		//hamming
+#define GANN_MODE_RAWBYTE	3		//raw bytes
 
 typedef unsigned char			byte;
 typedef unsigned short		u16;
@@ -42,11 +43,19 @@ int flag;
 
 u16 brseq;
 
+s64 trend1;
+s64 trend2;
+s64 trend3;
+s64 trend4;
+
 //u64 wv0;
 //u64 wv1;
 //int pen;
 
 int mstat_sk[8];
+
+int skrank[16];
+byte skatab[64];
 
 int (*TestMember)(GANN_Context *ctx, GANN_Member *mm);
 };
@@ -55,3 +64,6 @@ int (*TestMember)(GANN_Context *ctx, GANN_Member *mm);
 byte GANN_Maj64to8(u64 maj);
 u16 GANN_Rand16();
 u64 GANN_Rand64();
+
+u16 GANN_Rand16B();
+u64 GANN_Rand64B();

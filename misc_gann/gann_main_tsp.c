@@ -248,8 +248,8 @@ int main(int argc, char *argv[])
 	if(szme<(bxid*8))
 		{ __debugbreak(); }
 	
-//	is16b=GANN_MODE_MAJ7;
-	is16b=GANN_MODE_MAJ3;
+	is16b=GANN_MODE_MAJ7;
+//	is16b=GANN_MODE_MAJ3;
 //	is16b=GANN_MODE_HAMM;
 //	szme=1<<14;
 //	szme=1<<22;

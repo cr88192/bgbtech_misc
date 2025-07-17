@@ -31,6 +31,9 @@ u64 gann_seed2;
 u64 gann_seed3;
 u64 gann_seed4;
 
+u64 gann_seed1b;
+u64 gann_seed2b;
+
 byte GANN_Ham7to4I(byte val)
 {
 	byte d1, d2, d3, d4;
@@ -75,6 +78,9 @@ int GANN_InitMaj()
 
 	for(i=0; i<128; i++)
 		GANN_Rand16();
+
+	gann_seed1b=gann_seed1^gann_seed2;
+	gann_seed2b=gann_seed2^gann_seed3;
 
 	for(i=0; i<128; i++)
 	{
@@ -156,7 +162,8 @@ int GANN_InitMaj()
 			if(l==0) k=3;
 			if(l==1) k=5;
 			if(l==2) k=4;
-			if(l==3) k=3;
+//			if(l==3) k=3;
+			if(l==3) k=6;
 		}
 
 		if(j==0xA)
@@ -253,7 +260,8 @@ u64 GANN_ByteToMaj7(byte val)
 	int hi, lo, r;
 
 	hi=0x7F; lo=0x00;
-	r=rand();
+//	r=rand();
+	r=GANN_Rand16B();
 	v=r;
 
 	r=r&7;
@@ -281,7 +289,8 @@ u64 GANN_ByteToMaj3(byte val0, byte val1)
 	int hi, lo, r;
 
 	hi=7; lo=0;
-	r=rand();
+//	r=rand();
+	r=GANN_Rand16B();
 	v=r;
 
 	r=r&3;
@@ -365,6 +374,36 @@ u64 GANN_Rand64()
 	v=(v<<16)|GANN_Rand16();
 	v=(v<<16)|GANN_Rand16();
 	v=(v<<16)|GANN_Rand16();
+	return(v);
+}
+
+u16 GANN_Rand16B()
+{
+	u64 v;
+	gann_seed1b=(gann_seed1b<<1)^(gann_seed1b>>7);
+	gann_seed2b=(gann_seed2b<<1)^(gann_seed2b>>11);
+	gann_seed1b^=gann_seed2b>>13;
+	gann_seed2b^=gann_seed1b>>23;
+	v=gann_seed1b^gann_seed2b;
+	v^=(v>>31);
+	return(v&65535);
+}
+
+u64 GANN_Rand64B()
+{
+	u64 v;
+//	v=        GANN_Rand16B();
+//	v=(v<<16)|GANN_Rand16B();
+//	v=(v<<16)|GANN_Rand16B();
+//	v=(v<<16)|GANN_Rand16B();
+
+	gann_seed1b=(gann_seed1b<<1)^(gann_seed1b>>7);
+//	gann_seed2b=(gann_seed2b<<1)^(gann_seed2b>>11);
+	gann_seed2b=(gann_seed2b>>1)^(gann_seed2b<<41);
+	gann_seed1b^=gann_seed2b>>13;
+	gann_seed2b^=gann_seed1b>>23;
+	v=gann_seed1b^gann_seed2b;
+
 	return(v);
 }
 
@@ -534,6 +573,61 @@ u64 GANN_MutateDecr(GANN_Context *ctx, u64 va, int bit)
 	return(vc);
 }
 
+u64 GANN_MutateInertia(GANN_Context *ctx, u64 va, u64 vb)
+{
+	u64 vc, mv;
+	u32 v, v0, v1, v2, v3;
+	int fl;
+
+	fl=ctx->flag;
+
+	if(fl&2)
+	{
+		v0=GANN_Ham64to32(va);
+		v1=GANN_Ham64to32(vb);
+
+		v2=GANN_AdjustInertiaVec8x8(v0, v1);
+
+		vc=GANN_IntToHam7(v2);
+		mv=0x00FFFFFFFFFFFFFFULL;
+		vc=(vc&mv)|(va&(~mv));
+		return(vc);
+	}
+
+	if(fl&1)
+	{
+		v0=GANN_Maj64to16(va);
+		v1=GANN_Maj64to16(vb);
+
+		v2=GANN_AdjustInertiaVec8x8(v0, v1);
+
+		vc=GANN_IntToMaj3(v2);
+		v3=v0^v2;
+		mv=GANN_MutateMaskExp3X(v3);
+		vc=(vc&mv)|(va&(~mv));
+		return(vc);
+	}
+
+	v0=GANN_Maj64to8(va);
+	v1=GANN_Maj64to8(vb);
+
+//	v2=3*v0-2*v1;
+	v2=5*v0-4*v1;
+	if((v2==v0) && (v1!=v0))
+		v2=2*v0-v1;
+
+	if((v2^v0)&0x80)
+		v2=v0;
+
+//	v2=GANN_AdjustInertiaVec8x8(v0, v1);
+
+	vc=GANN_ByteToMaj7(v2);
+	v3=v0^v2;
+	mv=GANN_MutateMaskExp7X(v3);
+	vc=(vc&mv)|(va&(~mv));
+	return(vc);
+}
+
 u64 GANN_BreedBits(GANN_Context *ctx, u64 va, u64 vb, int fl)
 {
 	static u64 nobimsk = 0xFFFEE00000E00000ULL;
@@ -541,7 +635,7 @@ u64 GANN_BreedBits(GANN_Context *ctx, u64 va, u64 vb, int fl)
 	int mrw, sk, ska, nobisc;
 	int i, j, k;
 	
-	vm=GANN_Rand64();
+	vm=GANN_Rand64B();
 	vc=(va&vm)|(vb&(~vm));
 
 	mrw=(fl>>8)&255;
@@ -598,8 +692,11 @@ u64 GANN_BreedBits(GANN_Context *ctx, u64 va, u64 vb, int fl)
 	}
 #endif
 
-	if(mrw<4)
-		mrw=4;
+//	if(mrw<4)
+//		mrw=4;
+
+	if(mrw<1)
+		mrw=1;
 
 	if(fl&1)
 	{
@@ -608,7 +705,7 @@ u64 GANN_BreedBits(GANN_Context *ctx, u64 va, u64 vb, int fl)
 //		for(j=0; j<2; j++)
 		for(j=0; j<1; j++)
 		{
-			i=GANN_Rand16();
+			i=GANN_Rand16B();
 			if(i>mrw)
 				continue;
 
@@ -716,6 +813,17 @@ u64 GANN_BreedBits(GANN_Context *ctx, u64 va, u64 vb, int fl)
 				}
 				vc^=1ULL<<(i&63);
 				break;
+
+			case 6:
+				/* 25% inertia */
+				k=(i>>6)&3;
+				if(k==0)
+				{
+					vc=GANN_MutateInertia(ctx, va, vb);
+					break;
+				}
+				vc^=1ULL<<(i&63);
+				break;
 			}
 		}
 	}
@@ -723,13 +831,41 @@ u64 GANN_BreedBits(GANN_Context *ctx, u64 va, u64 vb, int fl)
 	return(vc);
 }
 
+int GANN_RotateVecLf(u64 *ptrs, int ix, int n)
+{
+	u64 pa;
+	int i;
+	
+	pa=ptrs[ix+0];
+	for(i=0; i<n; i++)
+		ptrs[ix+i+0]=ptrs[ix+i+1];
+	ptrs[ix+n]=pa;
+	return(0);
+}
+
+int GANN_RotateVecRt(u64 *ptrs, int ix, int n)
+{
+	u64 pa;
+	int i;
+	
+	pa=ptrs[ix+n];
+	for(i=n; i>0; i--)
+		ptrs[ix+i+0]=ptrs[ix+i-1];
+	ptrs[ix+0]=pa;
+	return(0);
+}
+
 int GANN_BreedMember(
 	GANN_Context *ctx,
 	GANN_Member *ma, GANN_Member *mb, GANN_Member *mc,
 	int ix)
 {
+	u64 va, vb;
 	int vsz, mrm, ska, skb;
-	int i;
+	int i, j, k;
+	
+	gann_seed1b=GANN_Rand64();
+	gann_seed2b=GANN_Rand64();
 	
 //	mc->mrm=GANN_BreedBits(ma->mrm, mb->mrm, 0x5503);
 	mc->mrm=GANN_BreedBits(ctx, ma->mrm, mb->mrm, 0xBB03);
@@ -755,6 +891,84 @@ int GANN_BreedMember(
 	{
 		mc->vec[i]=GANN_BreedBits(ctx,
 			ma->vec[i], mb->vec[i], 1|(mrm<<8)|(skb<<4));
+	}
+	
+//	if((((ska>>4)&3)==1) && (vsz>2))
+//	if(((ska>>4)&1) && (vsz>2))
+	if(vsz>2)
+	{
+		j=GANN_Rand16B();
+		k=((mrm+2)*(mrm+2));
+		i=(ska>>4)&3;
+//		i=(i+1)*(i+1);	k=(k*j)>>3;
+		i=i*i;		k=(k*i)>>2;
+
+		if(j<k)
+		{
+			j=GANN_Rand16B();
+			k=(j&255);
+			k=(k*k)>>12;
+
+			i=GANN_Rand16B();
+			if(vsz>=65536)
+				i^=(GANN_Rand16B()<<8);
+			if(vsz<1024)
+				i&=4095;
+
+			k=(j&31);
+			k=(k*k)>>6;
+			while((i+(k>>1)+1)>=(vsz<<4))
+				i-=vsz<<4;
+			while((i+(k>>1)+1)>=vsz)
+				i-=vsz;
+			if(i>=0)
+			{
+				switch(k)
+				{
+				case 0:
+				case 1:
+					va=mc->vec[i+0]; vb=mc->vec[i+1];
+					mc->vec[i+0]=vb; mc->vec[i+1]=va;
+					break;
+				case 2:
+					va=mc->vec[i+0];
+					mc->vec[i+0]=mc->vec[i+1];
+					mc->vec[i+1]=mc->vec[i+2];
+					mc->vec[i+2]=va;
+					break;
+				case 3:
+					va=mc->vec[i+2];
+					mc->vec[i+2]=mc->vec[i+1];
+					mc->vec[i+1]=mc->vec[i+0];
+					mc->vec[i+0]=va;
+					break;
+				case 4:
+					va=mc->vec[i+0];
+					mc->vec[i+0]=mc->vec[i+1];
+					mc->vec[i+1]=mc->vec[i+2];
+					mc->vec[i+2]=mc->vec[i+3];
+					mc->vec[i+3]=va;
+					break;
+				case 5:
+					va=mc->vec[i+3];
+					mc->vec[i+3]=mc->vec[i+2];
+					mc->vec[i+2]=mc->vec[i+1];
+					mc->vec[i+1]=mc->vec[i+0];
+					mc->vec[i+0]=va;
+					break;
+				case 6:		GANN_RotateVecLf(mc->vec, i, 4);	break;
+				case 7:		GANN_RotateVecRt(mc->vec, i, 4);	break;
+				case 8:		GANN_RotateVecLf(mc->vec, i, 5);	break;
+				case 9:		GANN_RotateVecRt(mc->vec, i, 5);	break;
+				case 10:	GANN_RotateVecLf(mc->vec, i, 6);	break;
+				case 11:	GANN_RotateVecRt(mc->vec, i, 6);	break;
+				case 12:	GANN_RotateVecLf(mc->vec, i, 7);	break;
+				case 13:	GANN_RotateVecRt(mc->vec, i, 7);	break;
+				case 14:	GANN_RotateVecLf(mc->vec, i, 8);	break;
+				case 15:	GANN_RotateVecRt(mc->vec, i, 8);	break;
+				}
+			}
+		}
 	}
 
 	return(0);
@@ -1000,6 +1214,8 @@ GANN_Context *GANN_AllocContext(int nmemb, int szmemb, int fl)
 		ctx->marr[i]->mrm=GANN_Rand64();
 		ctx->marr[i]->brseq=ctx->brseq++;
 		
+		ctx->marr[i]->mrm&=0x0000000FFFFFFFFFULL;
+		
 		for(j=0; j<szmb; j++)
 		{
 			ctx->marr[i]->vec[j]=GANN_Rand64();
@@ -1028,10 +1244,11 @@ int GANN_TestMembers(GANN_Context *ctx)
 
 int GANN_SortMembers(GANN_Context *ctx)
 {
-	GANN_Member *mv;
+	GANN_Member *mv, *mv0;
 	int ev;
 	int i, j, k;
 
+	mv0=ctx->marr[0];
 	for(i=0; i<ctx->nmemb; i++)
 	{
 		for(j=i+1; j<ctx->nmemb; j++)
@@ -1045,6 +1262,40 @@ int GANN_SortMembers(GANN_Context *ctx)
 				ev=ctx->earr[j];
 				ctx->earr[j]=ctx->earr[i];
 				ctx->earr[i]=ev;
+			}
+		}
+	}
+
+	for(i=0; i<ctx->nmemb; i++)
+	{
+		mv=ctx->marr[i];
+
+		if(i<(ctx->nmemb>>1))
+		{
+			ctx->skrank[mv->mrmc&15]++;
+		}else
+		{
+			ctx->skrank[mv->mrmc&15]--;
+		}
+	}
+
+	if(mv0==ctx->marr[0])
+	{
+		for(i=0; i<8; i++)
+		{
+			mv=ctx->marr[i];
+			k=GANN_Maj64to16(mv->mrm);
+			if((k&255)>4)
+			{
+				k--;
+				if((k&255)<0x10)
+				{
+					k&=~0xFF00;
+				}
+				
+				mv->mrm=GANN_IntToMaj3(k);
+				mv->mrmb=(k>>0)&255;
+				mv->mrmc=(k>>8)&255;
 			}
 		}
 	}
@@ -1104,6 +1355,10 @@ int GANN_BreedMembers(GANN_Context *ctx, int keep)
 //			i0=(i0*i2)/keep;
 //			i1=(i1*i3)/keep;
 		}
+		
+		if(i0>i1)
+			{ i2=i0; i0=i1; i1=i2; }
+		
 		GANN_BreedMember(ctx,
 			ctx->marr[i0],
 			ctx->marr[i1],
