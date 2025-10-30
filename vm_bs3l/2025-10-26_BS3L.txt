@@ -1,0 +1,14 @@
+Consider a VM for another small script language.
+* Language will aim for low implementation complexity.
+* May use a syntax along similar lines to ECMAScript.
+** Though, with a fairly limited set of core features.
+
+Major features:
+* Dynamic Typing
+* Likely dynamically scoped.
+** Less code complexity in an interpreter than lexical scoping.
+** Alternatively: Global/Local (like C) or "undefined".
+** Maybe implemented as dynamic, but local vars don't match.
+* List walking interpreter with no GOTO.
+* Use dictionary objects for AST.
+
