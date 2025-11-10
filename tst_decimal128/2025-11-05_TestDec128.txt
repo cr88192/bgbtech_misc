@@ -1,0 +1,43 @@
+Decimal128 testing.
+* Idea is to compare Decimal128 as DPD;
+* Vs a non-standard format with 30-bit linear fields.
+
+Will have Decimal128 DPD.
+* And some basic math operations and similar.
+
+Also has a non-standard "X30" format.
+* X30 basically just packs 30-bit fields into the format instead.
+* Slightly faster, but non-standard.
+
+Basic format (DPD):
+* (    127): Sign Bit
+* (126:110): Combination Field
+* (109:  0): Mantissa
+
+The mantissa will contain 11x 10-bit DPD fields; each of which encodes 3 decimal digits. This gives 33 digits.
+
+The combination field encodes an exponent and an additional high order digit.
+* yy-ccc-eeee-eeee-eeee
+** ccc: Digit, 0..7
+** yy-eeee-eeee-eeee (Exponent, 0..12288, -6143..6144)
+*** 6143 gives a value between 1.0 and 1.9x.
+* 11-yyc-eeee-eeee-eeee
+** c: Digit, 8/9
+* 11-110-xxxx-xxxx-xxxx: Inf
+* 11-111-xxxx-xxxx-xxxx: NaN
+
+Each 10-bit DPD block will be encoded as:
+* aa-a-bb-b-0-cc-c:  All digits (a, b, c) are 0..7
+* aa-a-bb-b-1-00-c:  (0..7), (0..7), (8/9)
+* aa-a-cc-b-1-01-c:  (0..7), (8/9), (0..7)
+* cc-a-bb-b-1-10-c:  (8/9), (0..7), (0..7)
+* cc-a-00-b-1-11-c:  (8/9), (8/9), (0..7)
+* bb-a-01-b-1-11-c:  (8/9), (0..7), (8/9)
+* aa-a-10-b-1-11-c:  (0..7), (8/9), (8/9)
+* xx-a-11-b-1-11-c:  (8/9), (8/9), (8/9)
+** These will be mapped to linear values between 0 and 999.
+
+Each group of 3 DPD blocks will be mapped to 0000000000..999999999 as a linear 32-bit value representing 9 digits. Except for the higher 20 bit segment which will represent 6 digits, which combines with the high digit from the combination field, representing 7 digits.
+
+The X30 format will have the same basic layout, except that the 30 and 20 bit fields will be stored directly (without any DPD encoding step).
+
