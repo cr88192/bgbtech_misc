@@ -89,7 +89,7 @@ Delta Endpoints:
 *** Dv5=(dCr*9)+(dCg*3)+dCb;
 *** Valid range is 00..1A
 ** Conjoined Only:
-*** 1B: Linear Extrapolation
+*** 1B: Linear Extrapolation (N/A, BT5B-U)
 **** Extrapolate based on the last 2 endpoints.
 **** Crgb = 2*Crgb1 - Crgb2
 ** Endpoint Pair Only:
@@ -114,6 +114,17 @@ A delta endpoint may be used when the block endpoints are similar to the prior e
 
 The interpretation of a delta endpoint will depend on the mode from the prior endpoint. If a conjoined endpoint, the delta will apply to the center value (with A and B being recalculated). If an endpoint pair, the delta may be applied to each color in the pair (Dy is ignored).
 
+In BT5B-U, color endpoint ordering may be used to encode transparency.
+* If ca<cb: Transparency is present.
+* Else: No transparency present (opaque).
+
+
+Notes:
+* Conjoined endpoints are always opaque.
+* 2x2x1, 4x4x1, and pattern blocks are always opaque.
+* For flat color runs, p=1 is transparent if using transparent endpoints.
+* Deltas will preserve the previous status regarding transparency.
+
 
 ==== Pixel Blocks ====
 
@@ -135,9 +146,16 @@ With a 2 bit selector:
 
 The 2-bit selector will be defined as an approximation:
 * 11/32 + 21/32
+* Or, 3/8 + 5/8 (may vary)
 
 
 Within each block, pixels will be stored in raster order starting from the least significant bit. By convention, within an AVI or BMP container, the raster origin will be defined as the lower-left corner.
+
+Note that in BT5B-U, if transparency is enabled the interpretation of a block will be modified:
+* 3: ColorA
+* 2: Transparent
+* 1: Average or 2x2 dither
+* 0: ColorB
 
 
 ==== Pattern Table ====

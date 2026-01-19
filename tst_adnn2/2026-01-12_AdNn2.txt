@@ -1,0 +1,105 @@
+Experiment again with dynamically adapting neural nets.
+
+NN2 format:
+
+The NN2 format will store a single neural net.
+It will not necessarily represent a complete model, which may hold multiple nets, but this is outside the scope of this format (in the multi-net case, it is likely an external packaging format would be used).
+
+File Header:
+  FOURCC	tag='NN2 ';
+  WORD		wszfl;		//weight size and flags
+  WORD		numLayers;	//number of layers
+  if(wszfl&0x0100)
+    BYTE majorVersion;		//major format version
+    BYTE minorVersion;		//minor format version
+    WORD ofsLayerHeaders;	//offset of layer headers
+    DWORD ofsLayerData;		//offset of layer data
+  (Layer Headers)
+  (Optional Extension Headers)
+  (Layer Data)
+
+wszfl:
+  (1:0): Size of weight
+    00:		 4-bit (S.E2.M1 )
+    01:		 8-bit (S.E4.M3 )
+    10:		16-bit (S.E5.M10)
+    11:		32-bit (S.E8.M23)
+  (4): Store per-layer activation function or extended size.
+  (7:5): Possible, Layer compression.
+    000: None (Layers stored as bytes)
+    001: Basic RLE compression.
+  (8): Version, offsets, and extension headers present
+
+If extension headers are present, each will consist of a TWOCC tag, followed by a 16-bit length stored as a bitwise inverse. If the tag is 0x0000, no more extension headers are present. Following the tag and length, there may be a certain amount of payload data, with the length also including the size of the tag and length.
+
+The 8-bit format will be defined as (S.E4.M3) with bias=7. There will be no Inf nor subnormal range, with NaN being reduced to a single value. Instead, the largest representable value (0x7F or 480.0) will be used to as a saturating value (any larger values being clamped to the saturating value).
+The values 0x00 and 0x80 will be special, understood as 0.0 and NaN.
+
+The 16-bit format will differ in that it will have an Inf/NaN range with E=31, and a zero range when E=0. In this context however, there is still no subnormal range, and instead E=0 will be understood as all 0 (Denormal as Zero).
+
+In the FP8 format, 1.0 will be 0x38.
+In the FP16 format, 1.0 will be 0x3C00.
+
+
+The 4-bit format will be seen as inherently relative to an 8-bit scale, rather than stored in absolute terms (with 0 as a special case).
+
+May define FP8*FP4 multiplication as, essentially:
+  fp8result=(fp4&7)?((fp8+(((fp4&7)<<2)-4))^((fp4<<4)&0x80)):0x00;
+
+
+
+Per Layer Header:
+  WORD		szIn;		//number of inputs for layer
+  WORD		szOut;		//number of outputs for layer
+  if(wszfl&0x0010)
+	BYTE		afn;		//activation function
+	BYTE		lflag;		//layer flags
+	BYTE		szInHi;		//szIn(23:16)
+	BYTE		szOutHi;	//szOut(23:16)
+
+Where, activation function will be:
+  00: SSqrt, Signed Square Root
+  01: USqrt, Positive Square Root, Negatives clamp to 0
+  02: Ident, Identity (Values pass as-is)
+  03: ReLU, Positive Identity, Negatives clamp to 0.
+
+If the layer header omits activation, it will be assumed to be 00 / SSqrt.
+Note that the output size of one layer will be required to match the input size of the following layer if it is not the final layer.
+
+Note that the choice of activation functions is because these are cheap to provide on the intended target machine.
+
+If szInHi or szOutHi, they may potentially be allowed to encode layers larger than 65535. Otherwise, 65535 would be assumed to be the maximum layer size.
+
+
+
+After the layer headers will be all of the weights and biases, nominally stored as szOut*(szIn+1)*weightSize. These will contain all of the input weights per output, followed by the bias (8/16/32).
+
+The 4-bit format will differ from the other layouts in that it will always store an even number of weights, with both the bias and scale stored as 8-bits. The low 4 bits of each byte will store the first bias, and the high 4 bits the following bias.
+
+In the 4 bit case, the bias and scale will be stored first (2 bytes), followed by all the weights ((szIn+1)/2 bytes).
+
+
+All multi-byte values in this format are to be stored in little-endian order.
+
+Possible RLE Scheme:
+ 8-bit: 0x80 len
+   len=0x01..0x7F: Repeat prior value N times
+   len=0x81..0xFF: Run of N (len&0x7F) zeroes.
+   len=0x00: Reserved
+   len=0x80: Escapes an 0x80
+   Other BYTE values passed as-is.
+ 16-bit: 0x8Fxx
+   Len is in the low 8 bits of the NaN.
+     len=0x01..0x7F: Repeat prior value N times
+     len=0x81..0xFF: Run of N (len&0x7F) zeroes.
+     len=0x80: Escapes an 0x8F00
+     len=0x00: Escapes another value, which follows after the tag word.
+   Understood mostly the same as in the 8-bit case.
+   Other WORD values are passed through as-is.
+
+In this case, RLE would be applied per-plane, with the RLE terminating once it decodes the expected number of values. If an RLE run exceeds the expected size of the layer, it may be assumed that the rest of the file is broken, and the loading process may be terminated.
+
+If RLE is used in the FP4 case, it will be applied over the byte pattern of the packed neurons.
+
+More advanced compression could be considered, but will not be considered for now.
+

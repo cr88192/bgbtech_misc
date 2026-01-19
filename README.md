@@ -14,6 +14,11 @@ mini: Small tests (single file)
 * tst_felz0.c: Single file FeLZ32 implementation (speed oriented DWORD based LZ77 compressor).
 
 
+* tst_gann: Experimental Genetic Algoritm code, with some NN support.
+
+* tst_adnn2: Experimental backprop neural-net thing.
+
+
 tool_btic4b
 ==========
 
