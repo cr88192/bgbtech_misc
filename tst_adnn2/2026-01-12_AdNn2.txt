@@ -74,7 +74,7 @@ If szInHi or szOutHi, they may potentially be allowed to encode layers larger th
 
 After the layer headers will be all of the weights and biases, nominally stored as szOut*(szIn+1)*weightSize. These will contain all of the input weights per output, followed by the bias (8/16/32).
 
-The 4-bit format will differ from the other layouts in that it will always store an even number of weights, with both the bias and scale stored as 8-bits. The low 4 bits of each byte will store the first bias, and the high 4 bits the following bias.
+The 4-bit format will differ from the other layouts in that it will always store an even number of weights, with both the bias and scale stored as 8-bits. The low 4 bits of each byte will store the first weight, and the high 4 bits the following weight.
 
 In the 4 bit case, the bias and scale will be stored first (2 bytes), followed by all the weights ((szIn+1)/2 bytes).
 
@@ -83,16 +83,16 @@ All multi-byte values in this format are to be stored in little-endian order.
 
 Possible RLE Scheme:
  8-bit: 0x80 len
-   len=0x01..0x7F: Repeat prior value N times
+   len=0x01..0x7F: Repeat prior value N times (len).
    len=0x81..0xFF: Run of N (len&0x7F) zeroes.
    len=0x00: Reserved
    len=0x80: Escapes an 0x80
    Other BYTE values passed as-is.
- 16-bit: 0x8Fxx
+ 16-bit: 0xFFxx
    Len is in the low 8 bits of the NaN.
-     len=0x01..0x7F: Repeat prior value N times
+     len=0x01..0x7F: Repeat prior value N times (len).
      len=0x81..0xFF: Run of N (len&0x7F) zeroes.
-     len=0x80: Escapes an 0x8F00
+     len=0x80: Escapes an 0xFF00
      len=0x00: Escapes another value, which follows after the tag word.
    Understood mostly the same as in the 8-bit case.
    Other WORD values are passed through as-is.

@@ -23,7 +23,7 @@ void *adnn2_malloc_f8rng(int sz)
 AdNn2_Layer *AdNn2_AllocLayer(int isz, int osz)
 {
 	AdNn2_Layer *tmp;
-	int j, k, l;
+	int j, k, l, l4;
 	
 	tmp=adnn2_malloc(sizeof(AdNn2_Layer));
 	tmp->nn_isz=isz;
@@ -38,11 +38,19 @@ AdNn2_Layer *AdNn2_AllocLayer(int isz, int osz)
 	tmp->nn_szzm=k;
 
 	l=osz*(isz+1);
+	
+	j=(isz+1)/2;
+	tmp->nn_stw4=2+j;
+	l4=osz*(j+2);
 
 	tmp->wght=adnn2_malloc_f8rng(l*sizeof(adnn2_wght));
 	tmp->wghtl=adnn2_malloc_f8rng(l*sizeof(adnn2_wght));
 #ifdef ADNN2_WGHT16
 	tmp->wght8=adnn2_malloc_f8rng(l);
+
+#ifdef ADNN2_DOWGHTFP4
+	tmp->wght4=adnn2_malloc_f8rng(l4);
+#endif
 #endif
 
 	tmp->wght_zm=adnn2_malloc(k);
@@ -70,11 +78,50 @@ AdNn2_Net *AdNn2_AllocNet(int nl, int *lasz)
 	return(tmp);
 }
 
+int AdNn2_UpdateLayerUnpackFP4(AdNn2_Layer *layer)
+{
+	byte *zcs, *ct, *ct4;
+	float twa;
+	int isz, osz, zst, bw, ntwa, bi8, bwscl, bw0, bw1, dw0, dw1, st4;
+	int i, j, k;
+
+	isz=layer->nn_isz;
+	osz=layer->nn_osz;
+	zst=layer->nn_stzm;
+
+	ct=layer->wght8;
+	ct4=layer->wght4;
+	st4=layer->nn_stw4;
+
+	for(i=0; i<osz; i++)
+	{
+		bi8=ct4[0];
+		bwscl=ct4[1];
+	
+		for(j=0; j<(st4-2); j++)
+		{
+			bw=ct4[2+j];
+			dw0=((bw>>0)&15); bw0=0;
+			dw1=((bw>>4)&15); bw1=0;
+			if(dw0)		{ bw0=(bwscl+((dw0&7)-4))^((dw0<<4)&0x80); }
+			if(dw1)		{ bw1=(bwscl+((dw1&7)-4))^((dw1<<4)&0x80); }
+			ct[j*2+0]=bw0;
+			ct[j*2+1]=bw1;
+		}
+		ct[isz]=bi8;
+
+		ct4+=st4;
+		ct+=(isz+1);
+	}
+	return(0);
+}
+
 int AdNn2_UpdateLayerZMask(AdNn2_Layer *layer)
 {
 	adnn2_wght *cs;
-	byte *zcs, *ct;
-	int isz, osz, zst, bw;
+	byte *zcs, *ct, *ct4;
+	float twa;
+	int isz, osz, zst, bw, nbw, ntwa, bwscl, bw0, bw1, dw0, dw1;
 	int i, j, k;
 
 #if 1
@@ -84,6 +131,7 @@ int AdNn2_UpdateLayerZMask(AdNn2_Layer *layer)
 
 	cs=layer->wght;
 	ct=layer->wght8;
+	ct4=layer->wght4;
 	zcs=layer->wght_zm;
 	memset(zcs, 0, layer->nn_szzm);
 	for(i=0; i<osz; i++)
@@ -108,10 +156,66 @@ int AdNn2_UpdateLayerZMask(AdNn2_Layer *layer)
 				zcs[j>>3]|=1<<(j&7);
 #endif
 		}
+		
+		if(ct4)
+		{
+			nbw=0;
+			twa=0; ntwa=4;
+			for(j=0; j<(isz+1); j++)
+			{
+				bw=ct[j];
+				if(!bw)
+					continue;
+				if((bw&0x7F)>nbw)
+					nbw=bw&0x7F;
+				twa+=fabs(AdNn2_Fp8toF32(bw));
+				ntwa++;
+			}
+			if(ntwa)
+				twa/=ntwa;
+
+			bwscl=AdNn2_F32to8(twa);
+			if(nbw>(bwscl+(3*4)))
+				bwscl=nbw-(3*4);
+			if(bwscl>0x73)
+				bwscl=0x73;
+			if(bwscl<0x0C)
+				bwscl=0x0C;
+			
+			ct4[0]=ct[isz];
+			ct4[1]=bwscl;
+			for(j=0; j<isz; j+=2)
+			{
+				bw0=ct[j+0];
+				bw1=ct[j+1];
+				dw0=(bw0&0x7F)-(bwscl&0x7F);
+				dw1=(bw1&0x7F)-(bwscl&0x7F);
+				dw0=((dw0+2)>>2)+4;
+				dw1=((dw1+2)>>2)+4;
+				if(dw0>7)dw0=7;
+				if(dw1>7)dw1=7;
+				if((dw0<0) || !bw0)dw0=0;
+				if((dw1<0) || !bw1)dw1=0;
+//				if((bwscl+((dw0-4)<<2))<0)		dw0=0;
+//				if((bwscl+((dw1-4)<<2))<0)		dw1=0;
+				
+				if(dw0>0)dw0|=(bw0>>4)&8;
+				if(dw1>0)dw1|=(bw1>>4)&8;
+				bw=(dw1<<4)|dw0;
+				ct4[2+(j>>1)]=bw;
+			}
+			ct4+=layer->nn_stw4;
+		}
+		
 		cs+=(isz+1);
 		ct+=(isz+1);
 		zcs+=zst;
 	}
+#endif
+
+#ifdef ADNN2_DOWGHTFP4
+	if(layer->wght4)
+		{ AdNn2_UpdateLayerUnpackFP4(layer); }
 #endif
 
 	return(0);
@@ -231,7 +335,8 @@ int AdNn2_ForwardEvalLayer(AdNn2_Layer *layer, byte *buf_i, byte *buf_o)
 	int isz, osz, zst;
 	adnn2_wght bv, bw;
 	u16 acc, tv;
-	float ax;
+	int bv0, bv1, bv2, bv3, bw0, bw1, bw2, bw3;
+	float ax, f0, f1, f2, f3, x0, x1, x2, x3, y0, y1, y2, y3;
 	int i, j, k, zm, zms;
 	
 #ifdef ADNN2_FWWGHT8
@@ -295,6 +400,30 @@ int AdNn2_ForwardEvalLayer(AdNn2_Layer *layer, byte *buf_i, byte *buf_o)
 //					{ j++; continue; }
 				continue;
 			}
+
+#ifdef ADNN2_FWWGHT8
+// #if 0
+//			if(!(zm&15) && ((j+3)<isz))
+			if((j+3)<isz)
+			{
+				bv0=buf_i[j+0];		bw0=cs[j+0];
+				bv1=buf_i[j+1];		bw1=cs[j+1];
+				bv2=buf_i[j+2];		bw2=cs[j+2];
+				bv3=buf_i[j+3];		bw3=cs[j+3];
+				x0=adnn2_fp8to32f[bv0];		y0=adnn2_fp8to32f[bw0];
+				x1=adnn2_fp8to32f[bv1];		y1=adnn2_fp8to32f[bw1];
+				x2=adnn2_fp8to32f[bv2];		y2=adnn2_fp8to32f[bw2];
+				x3=adnn2_fp8to32f[bv3];		y3=adnn2_fp8to32f[bw3];
+				f0=x0*y0;	f1=x1*y1;
+				f2=x2*y2;	f3=x3*y3;
+				f0=f0+f1;
+				f2=f2+f3;
+				ax=ax+f0+f2;
+				j+=3;
+				continue;
+			}
+#endif
+
 #endif
 
 			bv=buf_i[j];

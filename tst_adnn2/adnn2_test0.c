@@ -6,22 +6,393 @@
 
 #include "adnn2_net.c"
 
+static int adnn2_rle_lsym;
+static int adnn2_rle_lcnt;
+
+int adnn2_fputc_rawb(int val, FILE *fd)
+{
+	fputc(val, fd);
+	return(0);
+}
+
+int adnn2_fputc_raww(int val, FILE *fd)
+{
+	fputc((val>>0)&0xFF, fd);
+	fputc((val>>8)&0xFF, fd);
+	return(0);
+}
+
+int adnn2_flush_raw(FILE *fd)
+{
+	return(0);
+}
+
+int adnn2_flush_rleb(FILE *fd)
+{
+	int i, j, k;
+
+	while((adnn2_rle_lcnt>=2) ||
+		((adnn2_rle_lcnt>=1) && (adnn2_rle_lsym==0x80)))
+	{
+		j=adnn2_rle_lcnt;
+		if(j>127)
+		{
+			if((j>=128) && (j<132))
+				{ j=124; }
+			else
+				{ j=127; }
+		}
+		if(adnn2_rle_lsym==0x10000)
+		{
+			fputc(0x80, fd);
+			fputc(0x80+j, fd);
+			adnn2_rle_lcnt-=j;
+			continue;
+		}
+		fputc(0x80, fd);
+		fputc(j, fd);
+		adnn2_rle_lcnt-=j;
+		continue;
+	}
+
+	while(adnn2_rle_lcnt>0)
+	{
+		if(adnn2_rle_lsym==0x10000)
+		{
+			fputc(0x00, fd);
+		}else
+			if(adnn2_rle_lsym==0x80)
+		{
+			fputc(0x80, fd);
+			fputc(0x80, fd);
+		}else
+		{
+			fputc(adnn2_rle_lsym, fd);
+		}
+		adnn2_rle_lcnt--;
+	}
+
+	adnn2_rle_lsym=-999;
+	adnn2_rle_lcnt=0;
+	return(0);
+}
+
+int adnn2_flush_rlew(FILE *fd)
+{
+	int i, j, k;
+
+	while((adnn2_rle_lcnt>=2) ||
+		((adnn2_rle_lcnt>=1) && ((adnn2_rle_lsym&0xFF00)==0xFF00)))
+	{
+		j=adnn2_rle_lcnt;
+		if(j>127)
+		{
+			if((j>=128) && (j<132))		{ j=124; }
+			else						{ j=127; }
+		}
+		if(adnn2_rle_lsym==0x10000)
+		{
+			adnn2_fputc_raww(0xFF80+j, fd);
+			adnn2_rle_lcnt-=j;
+			continue;
+		}
+		adnn2_fputc_raww(0xFF00+j, fd);
+		adnn2_rle_lcnt-=j;
+		continue;
+	}
+
+	while(adnn2_rle_lcnt>0)
+	{
+		if(adnn2_rle_lsym==0x10000)
+		{
+			adnn2_fputc_raww(0x0000, fd);
+		}else
+			if((adnn2_rle_lsym&0xFF00)==0xFF00)
+		{
+			if(adnn2_rle_lsym==0xFF00)
+			{
+				adnn2_fputc_raww(0xFF80, fd);
+			}else
+			{
+				adnn2_fputc_raww(0xFF00, fd);
+				adnn2_fputc_raww(adnn2_rle_lsym, fd);
+			}
+		}else
+		{
+			adnn2_fputc_raww(adnn2_rle_lsym, fd);
+		}
+		adnn2_rle_lcnt--;
+	}
+
+	adnn2_rle_lsym=-999;
+	adnn2_rle_lcnt=0;
+	return(0);
+}
+
+int adnn2_fputc_rleb(int val, FILE *fd)
+{
+	if((val==adnn2_rle_lsym) || (!val && (adnn2_rle_lsym==0x10000)))
+	{
+		adnn2_rle_lcnt++;
+		return(0);
+	}
+	if(adnn2_rle_lcnt)
+		{ adnn2_flush_rleb(fd); }
+	
+	if(val==0x80)
+	{
+		adnn2_rle_lsym=val;
+		fputc(0x80, fd);
+		fputc(0x80, fd);
+		return(0);
+	}
+	
+	if(val==0x00)
+	{
+		adnn2_rle_lsym=0x10000;
+		adnn2_rle_lcnt=1;
+		return(0);
+	}
+	
+	adnn2_rle_lsym=val;
+	fputc(val, fd);
+	return(0);
+}
+
+int adnn2_fputc_rlew(int val, FILE *fd)
+{
+	if((val==adnn2_rle_lsym) || (!val && (adnn2_rle_lsym==0x10000)))
+	{
+		adnn2_rle_lcnt++;
+		return(0);
+	}
+	if(adnn2_rle_lcnt)
+		{ adnn2_flush_rlew(fd); }
+
+	if((val&0xFF00)==0xFF00)
+	{
+		adnn2_rle_lsym=val;
+		if(val==0xFF00)
+		{
+			adnn2_fputc_raww(0xFF80, fd);
+		}else
+		{
+			adnn2_fputc_raww(0xFF00, fd);
+			adnn2_fputc_raww(val, fd);
+		}
+		return(0);
+	}
+	
+	if(val==0x0000)
+	{
+		adnn2_rle_lsym=0x10000;
+		adnn2_rle_lcnt=1;
+		return(0);
+	}
+	
+	adnn2_rle_lsym=val;
+	adnn2_fputc_raww(val, fd);
+//	fputc((val>>0)&0xFF, fd);
+//	fputc((val>>8)&0xFF, fd);
+	return(0);
+}
+
+
+int adnn2_fgetc_rawb(FILE *fd)
+{
+	return(fgetc(fd));
+}
+
+int adnn2_fgetc_raww(FILE *fd)
+{
+	int i0, i1, i2;
+	i0=fgetc(fd);
+	i1=fgetc(fd);
+	i2=i0|(i1<<8);
+	return(i2);
+}
+
+int adnn2_fgetc_rleb(FILE *fd)
+{
+	int i, j, k;
+
+	if(adnn2_rle_lcnt>0)
+	{
+		adnn2_rle_lcnt--;
+		return(adnn2_rle_lsym);
+	}
+	
+	i=adnn2_fgetc_rawb(fd);
+	if(i!=0x80)
+	{
+		adnn2_rle_lsym=i;
+		adnn2_rle_lcnt=0;
+		return(i);
+	}
+
+	j=adnn2_fgetc_rawb(fd);
+	if((j>=0x01) && (j<=0x7F))
+	{
+		adnn2_rle_lcnt=j-1;
+		return(adnn2_rle_lsym);
+	}
+
+	if((j>=0x81) && (j<=0xFF))
+	{
+		adnn2_rle_lsym=0x00;
+		adnn2_rle_lcnt=(j&0x7F)-1;
+		return(adnn2_rle_lsym);
+	}
+	
+	if(j==0x80)
+	{
+		adnn2_rle_lsym=j;
+		adnn2_rle_lcnt=0;
+		return(j);
+	}
+		
+	i=adnn2_fgetc_rawb(fd);
+	adnn2_rle_lsym=i;
+	adnn2_rle_lcnt=0;
+	return(i);
+}
+
+int adnn2_fgetc_rlew(FILE *fd)
+{
+	int i, j, k;
+
+	if(adnn2_rle_lcnt>0)
+	{
+		adnn2_rle_lcnt--;
+		return(adnn2_rle_lsym);
+	}
+	
+	i=adnn2_fgetc_raww(fd);
+	if((i&0xFF00)!=0xFF00)
+	{
+		adnn2_rle_lsym=i;
+		adnn2_rle_lcnt=0;
+		return(i);
+	}
+
+	j=i&0x00FF;
+	if((j>=0x01) && (j<=0x7F))
+	{
+		adnn2_rle_lcnt=j-1;
+		return(adnn2_rle_lsym);
+	}
+
+	if((j>=0x81) && (j<=0xFF))
+	{
+		adnn2_rle_lsym=0x0000;
+		adnn2_rle_lcnt=(j&0x7F)-1;
+		return(adnn2_rle_lsym);
+	}
+	
+	if(j==0x80)
+	{
+		adnn2_rle_lsym=0xFF00;
+		adnn2_rle_lcnt=0;
+		return(j);
+	}
+	
+	i=adnn2_fgetc_raww(fd);
+	adnn2_rle_lsym=i;
+	adnn2_rle_lcnt=0;
+	return(i);
+}
+
 int AdNn2_DumpLayer(AdNn2_Layer *layer, FILE *fd, int flag)
 {
-	int isz, osz, sz;
+	int (*rle_fputc_byte)(int val, FILE *fd);
+	int (*rle_fputc_word)(int val, FILE *fd);
+	int (*rle_flush_byte)(FILE *fd);
+	int (*rle_flush_word)(FILE *fd);
+	byte *cs, *cse;
+	u16 *csw, *cswe;
+	int isz, osz, sz, st4, isrle;
+	int i, j, k, l;
+
+	adnn2_rle_lsym=-999;
+	adnn2_rle_lcnt=0;
+	
+	rle_fputc_byte=adnn2_fputc_rawb;
+	rle_fputc_word=adnn2_fputc_raww;
+	rle_flush_byte=adnn2_flush_raw;
+	rle_flush_word=adnn2_flush_raw;
+	isrle=0;
+	
+	if((flag&0x00E0)==0x0020)
+	{
+		rle_fputc_byte=adnn2_fputc_rleb;
+		rle_fputc_word=adnn2_fputc_rlew;
+		rle_flush_byte=adnn2_flush_rleb;
+		rle_flush_word=adnn2_flush_rlew;
+		isrle=1;
+	}
+
 	isz=layer->nn_isz;
 	osz=layer->nn_osz;
 	sz=osz*(isz+1);
 
 #ifdef ADNN2_WGHT16
+	if((flag&15)==0)
+	{
+		if(isrle)
+		{
+			st4=layer->nn_stw4;
+			l=osz*st4;
+			cs=layer->wght4;
+			cse=cs+l;
+			while(cs<cse)
+				{ rle_fputc_byte(*cs++, fd); }
+			rle_flush_byte(fd);
+			return(0);
+		}
+
+		st4=layer->nn_stw4;
+		fwrite(layer->wght4, 1, osz*st4, fd);
+		return(0);
+	}
 	if((flag&15)==1)
 	{
+		if(isrle)
+		{
+			l=osz*(isz+1);
+			cs=layer->wght8;
+			cse=cs+l;
+			while(cs<cse)
+				{ rle_fputc_byte(*cs++, fd); }
+			rle_flush_byte(fd);
+			return(0);
+		}
+
 		fwrite(layer->wght8, 1, osz*(isz+1), fd);
 		return(0);
 	}
-	fwrite(layer->wght, 1, osz*(isz+1)*sizeof(adnn2_wght), fd);
+	if((flag&15)==2)
+	{
+		if(isrle)
+		{
+			l=osz*(isz+1);
+			csw=layer->wght;
+			cswe=csw+l;
+			while(csw<cswe)
+				{ rle_fputc_word(*csw++, fd); }
+			rle_flush_word(fd);
+			return(0);
+		}
+
+		fwrite(layer->wght, 1, osz*(isz+1)*sizeof(adnn2_wght), fd);
+		return(0);
+	}
 	return(0);
 #else
+	if((flag&15)!=1)
+		return(-1);
+	if(isrle)
+		return(-1);
+
 	fwrite(layer->wght, 1, osz*(isz+1), fd);
 	return(0);
 #endif
@@ -30,7 +401,8 @@ int AdNn2_DumpLayer(AdNn2_Layer *layer, FILE *fd, int flag)
 int AdNn2_DumpLayerAsc(AdNn2_Layer *layer, FILE *fd)
 {
 	adnn2_wght *wght;
-	int isz, osz;
+	byte *cs4;
+	int isz, osz, st4;
 	int i, j, k;
 
 	isz=layer->nn_isz;
@@ -38,8 +410,27 @@ int AdNn2_DumpLayerAsc(AdNn2_Layer *layer, FILE *fd)
 	wght=layer->wght;
 //	fwrite(layer->wght, 1, osz*(isz+1)*2, fd);
 
+	st4=layer->nn_stw4;
+
 	for(i=0; i<osz; i++)
 	{
+		if(layer->wght4)
+		{
+			cs4=layer->wght4+(i*st4);
+
+			fprintf(fd, "%02X %02X ", cs4[0], cs4[1]);
+
+			for(j=0; j<(st4-2); j++)
+			{
+				k=cs4[2+j];
+				k=((k&15)<<4)|((k>>4)&15);
+				fprintf(fd, "%02X", k);
+				
+			}
+			fprintf(fd, "\n");
+			continue;
+		}
+	
 		for(j=0; j<(isz+1); j++)
 		{
 			k=wght[i*(isz+1)+j];
@@ -47,10 +438,19 @@ int AdNn2_DumpLayerAsc(AdNn2_Layer *layer, FILE *fd)
 				k=0;
 //			fprintf(fd, "%04X ", k);
 
+#ifdef ADNN2_FWWGHT8
 #ifdef ADNN2_WGHT16
 			k=AdNn2_Fp16to8(k);
 #endif
 			fprintf(fd, "%02X ", k);
+#else
+#ifdef ADNN2_WGHT16
+			fprintf(fd, "%04X ", k);
+#else
+			fprintf(fd, "%02X ", k);
+#endif
+#endif
+
 		}
 		fprintf(fd, "\n");
 	}
@@ -114,7 +514,16 @@ int AdNn2_DumpNetAsc(AdNn2_Net *net)
 	fprintf(fd, "# NN2 ASC\n");
 
 //	fprintf(fd, "SzWeight: %d\n", (int)sizeof(adnn2_wght));
+#ifdef ADNN2_DOWGHTFP4
+	fprintf(fd, "SzWeight: %d\n", 0);
+#else
+#ifdef ADNN2_FWWGHT8
 	fprintf(fd, "SzWeight: %d\n", 1);
+#else
+	fprintf(fd, "SzWeight: %d\n", 2);
+#endif
+#endif
+
 	fprintf(fd, "Flags: %d\n", 0);
 	fprintf(fd, "NumLayers: %d\n", nl);
 
@@ -135,7 +544,7 @@ int AdNn2_DumpNetAsc(AdNn2_Net *net)
 	return(0);
 }
 
-int AdNn2_DumpNet(AdNn2_Net *net, int ix)
+int AdNn2_DumpNet(AdNn2_Net *net, int ix, int fl)
 {
 	char tb[256];
 	AdNn2_Layer *layer;
@@ -144,8 +553,19 @@ int AdNn2_DumpNet(AdNn2_Net *net, int ix)
 	int i, j, k, h;
 
 	h=AdNn2_CalcLayoutHash(net);
-//	sprintf(tb, "adnn2_dump_%04X.dat", h);
+
 	sprintf(tb, "adnn2_dump_%04X_a%u.nn2", h, ix);
+	if(fl&1)
+	{
+#ifdef ADNN2_FWWGHT8
+		sprintf(tb, "adnn2_dump_%04X_a%u_f8.nn2", h, ix);
+#endif
+#ifdef ADNN2_DOWGHTFP4
+		sprintf(tb, "adnn2_dump_%04X_a%u_f4.nn2", h, ix);
+#endif
+//		sprintf(tb, "adnn2_dump_%04X.dat", h);
+	}
+
 	fd=fopen(tb, "wb");
 
 //	fd=fopen("adnn2_dump.dat", "wb");
@@ -158,10 +578,20 @@ int AdNn2_DumpNet(AdNn2_Net *net, int ix)
 	fputc(' ', fd);
 
 	wszfl=sizeof(adnn2_wght);
+
+	if(fl&1)
+	{
 #ifdef ADNN2_FWWGHT8
-	wszfl=1;
-//	wszfl|=0x10;
+		wszfl=1;
+//		wszfl|=0x10;
 #endif
+
+#ifdef ADNN2_DOWGHTFP4
+		wszfl=0;
+#endif
+
+		wszfl|=0x20;	//RLE
+	}
 
 	for(i=0; i<nl; i++)
 	{
@@ -205,9 +635,11 @@ int AdNn2_DumpNet(AdNn2_Net *net, int ix)
 	return(0);
 }
 
-int AdNn2_LoadNet(AdNn2_Net *net, int ix)
+int AdNn2_LoadNet(AdNn2_Net *net, int ix, int ldfl)
 {
 	char tb[256];
+	int (*rle_fget_byte)(FILE *fd);
+	int (*rle_fget_word)(FILE *fd);
 	AdNn2_Layer *layer;
 	FILE *fd;
 	int nl, isz, osz, ixb;
@@ -218,7 +650,26 @@ int AdNn2_LoadNet(AdNn2_Net *net, int ix)
 
 	h=AdNn2_CalcLayoutHash(net);
 	fd=NULL;
-	
+
+	if(ldfl&1)
+	{
+#ifdef ADNN2_DOWGHTFP4
+		if(!fd)
+		{
+			sprintf(tb, "adnn2_dump_%04X_a%u_f4.nn2", h, ix);
+			fd=fopen(tb, "rb");
+		}
+#endif
+
+#ifdef ADNN2_FWWGHT8
+		if(!fd)
+		{
+			sprintf(tb, "adnn2_dump_%04X_a%u_f8.nn2", h, ix);
+			fd=fopen(tb, "rb");
+		}
+#endif
+	}
+
 	if(!fd)
 	{
 		sprintf(tb, "adnn2_dump_%04X_a%u.nn2", h, ix);
@@ -251,6 +702,14 @@ int AdNn2_LoadNet(AdNn2_Net *net, int ix)
 	wsz=i0&15;
 	lfl=(i1<<4)|(i0>>4);
 
+	rle_fget_byte=adnn2_fgetc_rawb;
+	rle_fget_word=adnn2_fgetc_raww;
+	if((lfl&0x00E)==0x002)
+	{
+		rle_fget_byte=adnn2_fgetc_rleb;
+		rle_fget_word=adnn2_fgetc_rlew;
+	}
+
 	for(i=0; i<nl; i++)
 	{
 		layer=net->layer[i];
@@ -282,6 +741,9 @@ int AdNn2_LoadNet(AdNn2_Net *net, int ix)
 	if(i<nl)
 		return(0);
 
+	adnn2_rle_lsym=0;
+	adnn2_rle_lcnt=0;
+
 	for(i=0; i<nl; i++)
 	{
 //		AdNn2_DumpLayer(net->layer[i], fd);
@@ -297,8 +759,9 @@ int AdNn2_LoadNet(AdNn2_Net *net, int ix)
 			l=osz*(isz+1);
 			for(j=0; j<l; j++)
 			{
-				i0=fgetc(fd);	i1=fgetc(fd);
-				i2=i0|(i1<<8);
+//				i0=fgetc(fd);	i1=fgetc(fd);
+//				i2=i0|(i1<<8);
+				i2=rle_fget_word(fd);
 				i3=AdNn2_Fp16to8(i2);
 				layer->wght[j]=i2;
 				layer->wght8[j]=i3;
@@ -315,7 +778,8 @@ int AdNn2_LoadNet(AdNn2_Net *net, int ix)
 			l=osz*(isz+1);
 			for(j=0; j<l; j++)
 			{
-				k=fgetc(fd);
+//				k=fgetc(fd);
+				k=rle_fget_byte(fd);
 				layer->wght8[j]=k;
 				k=adnn2_fp8to16[k&255];
 				layer->wght[j]=k;
@@ -326,22 +790,25 @@ int AdNn2_LoadNet(AdNn2_Net *net, int ix)
 			l=(isz+1)/2;
 			for(j=0; j<osz; j++)
 			{
-				bi8=fgetc(fd);
-				sc8=fgetc(fd);
+//				bi8=fgetc(fd);
+				bi8=rle_fget_byte(fd);
+//				sc8=fgetc(fd);
+				sc8=rle_fget_byte(fd);
 				ixb=j*(isz+1);
 				for(k=0; k<l; k++)
 				{
-					i0=fgetc(fd);
+//					i0=fgetc(fd);
+					i0=rle_fget_byte(fd);
 
 					i1=(i0>>0)&15;
-					i2=(sc8^((i1<<4)&0x80))+(((i1&7)<<2)-4);
+					i2=(sc8^((i1<<4)&0x80))+(((i1&7)-4)<<2);
 					if(!(i1&7))		i2=0;
 					layer->wght8[ixb+0]=i2;
 					i3=adnn2_fp8to16[i2&255];
 					layer->wght[ixb+0]=i3;
 
 					i1=(i0>>4)&15;
-					i2=(sc8^((i1<<4)&0x80))+(((i1&7)<<2)-4);
+					i2=(sc8^((i1<<4)&0x80))+(((i1&7)-4)<<2);
 					if(!(i1&7))		i2=0;
 					layer->wght8[ixb+1]=i2;
 					i3=adnn2_fp8to16[i2&255];
@@ -363,18 +830,37 @@ int AdNn2_LoadNet(AdNn2_Net *net, int ix)
 			l=osz*(isz+1);
 			for(j=0; j<l; j++)
 			{
-				i0=fgetc(fd);	i1=fgetc(fd);
-				i2=i0|(i1<<8);
+//				i0=fgetc(fd);	i1=fgetc(fd);
+//				i2=i0|(i1<<8);
+				i2=rle_fget_word(fd);
 				i3=AdNn2_Fp16to8(i2);
 				layer->wght[j]=i3;
 			}
 		}else
+			if(wsz==1)
 		{
-			fread(layer->wght, 1, osz*(isz+1)*1, fd);
+			l=osz*(isz+1);
+			for(j=0; j<l; j++)
+			{
+				i2=rle_fget_byte(fd);
+				layer->wght[j]=i2;
+			}
+//			fread(layer->wght, 1, osz*(isz+1)*1, fd);
 		}
 #endif
 		AdNn2_UpdateLayerZMask(layer);
+		
+		if(adnn2_rle_lcnt)
+		{
+			printf("AdNn2_LoadNet: RLE Run Mismatch\n");
+		}
 	}
+
+	if(adnn2_rle_lcnt)
+	{
+		printf("AdNn2_LoadNet: File RLE Run Error\n");
+	}
+
 	fclose(fd);
 	return(0);
 }
@@ -495,6 +981,7 @@ int AdNn2_TestNet(AdNn2_Net *net, int v0, int v1, int dflag)
 	te/=8;
 
 	if((v2!=v3) && !(dflag&1))
+//	if(((v2!=v3) || ((dflag&2) && (te>0))) && !(dflag&1))
 	{
 		if(net->layer[0]->nn_isz>=32)
 		{
@@ -510,7 +997,14 @@ int AdNn2_TestNet(AdNn2_Net *net, int v0, int v1, int dflag)
 		AdNn2_ReverseEvalNet(net, NULL, ewbuf);
 		AdNn2_AdjustNet(net);
 
-		te=AdNn2_TestNet(net, v0, v1, 1);
+		if(!(dflag&2))
+		{
+			te=AdNn2_TestNet(net, v0, v1, 1);
+		}else
+		{
+			net->v2=v2;
+			net->v3=v3;
+		}
 		return(te);
 
 #if 0
@@ -696,15 +1190,17 @@ int main()
 	neta[6]=AdNn2_AllocNet(6, tnsz);
 	neta[7]=AdNn2_AllocNet(6, tnsz);
 
-	AdNn2_LoadNet(neta[0], 0);
-	AdNn2_LoadNet(neta[1], 1);
-	AdNn2_LoadNet(neta[2], 2);
-	AdNn2_LoadNet(neta[3], 3);
+	AdNn2_LoadNet(neta[0], 0, 1);
 
-	AdNn2_LoadNet(neta[4], 4);
-	AdNn2_LoadNet(neta[5], 5);
-	AdNn2_LoadNet(neta[6], 6);
-	AdNn2_LoadNet(neta[7], 7);
+	AdNn2_LoadNet(neta[0], 0, 0);
+	AdNn2_LoadNet(neta[1], 1, 0);
+	AdNn2_LoadNet(neta[2], 2, 0);
+	AdNn2_LoadNet(neta[3], 3, 0);
+
+	AdNn2_LoadNet(neta[4], 4, 0);
+	AdNn2_LoadNet(neta[5], 5, 0);
+	AdNn2_LoadNet(neta[6], 6, 0);
+	AdNn2_LoadNet(neta[7], 7, 0);
 
 	v0=(adnn2_fastrand()&255);
 	v1=(adnn2_fastrand()&255);
@@ -748,15 +1244,20 @@ int main()
 //				AdNn2_DumpNetAsc(net);
 
 				AdNn2_DumpNetAsc(neta[0]);
-				AdNn2_DumpNet(neta[0], 0);
-				AdNn2_DumpNet(neta[1], 1);
-				AdNn2_DumpNet(neta[2], 2);
-				AdNn2_DumpNet(neta[3], 3);
+				AdNn2_DumpNet(neta[0], 0, 0);
+				AdNn2_DumpNet(neta[1], 1, 0);
+				AdNn2_DumpNet(neta[2], 2, 0);
+				AdNn2_DumpNet(neta[3], 3, 0);
 
-				AdNn2_DumpNet(neta[4], 4);
-				AdNn2_DumpNet(neta[5], 5);
-				AdNn2_DumpNet(neta[6], 6);
-				AdNn2_DumpNet(neta[7], 7);
+				AdNn2_DumpNet(neta[4], 4, 0);
+				AdNn2_DumpNet(neta[5], 5, 0);
+				AdNn2_DumpNet(neta[6], 6, 0);
+				AdNn2_DumpNet(neta[7], 7, 0);
+
+				AdNn2_DumpNet(neta[0], 0, 1);
+				AdNn2_DumpNet(neta[1], 1, 1);
+				AdNn2_DumpNet(neta[2], 2, 1);
+				AdNn2_DumpNet(neta[3], 3, 1);
 
 				printf("\n");
 				
@@ -821,7 +1322,7 @@ int main()
 		}
 
 #ifndef ADNN2_DOGA
-		nte[0]=AdNn2_TestNet(neta[0], v0, v1, 0);
+		nte[0]=AdNn2_TestNet(neta[0], v0, v1, 2);
 		for(j=1; j<8; j++)
 			AdNn2_CopyNet(neta[j], neta[0]);
 #endif
