@@ -1703,7 +1703,8 @@ int ProcessVoices()
 	txbuf[14]=sz>>16;
 	txbuf[15]=sz>>24;
 
-	GANN_StoreFile("diphones0.dat", txbuf, sz);
+//	GANN_StoreFile("diphones0.dat", txbuf, sz);
+	GANN_StoreFile("diphones0.dpl", txbuf, sz);
 
 #if 1
 	ilen=(nb+2)*BLKSIZE;
@@ -1921,7 +1922,7 @@ int main(int argc, char *argv[])
 	obuf=malloc(30*16000*2);
 	memset(obuf, 0, 10*16000*2);
 
-	dlib=TkuTts_LoadDiphLib("diphones0.dat");
+	dlib=TkuTts_LoadDiphLib("diphones0.dpl");
 	dpcm=TkuTts_PcmState_Create();
 	if(dlib && dpcm)
 	{
