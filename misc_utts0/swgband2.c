@@ -92,7 +92,8 @@ int encswg_1x(short *src, int *rbi, int *rbd, int shr, int wsc)
 //			i1=(j*i2)>>(7+(shr>>1));
 //			i3=sint[i1&15];
 
-			i2=256+vb;
+//			i2=256+vb;
+			i2=512-vb;
 			i1=(j*i2)>>(6+vs);
 //			i1=(j*i2)>>(5+vs);
 //			i1=(j*i2)>>(4+vs);
@@ -148,7 +149,8 @@ int encswg_1xr(short *src, int *rbi, int *rbd, int rmin, int rmax)
 		{
 			i0=src[j];
 
-			i2=256+vb;
+//			i2=256+vb;
+			i2=512-vb;
 			i1=(j*i2)>>(6+vs);
 			i1+=po*2;
 			i3=sint[i1&15];
@@ -195,9 +197,9 @@ int decswg_1x(int *dst, int *rbi, int *rbd)
 	bi=*rbi;
 	bd=*rbd;
 
-	bi-=0x20;
-	if(bi<0)
-		return(0);
+//	bi-=0x20;
+//	if(bi<0)
+//		return(0);
 
 //	shr=bi>>8;
 //	bi&=255;
@@ -224,16 +226,17 @@ int decswg_1x(int *dst, int *rbi, int *rbd)
 		if(wf>256)
 			wf=256;
 
-		i2=256+bi;
+//		i2=256+bi;
+		i2=512-bi;
 //		i1=(j*i2)>>(6+shr);
 //		i3=sint[i1&15];
-		i1=(j*i2)>>(5+shr);
-//		i1=(j*i2)>>(4+shr);
+//		i1=(j*i2)>>(5+shr);
+		i1=(j*i2)>>(4+shr);
 //		i3=sint2[i1&31];
 //		i3=pul1t[(i1&31)>>1];
 		i3=pul2t[(i1&31)>>1];
 		k=(bd*i3)>>3;
-		k=(k*wf)>>8;
+//		k=(k*wf)>>8;
 		dst[j]+=k;
 //		dst[j]=clamp16s(dst[j]+k);
 	}
@@ -1429,6 +1432,13 @@ int ProcessVoices()
 #endif
 
 			po=0;				
+
+			if(dcur->dat_len)
+			{
+				k=nb-dcur->dat_len;
+				po=k/2;
+			}
+
 			for(k=0; k<nb; k++)
 			{
 				EncSwgBlock_Raw16x(
@@ -1703,7 +1713,6 @@ int ProcessVoices()
 	txbuf[14]=sz>>16;
 	txbuf[15]=sz>>24;
 
-//	GANN_StoreFile("diphones0.dat", txbuf, sz);
 	GANN_StoreFile("diphones0.dpl", txbuf, sz);
 
 #if 1
@@ -1876,7 +1885,7 @@ int main(int argc, char *argv[])
 	char *ifn, *ofn;
 	char *cs, *ct;
 	u64 tblk, tblk1;
-	int ilen, acc1, acc2, dsc, dsc1;
+	int ilen, acc1, acc2, dsc, dsc1, tts_rate, tts_freq;
 	int s0, s1, s2, s3, t0, t1, t2, t3;
 	int i0, i1, i2, i3;
 	int j0, j1, j2, j3;
@@ -1892,10 +1901,27 @@ int main(int argc, char *argv[])
 	
 //	buildbandtab();
 
+	tts_rate=64;
+	tts_freq=0;
+
 	for(i=1; i<argc; i++)
 	{
 		if(argv[i][0]=='-')
 		{
+			if(!strcmp(argv[i], "--rate"))
+			{
+//				tts_rate=atoi(argv[i+1]);
+//				tts_rate=64-(atoi(argv[i+1])-64);
+				tts_rate=64*(100.0/atoi(argv[i+1]));
+				i++;
+				continue;
+			}
+			if(!strcmp(argv[i], "--freq"))
+			{
+				tts_freq=-atoi(argv[i+1]);
+				i++;
+				continue;
+			}
 			continue;
 		}
 		
@@ -1915,7 +1941,8 @@ int main(int argc, char *argv[])
 
 	dict=TkuTts_LoadDict("worddict0.txt");
 
-	cs="this is a test; 1; 2; 3. I got that skibidi rizz.";
+	cs="this is a test; 1; 2; 3. I got that skibidi rizz."
+		" skibidi; dom; yes, yes; skibidi skibidi neep neep.";
 	ct=t1buf;
 	TkuTts_TranscribePhrase(dict, cs, &ct);
 
@@ -1926,9 +1953,13 @@ int main(int argc, char *argv[])
 	dpcm=TkuTts_PcmState_Create();
 	if(dlib && dpcm)
 	{
+		dpcm->ratescale=tts_rate;
+		dpcm->freqadj=tts_freq;
+	
 		n=TkuTts_PcmRunPhonetic(dpcm, dlib, obuf, t1buf);
 		BGBMID_NormalizeSample(obuf, obuf, n);
-		BGBMID_StoreWAV("tts_test1.wav", (byte *)obuf, 1, 11025, 16,  n);
+//		BGBMID_StoreWAV("tts_test1.wav", (byte *)obuf, 1, 11025, 16,  n);
+		BGBMID_StoreWAV("tts_test1.wav", (byte *)obuf, 1, 16000, 16,  n);
 	}
 	
 #if 0

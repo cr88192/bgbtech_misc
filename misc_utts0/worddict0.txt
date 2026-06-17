@@ -1,6 +1,6 @@
 A				aI
 a				@
-able			AIbul
+able			xAbul
 about			ubA@t
 account			@kA@nt
 acid			asid
@@ -8,12 +8,12 @@ across			@kros
 act				akt
 addition		adiSI@n
 adjustment		@dJ@stment
-advertisement	advirtAIzment
+advertisement	advirtxIzment
 agreement		@grIment
 after			aftir
-again			@gAIn
-against			@gAInst
-air				AIr
+again			@gin
+against			@ginst
+air				xAr
 all				ol
 almost			olmO@st
 among			@m@G
@@ -42,14 +42,14 @@ attention		@tenS@n
 attraction		@trakS@n
 authority		oDOritI
 automatic		otWmatik
-awake			@wAIk
+awake			@wxAk
 
 alcohol			alk@hol
 algebra			alJ@br@
 aluminium		@lUmin@m	
 ammonia			@mWnI@
 anesthetic		anisDetik
-April			AIpril
+April			xApril
 arithmetic		@riTm@tik
 asbestos		azbest@s
 August			ogest
@@ -58,36 +58,36 @@ automobile		otWbIl
 
 absence			absens
 absorption		@bzOrbS@n
-acceleration	aksel@reIS@n
+acceleration	aksel@rxAS@n
 acceptance		aksept@ns
 accessory		akses@rI
 accident		aksident
 active			aktiv
 address			aJres
-adjacent		aJeIs@nt
+adjacent		aJxAs@nt
 adventure		advenSer
-advice			advAIs
-age				eIJ
-agent			eIJent
-agency			eIJensI
+advice			advxIs
+age				xAJ
+agent			xAJent
+agency			xAJensI
 ago				@gW
 allowance		@lauens
 along			@loN
 also			olsW
 alternative		olt@rn@tiv
-always			olweIs
+always			olwxAs
 ambition		ambiS@n
 amplitude		amplitUd
 anchor			ankir
 ankle			ank@l
 appendage		@pendAJ
 application		aplikaS@n
-approximation	@aproksimeIS@n
-arbitration		orbitreIS@n
+approximation	@aproksimxAS@n
+arbitration		orbitrxAS@n
 arbitrary		orbitrarI
 arc				ork
 area			erI@
-arrangement		@reInJment
+arrangement		@rxAnJment
 ash				aS
 asset			aSet
 assistant		@sistent
@@ -96,7 +96,7 @@ awkward			okward
 axis			aksis
 
 afterthought	afturDot
-airplane		erpleIn
+airplane		erplxAn
 another			@n@Tir
 anybody			anIbudI
 anyhow			anIhou
@@ -109,15 +109,15 @@ acting			aktIG
 
 B				bI
 
-baby			beIbI
+baby			bxAbI
 back			bak
 bad				bad
 bag				bag
 balance			baluns
 ball			bol
 band			band
-base			beIs
-basin			beIsin
+base			bxAs
+basin			bxAsin
 basket			baskit
 bath			baT
 be				bI
@@ -126,7 +126,7 @@ because			bIk@s
 bed				bed
 bee				bI
 before			bIfOr
-behavior		bIheIviOr
+behavior		bIhxAviOr
 belief			bIlIf
 bell			bel
 bent			bent
@@ -139,7 +139,7 @@ bit				bit
 bite			boIt
 bitter			bit@r
 black			blak
-blade			bleId
+blade			blxAd
 blood			blud
 blow			blW
 blue			blU
@@ -153,15 +153,15 @@ boiling			bOIlIG
 bottle			bot@l
 box				boks
 boy				bOI
-brain			b.reIn
-brake			b.reIk
+brain			b.rxAn
+brake			b.rxAk
 branch			b.ranC.
 brass			b.ras.
 bread			b.red
 breath			b.reT
 brick			b.rik
 bridge			b.riJ
-bright			b.reIt
+bright			b.rxAt
 broken			b.rWkin
 brother			b.r@D@r
 brown			b.roun
@@ -175,19 +175,19 @@ burst			b@rst
 business		bisnes
 but				b@t
 butter			b@t@r
-by				bAI
+by				bxI
 
-ballet			baleIt
+ballet			balxAt
 bang			baG
 bank			bank
 bar				bor
 beef			bIf
 beer			bIr
-biology			beIlWJI
+biology			bxAlWJI
 bomb			bomb
 
 balcony			balkunI
-bale			beIl
+bale			bxAl
 bankrupt		bankr@pt
 bark			bork
 barrel			barel
@@ -200,12 +200,12 @@ belt			belt
 bet				bet
 bill			bil
 birefringence	beiref@rinJ@ns
-blame			bleIm
+blame			blxAm
 blanket			blAnket
 both			bWT
 bottom			botum
-brave			b.reIv
-break			b.reIk
+brave			b.rxAv
+break			b.rxAk
 breakfast		b.rekfast
 breast			b.rest
 broker			b.rWk@r
@@ -219,10 +219,10 @@ busy			busI
 
 backbone		bakbWn
 backwoods		bakwUdz
-become			bIkeIm
+become			bIkxAm
 bedroom			bedrUm
 beeswax			bIzwaks
-birthday		b.rTdeI
+birthday		b.rTdxA
 birthright		b.rTroIt
 blackberry		b.lakberI
 blackbird		b.lakb@rd
@@ -233,8 +233,8 @@ bookkeeper		bUkIp@r
 brushwood		bur@SwUd
 buttercup		b@t@rk@p
 
-basing			beIsiG
-based			beIst
+basing			bxAsiG
+based			bxAst
 builder			bild@r
 burner			b@rn@r
 burned			b@rnd
@@ -242,20 +242,20 @@ burning			b@rnIG
 
 C				sI
 
-cake			keIk
+cake			kxAk
 camera			kam@r@
 canvas			kanvas
 card			kord
-care			keIr
-carriage		keIraJ
+care			kxAr
+carriage		kxAraJ
 cart			kort
 cat				kat
 cause			kos
 certain			s@rtan
-chain			CeIn
+chain			CxAn
 chalk			Colk
 chance			Cans
-change			CeInJ
+change			CxAnJ
 cheap			CIp
 cheese			CIz
 chemical		kemik@l
@@ -311,11 +311,11 @@ curve			k@rv
 cushion			kuS@n
 cut				k@t
 
-cafe			kafeI
+cafe			kafxA
 calendar		kal@nd@r
 catarrh			kat@r
 centi-			sentI
-champagne		SampeIn
+champagne		SampxAn
 chauffeur		SWf@r
 check			Cek
 chemist			kemist
@@ -326,21 +326,21 @@ cigarette		sig@ret
 circus			s@rkus
 citron			sitron
 club			kl@b
-cocktail		kokteIl
+cocktail		koktxAl
 coffee			kofI
 cognac			kWnIak
 college			kolaJ
 colony			kol@nI
 
-calculation		kalkIueIS@n
+calculation		kalkIuxAS@n
 call			kal
 capacity		k@pasitI
 capital			kapital
 carpet			korpit
 cartilage		kortilaJ
-case			keIs
+case			kxAs
 cast			kast
-cave			keIv
+cave			kxAv
 cavity			kavitI
 cell			sel
 ceremony		serimWnI
@@ -352,12 +352,12 @@ child			CaIld
 chimney			CimnI
 china			CaIn@
 choice			CWIs
-circulation		s@rkuleIS@n
+circulation		s@rkulxAS@n
 circuit			s@rkut
 circumference	s@rkumf@rens
-civilization	sivilaIzeIS@n
-clay			k.leI
-claim			k.leIm
+civilization	sivilaIzxAS@n
+clay			k.lxA
+claim			k.lxAm
 claw			k.lo
 cleavage		k.lIvaJ
 clever			k.lev@r
@@ -369,17 +369,17 @@ coil			koIl
 collision		kWliS@n
 collection		kWlekS@n
 column			kWl@m
-combination		kombineIS@n
+combination		kombinxAS@n
 combine			kombaIn
-communications	komuenikeIS@nz
-complaint		komp@leInt
+communications	komuenikxAS@nz
+complaint		komp@lxAnt
 component		kompWn@nt
 compound		kompaund
 concept			konsept
 concrete		konk@rIt
 conductor		kond@kt@r
 congruent		kong@ruint
-conservation	kons@rveIS@n
+conservation	kons@rvxAS@n
 consignment		konsaInment
 constant		konstant
 consumer		konsum@r
@@ -389,7 +389,7 @@ convenient		konvInIent
 conversion		konv@rS@n
 cool			kUl
 corner			kOrn@r
-correlation		kOrileIS@n
+correlation		kOrilxAS@n
 corrosion		kOrWS@n
 cost			kost
 court			kOrt
@@ -402,7 +402,7 @@ customs			k@st@mz
 
 cardboard		kArdbOrd
 carefree		kerfrI
-caretaker		kerteIk@r
+caretaker		kertxAk@r
 clockwork		k.lokwirk
 commonsense		kom@nsens
 copyright		kopIraIt
@@ -419,10 +419,10 @@ crying			k.raIG
 D				dI
 
 damage			dam@J
-danger			deInJ@r
+danger			dxAnJ@r
 dark			dArk
 daughter		dot@r
-day				deI
+day				dxA
 dead			ded
 dear			dIr
 death			deT
@@ -435,7 +435,7 @@ dependent		dIpend@nt
 design			dIsaIn
 desire			dIsaIr
 destruction		dIst@rukS@n
-detail			dIteIl
+detail			dItxAl
 development		dIvelupment
 different		dif@rent
 digestion		daIJeStI@n
@@ -453,7 +453,7 @@ dog				dog
 door			dOr
 down			doun
 doubt			dout
-drain			dreIn
+drain			drxAn
 drawer			dro@r
 dress			d.res
 drink			d.rInk
@@ -466,21 +466,22 @@ dance			dans
 December		dIsemb@r
 deci-			desI
 degree			digrI
+dom				dom
 Dominion		d@minI@n
 dynamite		daIn@maIt
 
 damping			dampIG
-date			deIt
+date			dxAt
 debit			debit
 deck			dek
 decrease		dikrIs
 defect			dIfekt
 deficiency		dIfiS@nsI
-deflation		dIfleIS@n
+deflation		dIflxAS@n
 degenerate		dIJen@rat
 delivery		dIliv@rI
 demand			dImand
-denominator		dInomineId@r
+denominator		dInominxAd@r
 department		dIpArtm@nt
 desert			dIs@rt
 density			densitI
@@ -499,9 +500,9 @@ direct			dIrekt
 disappearance	dis@pIr@nz
 discharge		disCArJ
 discount		diskaunt
-disgrace		disgreIs
+disgrace		disgrxAs
 dislike			dislaIk
-dissipation		dis@peIS@n
+dissipation		dis@pxAS@n
 disturbance		disturbenz
 ditch			diC
 dive			daIv
@@ -515,7 +516,7 @@ duct			dukt
 dull			dul
 duty			dUtI
 
-daylight		deIlaIt
+daylight		dxAlaIt
 downfall		dounfol
 
 dancer			dans@r
@@ -534,9 +535,9 @@ early			@rlI
 earth			@rT
 east			Ist.
 edge			eJ
-education		eJukeIS@n
+education		eJukxAS@n
 effect			@fek.t.
-egg				eIg.
+egg				xAg.
 elastic			Ilastik
 electric		Ilek.t.rik
 end				end
@@ -549,15 +550,15 @@ event			Ivent
 ever			ev@r
 every			ev@rI
 example			ekzampul
-exchange		ekzeInJ
+exchange		ekzxAnJ
 existence		ekzistens.
 expansion		ekzpanS@n
 experience		ekzpIrIens.
 expert			ekzp@rt
-eye				eI.
+eye				.xI.
 
-eight			eIt
-eighty			eItI
+eight			xAt
+eighty			xAtI
 electricity		IlektrisitI
 eleven			Ilevin
 embassy			emb@sI
@@ -571,43 +572,43 @@ economy			Ikon@mI
 efficiency		IfisIensI
 effort			efOrt
 either			aID@r
-elimination		IlimineIS@n
+elimination		IliminxAS@n
 employer		emplOI@r
 empty			emptI
 enemy			en@mI
 envelope		env@lWp
 environment		envaIrWment.
 envy			envI
-equation		IkueIS@n
+equation		IkuxAS@n
 erosion			IrWS@n
 eruption		IrupS@n
-evaporation		Ivap@reIS@n
+evaporation		Ivap@rxAS@n
 evening			Iv@nIG
 exact			egsakt
 excitement		eksaItment
 experiment		eksp@riment
 exercise		eks@rsaIs.
-explanation		eksplaneIS@n
+explanation		eksplanxAS@n
 explosion		eksplWS@n
 export			ekspOrt
 expression		ekspreS@n
 extinction		ekstInS@n
-eyebrow			eIbrA@
-eyelash			eIlaS
+eyebrow			xIbrA@
+eyelash			xIlaS
 
 earring			IrIG
 earthwork		@rHwirk
 evergreen		ev@rg.rIn
 everybody		evrIbudI
-everyday		evrIdeI
+everyday		evrIdxA
 everyone		evrIw@n
 everything		evrITIG
 everywhere		evrIwer
-eyeball			eIbol
+eyeball			xIbol
 
 F				ef.
 
-face			feIs.
+face			fxAs.
 fact			fakt
 fall			fol
 false			fols.
@@ -620,7 +621,7 @@ fear			fIr
 feather			feT@r
 feeble			fIb@l
 feeling			fIlIG
-female			fImeIl
+female			fImxAl
 fertile			f@rtaIl
 fiction			fikS@n
 field			fIld
@@ -631,7 +632,7 @@ first			f@rst
 fish			fiS
 fixed			fiks.t
 flag			f.lag
-flame			f.leIm
+flame			f.lxAm
 flat			f.lat
 flight			f.laIt
 floor			f.lOr
@@ -647,7 +648,7 @@ fork			fOrk
 form			fOrm
 forward			fOrword
 fowl			faul
-frame			freIm
+frame			frxAm
 free			frI
 frequent		frIkwent
 friend			frend
@@ -666,12 +667,12 @@ four			fOr
 fourteen		fOrtIn
 fourth			fOrT
 forty			fOrtI
-friday			fraIdeI
+friday			fraIdxA
 
 factor			fakt@r
-failure			feIl@r
+failure			fxAl@r
 fair			fer
-famous			feIm@s
+famous			fxAm@s
 fan				fan
 fastening		fast@nIG
 fault			folt
@@ -690,7 +691,7 @@ flood			flUd
 flour			flA@r
 flow			flW
 focus			fWk@s
-foliation		fWlIeIS@n
+foliation		fWlIxAS@n
 forecast		fOrkast
 forehead		fOrhed
 foreign			fOren
@@ -715,9 +716,9 @@ firearm			faIrArm
 fire-engine		faIrenJin
 firefly			faIrflaI
 fireman			faIrman
-fireplace		faIrpleIs.
+fireplace		faIrplxAs.
 firework		faIrwirk
-first-rate		f@rstreIt
+first-rate		f@rstrxAt
 football		fUUetboUl.
 footlights		futlaIts
 footman			futman
@@ -748,10 +749,10 @@ good			gUd
 government		guv@rmint
 grain			graIn
 grass			gras
-great			greIt
+great			grxAt
 green			grIn
-grey			greI
-gray			greI
+grey			grxA
+gray			grxA
 grip			grip
 group			grUp
 growth			grOT
@@ -765,18 +766,18 @@ geometry		JIomitrI
 gram			gram
 glycerin		glis@rin
 
-gate			geIt
-generation		Jen@reIS@n
+gate			gxAt
+generation		Jen@rxAS@n
 germ			J@rm
-germinating		J@rm@neItIG
+germinating		J@rm@nxAtIG
 gill			gil
-glacier			gleIS@r
+glacier			glxAS@r
 gland			gland
 god				god
 got				got
 grand			grand
-grateful		greItf@l
-grating			greItIG
+grateful		grxAtf@l
+grating			grxAtIG
 gravel			grav@l
 grease			grIs.
 grief			grIf
@@ -799,9 +800,9 @@ gunpowder		g@npawd@r
 
 gardener		gordun@r
 
-H				eIC.
+H				.xAC.
 
-hair			heIr
+hair			hxAr
 hammer			ham@r
 hand			hand
 hanging			haGIG
@@ -810,7 +811,7 @@ harbor			hArb@r
 hard			hArd
 harmony			hArm@nI
 hat				hat
-hate			heIt
+hate			hxAt
 have			hav
 he				hI
 head			hed
@@ -852,7 +853,7 @@ hill			hil
 hinge			hinJ
 hire			haIr
 hold			huld
-holiday			holideI
+holiday			holidxA
 home			hWm
 honest			hon@st
 honey			hunI
@@ -869,13 +870,13 @@ handwriting		handraItIG
 headdress		hedres
 headland		hedland
 headstone		hedstWn
-headway			hedweI
+headway			hedwxA
 hereafter		hIraft@r
 herewith		hIrwiT
 highlands		haIlands
-highway			haIweI
+highway			haIwxA
 himself			himself
-horseplay		hOrspleI
+horseplay		hOrsplxA
 horsepower		hOrspow@r
 hourglass		ha@rglas
 houseboat		ha@sbWt
@@ -887,10 +888,10 @@ heater			hIt@r
 heated			hIt@d
 heating			hItIG
 
-I				AI.
+I				.xI.
 
-ice				AIs
-idea			AIdI@
+ice				xIs
+idea			xIdI@
 if				if
 ill				il
 important		impOrt@nt
@@ -904,9 +905,9 @@ instrument		instr@mint
 insurance		inS@rins.
 interest		int@rist
 invention		invenS@n
-iron			AIr@n
+iron			xIr@n
 is				iz
-island			AIl@nd
+island			xIl@nd
 
 Imperial		imp@ri@l
 inferno			inf@rnW
@@ -915,28 +916,28 @@ international	int@rnaS@nol
 
 igneous			ignI@s
 image			imaJ
-imagination		imaJineIS@n
+imagination		imaJinxAS@n
 import			impOrt
 impurity		imp@ritI
 inclusion		inklUS@n
 index			indeks
 individual		individ@ol
-inflation		infleIS@n
+inflation		inflxAS@n
 infinity		infinitI
 inheritance		inherit@ns.
 innocent		inWsent
 institution		instituS@n
-insulator		ins@leItOr
+insulator		ins@lxAtOr
 integer			int@g@r
 intelligent		inteliJent
 intercept		int@rsept
-interpretation	int@rpreteIS@n
+interpretation	int@rpretxAS@n
 intersection	int@rsekS@n
 intrusion		intrUS@n
-investigation	investigeIS@n
+investigation	investigxAS@n
 investment		investment
 inverse			inv@rs.
-invitation		inv@teIS@n
+invitation		inv@txAS@n
 
 inasmuch		inasm@C
 income			ink@m
@@ -951,7 +952,7 @@ itself			itself
 
 inner			in@r
 
-J				JeI
+J				.JxA.
 
 jelly			JelI
 jewel			JU@l
@@ -962,7 +963,7 @@ jump			J@mp
 
 january			JanuwerI
 jazz			Jaz
-july			JUlAI
+july			JUlxI
 june			JUn
 
 jam				Jam
@@ -978,16 +979,16 @@ justice			J@stis.
 jeweler			J@l@r
 joiner			JOIn@r
 
-K				keI.
+K				.kxA.
 
 keep			kIp
 kettle			ket@l
 key				kI
 kick			kik
-kind			kAInd
+kind			kxInd
 kiss			kis.
 knee			nI
-knife			nAIf
+knife			nxIf
 knot			not
 knowledge		nol@J
 
@@ -1006,7 +1007,7 @@ L				.el.
 land			land
 language		laGwaJ
 last			last
-late			leIt
+late			lxAt
 laugh			laf.
 law				lo.
 lead			led
@@ -1014,18 +1015,18 @@ leaf			lIf
 learning		l@rnIG
 least			lIst
 leather			leD@r
-leg				leIg
+leg				lxAg
 less			les.
 left			left
 let				let
 letter			let@r
 level			lev@l
-library			lAIbrerI
+library			lxIbrerI
 lift			lift
-light			lAIt
-like			lAIk
+light			lxIt
+like			lxIk
 limit			lim@t
-line			lAIn
+line			lxIn
 linen			lin@n
 lip				lip
 liquid			likwid
@@ -1047,26 +1048,26 @@ liter			lit@r
 liqueur			lik@r
 longitude		lonJitUd
 
-lace			leIs
+lace			lxAs
 lag				lag
-lake			leIk
-lame			leIm
+lake			lxAk
+lame			lxAm
 lamp			lamp
 large			lorJ
 latitude		latitUd
 lawyer			loI@r
-layer			leI@r
-lazy			leIzI
+layer			lxA@r
+lazy			lxAzI
 lecture			lekt@r
 legal			lIgal
 length			leGT
 lens			lenz
 lesson			les.@n
 lever			lev@r
-liability		lAI@bilitI
-license			lAIsens.
+liability		lxI@bilitI
+license			lxIsens.
 lid				lid
-life			lAIf
+life			lxIf
 lime			lAim
 limestone		lAimstWn
 link			lInk
@@ -1083,7 +1084,7 @@ lung			l@G
 
 landmark		landmork
 landslip		landslip
-lighthouse		lAIthA@s
+lighthouse		lxIthA@s
 
 laughing		lafIG
 learner			l@rn@r
@@ -1095,8 +1096,8 @@ M				.em.
 machine			moSIn
 man				man
 manager			man@J@r
-make			meIk
-male			meIl
+make			mxAk
+male			mxAl
 map				map
 mark			mork
 market			mork@t
@@ -1104,7 +1105,7 @@ married			merId
 match			maC
 material		matirI@l
 mass			mas.
-may				meI
+may				mxA
 meal			mIl
 measure			mez@r
 meat			mIt
@@ -1115,8 +1116,8 @@ metal			met@l
 middle			mid@l
 military		militrI
 milk			milk
-mind			mAInd
-mine			mAIn
+mind			mxInd
+mine			mxIn
 minute			min@t
 mist			mist
 mixed			miks@d
@@ -1140,18 +1141,18 @@ macaroni		mak@rWnI
 madam			mad@m
 magnetic		magnetik
 malaria			m@lerI@
-mania			meInIA
+mania			mxAnIA
 march			morC
 mathematics		maTmatiks
-may				meI
+may				mxA
 meter			mIt@r
 meow			mIa@
-micro-			mAIkrW
-microscope		mAIkrWskWp
+micro-			mxIkrW
+microscope		mxIkrWskWp
 milli-			milI
 million			milI@n
 minute			min@t
-monday			m@ndeI
+monday			m@ndxA
 museum			mU@zI@m
 
 magic			maJik
@@ -1186,32 +1187,33 @@ moral			mOr@l
 moustache		m@staC
 mud				m@d
 multiple		mult@p@l
-multiplication	multipl@keIS@n
+multiplication	multipl@kxAS@n
 murder			m@rd@r
 
 manhole			manhWl
-myself			mAIself
+myself			mxIself
 
 marked			mArk.d
-miner			mAIn@r
+miner			mxIn@r
 
 N				.en.
 
-nail			neIl
-name			neIm
+nail			nxAl
+name			nxAm
 narrow			narW
-nation			neIS@n
+nation			nxAS@n
 natural			natr@l
 near			nIr
 necessary		nes@sarI
 neck			nek
 need			nId
 needle			nId@l
+neep			nIp
 nerve			n@rv
 net				net
 new				nU
 news			nUs
-night			nAIt
+night			nxIt
 no				nW
 noise			nOIz
 normal			nOrm@l
@@ -1226,27 +1228,27 @@ nut				n@t
 neutron			nI@tron
 nickel			nik@l
 nicotine		nik@tIn
-nine			nAIn
-ninety			nAIntI
+nine			nxIn
+ninety			nxIntI
 november		nWvemb@r
 
 nasty			nastI
-nature			neIC@r
-navy			neIvI
+nature			nxAC@r
+navy			nxAvI
 neat			nIt
 neglect			n@glekt
-neighbor		neIb@r
+neighbor		nxAb@r
 nest			nest
 next			nekst
-nice			nAIs
+nice			nxIs
 node			nWd
 nostril			nostril
 nucleus			nUklI@s
-numerator		nUm@reIt@r
+numerator		nUm@rxAt@r
 nurse			n@rs.
 
 network			netwirk
-newspaper		nI@zpeIp@r
+newspaper		nI@zpxAp@r
 nobody			nWb@dI
 nothing			n@TIG
 nowhere			nWwer
@@ -1256,7 +1258,7 @@ noted			nWt@d
 
 O				.Wh.
 
-observation		obs@rveIS@n
+observation		obs@rvxAS@n
 of				@v
 off				of
 offer			of@r
@@ -1266,13 +1268,13 @@ old				Old
 on				on
 only			WnlI
 open			Wp@n
-operation		opreIS@n
+operation		oprxAS@n
 opinion			@pinI@n
 opposite		op@sit
 or				Or
 orange			Or@nJ
 order			Ord@r
-organization	Org@nAIseIS@n
+organization	Org@nxIsxAS@n
 ornament		Orn@m@nt
 other			@T@r
 out				O@t
@@ -1297,11 +1299,11 @@ ore				Or
 organ			Org@n
 origin			Or@Jin
 outcrop			O@tkrop
-outlier			O@tlAIr
+outlier			O@tlxIr
 overlap			Wv@rlap
 oval			Wv@l
 own				Wn
-oxidation		oksideIS@n
+oxidation		oksidxAS@n
 
 offspring		ofs.prIG
 oncoming		onk@mIG
@@ -1310,16 +1312,16 @@ onlooker		onlUk@r
 onto			ontU
 outburst		O@tb@rst
 outcome			O@tk@m
-outcry			O@tkrAI
+outcry			O@tkrxI
 outdoor			O@tdOr
 outgoing		O@tgWIG
 outhouse		O@thA@s
 outlaw			O@tlo
 outlet			O@tlet
-outline			O@tlAIn
+outline			O@tlxIn
 outlook			O@tlUk
 output			O@tpUt
-outside			O@tsAId
+outside			O@tsxId
 outskirts		O@tsk@rtz
 outstretched	O@tstreC@d
 overacting		Wv@raktIG
@@ -1339,30 +1341,30 @@ overloud		Wv@rlA@d
 overseas		Wv@rsIs
 overseer		Wv@rsIr
 overshoe		Wv@rSU
-overstatement	Wv@rsteItmint
-overtake		Wv@rteIk
+overstatement	Wv@rstxAtmint
+overtake		Wv@rtxAk
 overtaxed		Wv@rtaks@d
-overtime		Wv@rtAIm
+overtime		Wv@rtxIm
 overturned		Wv@rt@rn@d
 overuse			Wv@rU@s
 overvalued		Wv@rvalU@d
-overweight		Wv@rweIt
+overweight		Wv@rwxAt
 overworking		Wv@rwirkIG
 
 outer			O@t@r
 
 P				.pI.
 
-page			peIJ
-pain			peIn
-paint			peInt
-paper			peIp@r
+page			pxAJ
+pain			pxAn
+paint			pxAnt
+paper			pxAp@r
 parallel		per@lel
 parcel			pArs@l
 part			pArt
 past			past
-paste			peIst
-payment			peImint
+paste			pxAst
+payment			pxAmint
 peace			pIs
 pen				pen
 pencil			pensil
@@ -1371,12 +1373,12 @@ physical		fisik@l
 picture			pikC@r
 pig				pig
 pin				pin
-pipe			pAIp
-place			pleIs
-plane			pleIn
+pipe			pxIp
+place			plxAs
+plane			plxAn
 plant			plant
-plate			pleIt
-play			pleI
+plate			plxAt
+play			plxA
 please			plIs
 pleasure		pleZ@r
 plough			plO@
@@ -1391,14 +1393,14 @@ porter			pOrt@r
 position		pWsiS@n
 possible		posib@l
 pot				pot
-potato			pWteItW
+potato			pWtxAtW
 powder			pA@d@r
 power			pA@r
 present			pres@nt
-price			preIs
+price			prxAs
 print			print
 prison			pris@n
-private			prAIv@t
+private			prxIv@t
 probable		prob@b@l
 process			proses.
 produce			prWdUs
@@ -1416,7 +1418,7 @@ put				put
 
 pajamas			p@Jam@s
 paraffin		per@fin
-paradise		per@dAIs
+paradise		per@dxIs
 park			pork
 passport		paspOrt
 patent			pat@nt
@@ -1435,7 +1437,7 @@ prince			prins.
 princess		prinses
 program			prWgram
 propaganda		prop@gand@
-psychology		sAIkol@JI
+psychology		sxIkol@JI
 purr			pur
 pyramid			pir@mid
 
@@ -1450,7 +1452,7 @@ partner			pArtn@r
 party			pArtI
 passage			pas@J
 path			paT
-patience		peIS@ns.
+patience		pxAS@ns.
 pedal			ped@l
 pendulum		pend@l@m
 pension			penS@n
@@ -1458,22 +1460,22 @@ people			pIp@l
 perfect			p@rfikt
 petal			pet@l
 piston			pist@n
-plain			pleIn
+plain			plxAn
 plan			plan
 plaster			plast@r
 plug			plug
 poetry			pO@trI
 pollen			pol@n
 pool			pUl
-population		pop@leIS@n
+population		pop@lxAS@n
 porcelain		pOrs@lin
 practice		praktis.
-praise			preIz
-prayer			preIr
+praise			prxAz
+prayer			prxAr
 pressure		preS@r
 prick			prik
 priest			prIst
-prime			prAIm
+prime			prxIm
 probability		prob@bilitI
 product			prod@kt
 progress		progres
@@ -1488,18 +1490,18 @@ purchase		perC@s.
 pure			pI@r
 
 pincushion		pink@S@n
-plaything		pleITIG
+plaything		plxATIG
 policeman		p@lizman
 postman			pWstman
 postmark		pWstmork
 postmaster		pWstmast@r
 postoffice		pWstofis.
 
-painter			peInt@r
-painting		peIntIG
+painter			pxAnt@r
+painting		pxAntIG
 parting			portIG
-playing			pleIG
-played			pleId
+playing			plxAG
+played			plxAd
 pleased			plI@sd
 pointer			pOInt@r
 pointing		pOIntIG
@@ -1513,25 +1515,25 @@ Q			.kIU.
 quality			kuAlitI
 question		kuesC@n
 quick			kuik
-quiet			kuAI@t
-quite			kuAIt
+quiet			kuxI@t
+quite			kuxIt
 
 quack			kuak
 quarter			kuArt@r
 queen			kuIn
-quinine			kuInAIn
+quinine			kuInxIn
 
 quantity		kuontitI
 quotient		quWtIent
 
 R			.Ar.
 
-rail			reIl
-rain			reIn
-range			reInJ
+rail			rxAl
+rain			rxAn
+range			rxAnJ
 rat				rat
-rate			reIt
-ray				reI
+rate			rxAt
+ray				rxA
 reaction		rIaC@n
 red				red
 reading			rIdIG
@@ -1540,8 +1542,8 @@ reason			rIz@n
 receipt			rIsIt
 record			rek@rd
 regret			rIgret
-regular			reIgl@r
-relation		rIleIS@n
+regular			rxAgl@r
+relation		rIlxAS@n
 religion		rIliJ@n
 representative	reprIzent@tiv
 request			rIkuest
@@ -1550,8 +1552,8 @@ responsible		rIsponsib@l
 rest			rest
 reward			rIwArd
 rhythm			riT@m
-rice			rAIs
-right			rAIt
+rice			rxIs
+right			rxIt
 ring			rIG
 river			riv@r
 road			rWd
@@ -1566,18 +1568,18 @@ rub				rub
 rule			rUl
 run				run
 
-radio			reIdIW
-radium			reIdI@m
+radio			rxAdIW
+radium			rxAdI@m
 referendum		ref@rendum
 restaurant		restro@nt
 rheumatism		rUm@tism
 royal			rOIl
 rum				rum
 
-race			reIs
-radiation		reIdIeIS@n
-ratio			reISW
-reagent			rIeIg@nt
+race			rxAs
+radiation		rxAdIxAS@n
+ratio			rxASW
+reagent			rIxAg@nt
 real			rIl
 receiver		resIv@r
 reciprocal		resipr@k@l
@@ -1585,7 +1587,7 @@ rectangle		rektaG@l
 recurring		rIk@rIG
 reference		refrens.
 reflux			rIfluks
-reinforcement	rIfAInmint
+reinforcement	rIfxInmint
 relative		rel@tiv
 remark			rImork
 remedy			rem@dI
@@ -1597,23 +1599,23 @@ resistance		rIsistans.
 residue			residu
 resolution		reslUS@n
 result			rIs@lt
-retail			rIteIl
+retail			rItxAl
 revenge			rIvenJ
 reversible		rIv@rsib@l
 rich			riC
 rigidity		riJid@ty
-rise			rAIs
-rival			rAIv@l
+rise			rxIs
+rival			rxIv@l
 rizz			riz.
 rock			rok
 rot				rot
-rotation		rWteIS@n
+rotation		rWtxAS@n
 rude			rUd
 rust			r@st
 
-runaway			r@n@weI
+runaway			r@n@wxA
 
-raining			reInIG
+raining			rxAnIG
 reader			rId@r
 reading			rIdIG
 roller			rWl@r
@@ -1623,15 +1625,15 @@ rubber			rub@r
 S				.es.
 
 sad				sad
-safe			seIf
-sail			seIl
+safe			sxAf
+sail			sxAl
 salt			salt
-same			seIm
+same			sxAm
 sand			sand
-say				seI
-scale			skeIl
+say				sxA
+scale			skxAl
 school			skUl
-science			sAIans.
+science			sxIans.
 scissors		sis@rs
 screw			skrU
 sea				sI
@@ -1651,9 +1653,9 @@ serious			sirI@s
 servant			s@rvent
 seventy			sev@ntI
 sex				seks
-shade			SeId
-shake			SeIk
-shame			SeIm
+shade			SxAd
+shake			SxAk
+shame			SxAm
 sharp			Sorp
 sheep			SIp
 shelf			Self
@@ -1663,18 +1665,18 @@ shock			Sok
 shoe			SU
 short			SOrt
 shut			S@t
-side			sAId
-sign			sAIn
+side			sxId
+sign			sxIn
 silk			silk
 silver			silv@r
 simple			simp@l
 sister			sist@r
 sixty			sikstI
-size			sAIz
+size			sxIz
 skibidi			skibidI
 skin			skin
 skirt			sk@rt
-sky				skAI
+sky				skxI
 sleep			slIp
 slip			slip
 slope			slWp
@@ -1682,15 +1684,15 @@ slow			slW
 small			smol
 smash			smaS
 smell			smel
-smile			smAIl
+smile			smxIl
 smoke			smWk
 smooth			smUT
-snake			sneIk
+snake			snxAk
 sneeze			snIz
 snow			snW
 so				sW
 soap			sWp
-society			s@sAI@tI
+society			s@sxI@tI
 sock			sok
 soft			soft
 solid			solid
@@ -1701,19 +1703,19 @@ sort			sOrt
 sound			sA@nd
 soup			sUp
 south			sA@T
-space			speIs.
-spade			speId
+space			spxAs.
+spade			spxAd
 special			spes@l
 sponge			sp@nJ
 spoon			spUn
 spring			sprIG
 square			skuer
-stage			steIJ
+stage			stxAJ
 stamp			stamp
 star			stor
 start			stort
-statement		steItmint
-station			steIS@n
+statement		stxAtmint
+station			stxAS@n
 steam			stIm
 steel			stIl
 stem			stem
@@ -1729,8 +1731,8 @@ stone			stWn
 stop			stop
 store			stOr
 story			stOrI
-straight		streIt
-strange			streInJ
+straight		strxAt
+strange			strxAnJ
 street			strIt
 stretch			streC
 strong			stroG
@@ -1743,14 +1745,14 @@ suggestion		s@gJesC@n
 summer			s@m@r
 sun				s@n
 support			s@pOrt
-surprise		s@prAIz
+surprise		s@prxIz
 sweet			swIt
 swim			swim
 system			sist@m
 
 salad			sal@d
 sardine			sardIn
-saturday		saterdeI
+saturday		saterdxA
 second			sek@nd
 september		septemb@r
 serum			sir@m
@@ -1759,16 +1761,16 @@ sir				sir
 six				siks
 sixteen			sikstIn
 sport			spOrt
-sunday			s@ndeI
+sunday			s@ndxA
 
 sac				sak
-sale			seIl
+sale			sxAl
 sample			samp@l
 satisfaction	satisfakS@n
-saturated		sat@reIt@d
+saturated		sat@rxAt@d
 saucer			sos@r
-saving			seIvIG
-scale			skeIl
+saving			sxAvIG
+scale			skxAl
 scarp			skorp
 schist			Sist
 scratch			skraC
@@ -1786,23 +1788,23 @@ sepal			sep@l
 service			s@rvis
 set				set
 shadow			SadW
-shale			SeIl
+shale			SxAl
 share			Ser
-shave			SeIv
+shave			SxAv
 shear			SIr
 sheet			SIt
 shell			Sel
 shore			SOr
 shoulder		SOld@r
 show			SW
-sight			sAIt
+sight			sxIt
 sill			sil
 similarity		similer@tI
 since			sins.
 skull			skul
-slate			sleIt
+slate			slxAt
 sleeve			slIv
-slide			slAId
+slide			slxId
 social			sWSol
 soil			sOIl
 soldier			sOld@r
@@ -1810,28 +1812,28 @@ solution		sulUS@n
 solvent			solvent
 sorry			sorI
 spark			spork
-specialization	speS@lAIzeIS@n
+specialization	speS@lxIzxAS@n
 specimen		spesiman
-speculation		spekuleIS@n
+speculation		spekulxAS@n
 spirit			spIr@t
 spit			spit
 splash			splaS
 spot			spot
-stable			steIb@l
-stain			steIn
+stable			stxAb@l
+stain			stxAn
 stair			ster
 stalk			stok
-stamen			steIm@n
+stamen			stxAm@n
 statistics		st@tistiks
 steady			stedI
 stimulus		stimIUl@s
 storm			stOrm
-strain			streIn
+strain			strxAn
 straw			stro
 stream			strIm
 strength		streGT
 stress			stres.
-strike			strAIk
+strike			strxIk
 string			strIG
 study			st@dI
 subject			s@bjekt
@@ -1841,7 +1843,7 @@ success			s@kses
 successive		s@ksesiv
 sucker			s@k@r
 sum				s@m
-supply			s@plAI
+supply			s@plxI
 surface			s@rfis
 surgeon			s@rJ@n
 suspension		s@spenS@n
@@ -1854,23 +1856,23 @@ sympathetic		simp@Tetik
 seaman			sIman
 secondhand		sek@ndhand
 shorthand		SOrthand
-sideboard		sAIdbOrd
-sidewalk		sAIdwolk
+sideboard		sxIdbOrd
+sidewalk		sxIdwolk
 somebody		s@mb@dI
-someday			s@mdeI
+someday			s@mdxA
 somehow			s@mhA@
 someone			s@mw@n
 something		s@mTIG
-sometime		s@mtAIm
+sometime		s@mtxIm
 somewhat		s@mw@t
 somewhere		s@mwer
-suchlike		s@ClAIk
+suchlike		s@ClxIk
 sunburn			s@nb@rn
-sunlight		s@nlAIt
-sunshade		s@nSeId
+sunlight		s@nlxIt
+sunshade		s@nSxAd
 sweetheart		swIthArt
 
-sailor			seIl@r
+sailor			sxAl@r
 shocking		SokIG
 shocked			Sok@d
 snowing			snWIG
@@ -1881,12 +1883,12 @@ stretcher		streC@r
 
 T				.tI.
 
-table			teIb@l
-tail			teIl
-take			teIk
+table			txAb@l
+tail			txAl
+take			txAk
 talk			tok
 tall			tol
-taste			teIst
+taste			txAst
 tax				taks
 teaching		tICIG
 tendency		tend@nsI
@@ -1909,10 +1911,10 @@ through			TrU
 thumb			T@mb
 thunder			T@nd@r
 ticket			tiket
-tight			tAIt
-tired			tAIr@d
+tight			txIt
+tired			txIr@d
 till			til
-time			tAIm
+time			txIm
 tin				tin
 to				tU
 toe				tW
@@ -1923,10 +1925,10 @@ tooth			tUT
 top				top
 touch			t@C
 town			tA@n
-trade			treId
-train			treIn
+trade			trxAd
+train			trxAn
 transport		transpOrt
-tray			treI
+tray			trxA
 tree			trI
 trick			trik
 trillion		trilI@n
@@ -1950,19 +1952,19 @@ thirteen		T@rtIn
 thirty			T@rtI
 thousand		TO@zand
 three			TrI
-thursday		T@rdeI
+thursday		T@rdxA
 toast			TWst
 tobacco			T@bakW
 torpedo			tOrpIdW
-tuesday			tUsdeI
-turbine			t@rbAIn
+tuesday			tUsdxA
+turbine			t@rbxIn
 twelve			twelv
 twenty			twentI
-twice			twAIs
+twice			twxIs
 two				tU
 
-tailor			teIl@r
-tame			teIm
+tailor			txAl@r
+tame			txAm
 tap				tap
 tear			tIr
 tent			tent
@@ -1974,8 +1976,8 @@ thimble			Timb@l
 thorax			TOraks
 threat			Tret
 thrust			Tr@st
-tide			tAId
-tie				tAI
+tide			txId
+tie				txI
 tissue			tiSU
 tongs			toGz
 too				tU
@@ -1989,24 +1991,24 @@ transparent		transperint
 trap			trap
 travel			travil
 treatment		trItmint
-triangle		trAIang@l
+triangle		trxIang@l
 truck			tr@k
 tube			tUb
 tune			tUn
 tunnel			t@n@l
 twin			twin
-typist			tAIpest
+typist			txIpest
 
-today			t@deI
-tonight			t@nAIt
-tradesman		treIdsman
+today			t@dxA
+tonight			t@nxIt
+tradesman		trxAdsman
 
 talking			tokIG
 teacher			tIC@r
 touching		tuCIG
-trader			treId@r
-trainer			treIn@r
-training		treInIG
+trader			trxAd@r
+trainer			trxAn@r
+training		trxAnIG
 troubling		tr@blIG
 troubled		tr@b@ld
 turning			t@rnIG
@@ -2031,18 +2033,18 @@ underclothing	@nd@rklWTIG
 undercooked		@nd@rkUk@d
 undergo			@nd@rgW
 undergrowth		@nd@rgrWT
-undermined		@nd@rmAIn@d
-undersigned		@nd@rsAIn@d
-undersized		@nd@rsAIz@d
-understatement	@nd@rsteItmint
-undertake		@nd@rteIk
+undermined		@nd@rmxIn@d
+undersigned		@nd@rsxIn@d
+undersized		@nd@rsxIz@d
+understatement	@nd@rstxAtmint
+undertake		@nd@rtxAk
 undervalued		@nd@rvalIUd
 undo			@ndU
 upkeep			@pkIp
 uplift			@plift
 upon			@pon
-upright			@prAIt
-uptake			@pteIk
+upright			@prxIt
+uptake			@ptxAk
 
 used			IUz@d
 
@@ -2053,20 +2055,20 @@ verse			v@rs.
 very			verI
 vessel			ves@l
 view			vI@
-violent			vAI@lint
+violent			vxI@lint
 voice			vOIs
 
 vanilla			v@nil@
-violin			vAI@lin
+violin			vxI@lin
 visa			vIs@
-vitamin			vAIt@min
+vitamin			vxIt@min
 vodka			vodk@
 volt			vult
 
-valency			veIl@nsI
+valency			vxAl@nsI
 valley			valI
 valve			valv
-vapor			veIp@r
+vapor			vxAp@r
 variable		varI@b@l
 vascular		vaskUl@r
 vegetable		veJt@b@l
@@ -2084,19 +2086,19 @@ W				.d@bIU.
 
 walk			wok
 wall			wal
-waiting			weItIG
+waiting			wxAtIG
 war				wAr
 warm			wArm
 wash			woS
-waste			weIst
+waste			wxAst
 watch			woC
 water			wot@r
-wave			weIv
+wave			wxAv
 wax				waks
-way				weI
+way				wxA
 weather			weT@r
 week			wIk
-weight			weIt
+weight			wxAt
 well			wel
 west			west
 wet				wet
@@ -2105,21 +2107,21 @@ wheel			wIl
 when			wen
 where			wer
 which			wiC
-while			wAIl
+while			wxIl
 whip			wip
 whistle			wist@l
-white			wAIt
+white			wxIt
 who				wU
-why				wAI
-wide			wAId
+why				wxI
+wide			wxId
 will			wil
 wind			wind
 window			windW
-wine			wAIn
+wine			wxIn
 wing			wIG
 winter			wint@r
-wire			wAIr
-wise			wAIz
+wire			wxIr
+wise			wxIz
 with			wiT
 woman			wumin
 wood			wud
@@ -2128,20 +2130,20 @@ word			wird
 work			wirk
 worm			wOrm
 wound			wUnd
-writing			rAItIG
+writing			rxItIG
 wrong			roG
 
-wednesday		wenzdeI
+wednesday		wenzdxA
 whisky			wiskI
 
 weak			wIk
 wedge			weJ
 welcome			welk@m
 whether			weT@r
-wholesale		wOlseIl
+wholesale		wOlsxAl
 widow			widW
-wife			wAIf
-wild			wAIld
+wife			wxIf
+wild			wxIld
 world			werld
 wreck			rek
 wrist			rist
@@ -2151,39 +2153,39 @@ weekend			wIkind
 whatever		wutev@r
 whenever		wenev@r
 whereas			weraz
-whereby			werbAI
+whereby			werbxI
 wherever		werev@r
 whichever		wiCev@r
-whitewash		wAItwoS
+whitewash		wxItwoS
 whoever			wUev@r
-windpipe		windpAIp
+windpipe		windpxIp
 within			wiTin
 without			wiTA@t
 woodwork		wUdwirk
 workhouse		wirkhA@s
 
-waiter			weIt@r
+waiter			wxAt@r
 worker			wirk@r
 working			wirkIG
 writer			raIt@r
-waiting			weItIG
-wasted			weIst@d
+waiting			wxAtIG
+wasted			wxAst@d
 
 X				.eks.
 
-x-ray			eksreI
+x-ray			eksrxA
 
-Y				.wAI.
+Y				.wxI.
 
 year			R
 yellow			IelW
 yes				Ies
-yesterday		Iest@rdeI
+yesterday		Iest@rdxA
 you				IU
 young			I@G
 yawn			Ion
 yearbook		RbUk
-yourself		I@rself
+yourself		IOrself
 
 Z				.zI.
 

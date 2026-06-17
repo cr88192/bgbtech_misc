@@ -23,6 +23,8 @@ u32 chan_phase[8];
 u32 chan_step[8];
 s16 chan_vol[8];
 byte *chan_fun[8];
+byte ratescale;
+sbyte freqadj;
 };
 
 TkuTts_DiphLib *TkuTts_LoadDiphLib(char *name)
@@ -164,14 +166,25 @@ byte tkutts_pcmtab_tz[256];
 byte tkutts_pcmtab_sq[256];
 byte tkutts_pcmtab_pl[256];
 byte tkutts_pcmtab_ns[256];
+byte tkutts_pcmtab_tz2[256];
 
 u16 tkutts_pcmtab_vol[256];
 u32 tkutts_pcmtab_hzstep[256];
 
 int TkuTts_PcmState_InitTables()
 {
+	static signed char pul2t[16]={
+	  8,  8,  8,  8,   5,  3, -3, -8,
+	 -8, -8, -8, -8,  -5, -3,  3,  8
+	};
+	static signed char pul3t[16]={
+	  8,  3,  8,  8,   5,  3, -3, -8,
+	 -8, -3, -8, -8,  -5, -3,  3,  8
+	};
+
 	u32 step;
 	int ma, ex;
+	int j1, j2, j3;
 	int i, j, k;
 	
 	if(tkutts_pcmtab_sq[0]==0xC0)
@@ -190,14 +203,46 @@ int TkuTts_PcmState_InitTables()
 	{
 		tkutts_pcmtab_tz[(i+  0-64)&255]=0x40+(i*2);
 		tkutts_pcmtab_tz[(i+128-64)&255]=0xC0-(i*2);
+
+//		tkutts_pcmtab_tz[(i+  0-64)&255]=0x80;
+//		tkutts_pcmtab_tz[(i+128-64)&255]=0x80;
+	}
+
+	for(i=0; i<256; i++)
+	{
+//		tkutts_pcmtab_tz[i]=0x80+(pul2t[i>>4]*8);
+//		tkutts_pcmtab_tz[i]=0x80+(pul3t[i>>4]*8);
+	}
+
+	for(i=0; i<256; i++)
+	{
+		j1=i*2;
+		j2=i*3;
+		tkutts_pcmtab_tz2[i]=
+			tkutts_pcmtab_tz[i]+
+			((tkutts_pcmtab_tz[(i*2)&255]-128)/3)+
+			((tkutts_pcmtab_tz[(i*3)&255]-128)/5)+
+			((tkutts_pcmtab_tz[(i*4)&255]-128)/7)+
+			((tkutts_pcmtab_tz[(i*5)&255]-128)/9);
 	}
 
 	for(i=0; i<256; i++)
 	{
 		ex=i>>5;
+//		if(ex>=1)
+//			ex--;
+		
 		ma=i&31;
 		step=0x80000000U-(ma<<25);
+//		step=0xC0000000U-(ma<<25);
+//		step=0xA0000000U-(ma<<25);
+//		step=0x40000000U+(ma<<25);
 		step>>=ex;
+//		step+=step>>2;
+
+		if(step>0x80000000U)
+			step=0x80000000U;
+
 		tkutts_pcmtab_hzstep[i]=step;
 	}
 
@@ -205,7 +250,18 @@ int TkuTts_PcmState_InitTables()
 	{
 		ex=(i>>3)&7;
 		ma=8+(i&7);
-		tkutts_pcmtab_vol[i]=ma<<(ex+3);
+		tkutts_pcmtab_vol[i]=ma<<(ex+2);
+		
+//		if((i&63)==0)
+//			tkutts_pcmtab_vol[i]=0;
+
+//		tkutts_pcmtab_vol[i]=(i&63)*64;
+
+//		k=i&63;
+//		tkutts_pcmtab_vol[i]=k*k;
+
+		if((i&63)==0)
+			tkutts_pcmtab_vol[i]=0;
 	}
 
 	return(1);
@@ -249,22 +305,70 @@ int TkuTts_PcmState_SetupBlock(TkuTts_PcmState *pcm,
 	byte *frq, byte *amp)
 {
 	int fri;
-	int i;
+	int f1, a1;
+	int i, j, k;
+
+#if 1
+	f1=frq[0]+0x20;
+	a1=amp[0]-(3<<3);
+	if(f1<0)f1=0;
+	if(a1<0)a1=0;
+	a1|=2<<6;
+	frq[6]=f1;	amp[6]=a1;
+
+	f1=frq[1]+0x20;
+	a1=amp[1]-(3<<3);
+	if(f1<0)f1=0;
+	if(a1<0)a1=0;
+	a1|=2<<6;
+	frq[7]=f1;	amp[7]=a1;
+
+#if 0
+	f1=frq[2]+0x30;
+	a1=amp[2]-(3<<3);
+	if(f1<0)f1=0;
+	if(a1<0)a1=0;
+	a1|=2<<6;
+	frq[7]=f1;	amp[7]=a1;
+#endif
+#endif
+
+#if 0
+	f1=0xE0;
+	a1=amp[0]-(1<<3);
+	if(a1<0)	a1=0;
+	if(a1>63)	a1=63;
+//	a1|=2<<6;
+	frq[7]=f1;	amp[7]=a1;
+#endif
 
 	for(i=0; i<8; i++)
 	{
 		fri=frq[i];
-//		fri-=0x20;
+
+		fri-=0x20;
 //		fri-=0x40;
+
+//		fri+=0x20;
+
+//		fri+=0x10;
+//		fri-=0x10;
+
+		fri+=pcm->freqadj;
+
 		if(fri<0)
 			fri=0;
 		pcm->chan_step[i]=tkutts_pcmtab_hzstep[fri];
 		pcm->chan_vol[i]=tkutts_pcmtab_vol[amp[i]];
-		
+
+//		pcm->chan_phase[i]=0;
+
 		switch((amp[i]>>6)&3)
+//		switch(0)
 		{
 		case 0:
 			pcm->chan_fun[i]=tkutts_pcmtab_tz;
+//			pcm->chan_fun[i]=tkutts_pcmtab_tz2;
 //			pcm->chan_fun[i]=tkutts_pcmtab_sq;
 //			pcm->chan_fun[i]=tkutts_pcmtab_sn;
 //			pcm->chan_fun[i]=tkutts_pcmtab_pl;
@@ -329,9 +433,9 @@ int TkuTts_decswg_1x(int *dst, int *rbi, int *rbd)
 	bi=*rbi;
 	bd=*rbd;
 
-	bi-=0x20;
-	if(bi<0)
-		return(0);
+//	bi-=0x20;
+//	if(bi<0)
+//		return(0);
 
 	shr=bi>>5;
 	bi=(bi&31)*8;
@@ -345,11 +449,13 @@ int TkuTts_decswg_1x(int *dst, int *rbi, int *rbd)
 		if(wf>256)
 			wf=256;
 
-		i2=256+bi;
-		i1=(j*i2)>>(5+shr);
+//		i2=256+bi;
+		i2=512-bi;
+//		i1=(j*i2)>>(5+shr);
+		i1=(j*i2)>>(4+shr);
 		i3=pul2t[(i1&31)>>1];
 		k=(bd*i3)>>3;
-		k=(k*wf)>>8;
+//		k=(k*wf)>>8;
 		dst[j]+=k;
 	}
 		
@@ -406,10 +512,15 @@ int TkuTts_PcmRunPhonetic(
 	s16 *ct;
 	char *cs;
 	byte *bcs;
-	int i0, i1, i2, i3, dix, nb, nb1;
+	int i0, i1, i2, i3, dix, nb, nb1, cstp, waslv, bsz;
 	int i, j, k;
 	
-	cs=str; ct=obuf;
+	bsz=64;
+	if(pcm->ratescale)
+		bsz=pcm->ratescale;
+		
+	
+	cs=str; ct=obuf; waslv=0;
 	while(*cs)
 	{
 		if(*cs==' ')
@@ -421,54 +532,129 @@ int TkuTts_PcmRunPhonetic(
 		}
 
 		i0=cs[0];
-
 		if(i0=='.')
 		{
+			waslv=0;
 			cs++;
 			continue;
 		}
 
+		cstp=1;
 		i1=cs[1];
+		if(i1=='x')
+		{
+			switch(cs[2])
+			{
+			case 'a': i1='A'|('@'<<8);	break;
+			case 'e': i1='e'|('@'<<8);	break;
+			case 'i': i1='I'|('@'<<8);	break;
+			case 'o': i1='O'|('@'<<8);	break;
+			case 'u': i1='U'|('@'<<8);	break;
+
+			case 'A': i1='e'|('I'<<8);	break;
+			case 'I': i1='A'|('I'<<8);	break;
+			case 'O': i1='O'|('I'<<8);	break;
+			}
+		}
+
+		if(i0=='x')
+		{
+			cstp=2;
+			switch(cs[1])
+			{
+			case 'a': i0='A'|('@'<<8);	break;
+			case 'e': i0='e'|('@'<<8);	break;
+			case 'i': i0='I'|('@'<<8);	break;
+			case 'o': i0='O'|('@'<<8);	break;
+			case 'u': i0='U'|('@'<<8);	break;
+
+			case 'A': i0='e'|('I'<<8);	break;
+			case 'I': i0='A'|('I'<<8);	break;
+			case 'O': i0='O'|('I'<<8);	break;
+			}
+			i1=cs[2];
+		}
+
+		if(i0=='X')
+		{
+			cstp=3;
+			i0=cs[1]|((cs[2])<<8);
+			i1=cs[3];
+		}
+
 		if(i1=='.')
 		{
 			i1=0;
 		}
+
+		if((i1=='x') || (i1=='X'))
+			{ i1=0; }
 		
 		dix=TkuTts_DiphLib_LookupDiphIndex(lib, i0, i1);
+		if((dix<0) && (i1>>8))
+		{
+			dix=TkuTts_DiphLib_LookupDiphIndex(lib, i0, (i1&255));
+		}
 		if(dix<=0)
 		{
 			i1=0;
 			dix=TkuTts_DiphLib_LookupDiphIndex(lib, i0, i1);
+			if((dix<0) && (i0>>8))
+			{
+				dix=TkuTts_DiphLib_LookupDiphIndex(lib, (i0&255), (i0>>8));
+			}
+
 			if(dix<0)
 			{
-				cs++;
+				waslv=0;
+//				cs++;
+				cs+=cstp;
 				continue;
 			}
 		}
 		
-		cs++;
+//		cs++;
+		cs+=cstp;
+
 		bcs=TkuTts_DiphLib_GetDiphUnpackIndex(lib, dix, &nb);
 
 		if(i0 && i1)
 		{
-			i2=(nb/4);
+			if(waslv)
+				{ i2=(nb/4); }
+			else
+				{ i2=0; }
 			i3=nb-(nb/4);
 		}else
 		{
-			i2=(nb/2);
-			i3=nb;
+			if(waslv)
+			{
+				i2=(nb/2);
+				i3=nb;
+			}else
+			{
+				i2=0;
+				i3=nb;
+			}
 		}
 		
 		bcs+=i2*16;
 		nb1=i3-i2;
 		for(i=0; i<nb1; i++)
 		{
-//			TkuTts_PcmState_SetupBlock(pcm, bcs+8, bcs+0);
+#if 1
+			TkuTts_PcmState_SetupBlock(pcm, bcs+8, bcs+0);
 //			for(j=0; j<64; j++)
-//				{ *ct++=TkuTts_PcmState_StepSample(pcm); }
+//			for(j=0; j<80; j++)
+//			for(j=0; j<96; j++)
+			for(j=0; j<bsz; j++)
+				{ *ct++=TkuTts_PcmState_StepSample(pcm); }
+#else
 			TkuTts_DecSwgBlock_6x(ct, bcs+8, bcs+0);
 			ct+=64;
+#endif
 			bcs+=16;
+			waslv=1;
 		}
 	}
 	return(ct-obuf);

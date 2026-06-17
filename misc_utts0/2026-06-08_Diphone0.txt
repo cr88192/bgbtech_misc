@@ -107,15 +107,15 @@ Vowels:
 * W: bow / toe
 
 Dipthongs
-* AI: A-I
-* eI: e-I
-* OI: O-I
+* AI (xI): A-I, tie
+* eI (xA): e-I, say
+* OI (xO): O-I,	boy
 
-* A@: A-@
-* e@: e-@
-* I@: I-@
-* O@: O-@
-* U@: U-@
+* A@ (xa): A-@, cow
+* e@ (xe): e-@
+* I@ (xi): I-@
+* O@ (xo): O-@, caught (if no caught/cot merger)
+* U@ (xu): U-@
 * R: E-I-R
 
 Stops:
@@ -154,3 +154,6 @@ Secondary Consonants:
 
 Phonetic notation may be used in strings, and will consist of a sequence of phonetic characters (which may then be broken up into diphones for synthesis). These will not be based on English spelling rules, and instead it will be necessary to use a dictionary or similar to map written English into phonetic notation.
 
+Note:
+* xA: Will be an escape for extended single-letter sounds.
+* XAA: Will be an escape for extended two-letter sounds (or dipthongs).
