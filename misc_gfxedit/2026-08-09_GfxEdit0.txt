@@ -1,0 +1,12 @@
+Basic (and quick/dirty) graphics editor.
+* Mostly intended for low-res / low-bpp.
+* Will probably be MIT or MIT-0, still TBD.
+* Partly taking some inspiration from some tools I had used in the early 90s.
+
+Note:
+Load/Save is via a Quake-style console interface.
+  'help' will list what commands exist.
+
+For now, tool maxes out at 256 color.
+* This tool is not meant as a photo-editor or similar.
+* Also UI is 320x200, but it can load bigger images than this.
