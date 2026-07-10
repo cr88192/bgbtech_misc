@@ -62,6 +62,10 @@ byte redraw_tools_dirty;
 byte redraw_img_dirty;
 byte redraw_con_dirty;
 
+byte keydown_shift;
+byte keydown_ctrl;
+byte undo_inhibit;
+
 byte condown;
 byte con_cur_xbase, con_cur_pos;
 byte con_prn_pos;
@@ -69,6 +73,7 @@ byte con_prn_pos;
 byte *conbuf;
 byte conline[256];
 
+GfxEdit_UndoLevel *undo_free;
 GfxEdit_UndoLevel *undo;
 GfxEdit_UndoLevel *clip;
 };
@@ -88,6 +93,17 @@ int x1, y1;
 int xs, ys;
 byte *pixels_old;
 byte *pixels_new;
+// u32 pal4_old[256];
+// u32 pal4_new[256];
+
+u32 *pal4_old;
+u32 *pal4_new;
+byte pal4_bpp_old;
+byte pal4_bpp_new;
+
+int pix_old;
+int pix_new;
+int flags;
 };
 
 struct GfxEdit_DrawLayer_s {
@@ -106,3 +122,10 @@ u16 GfxEdit_RGBA32to555(u32 rgb);
 u32 GfxEdit_RGB555to32(u16 px);
 u16 GfxEdit_Avg4xRGB555(u16 c0, u16 c1, u16 c2, u16 c3);
 byte GfxEdit_RGBA32toLuma(u32 rgb);
+
+int gfxedit_log2up(int val);
+int gfxedit_isqrtapx(int val);
+
+void GfxEdit_ConPuts(GfxEdit_Context *ctx, char *str);
+void GfxEdit_ConPrintf(GfxEdit_Context *ctx, char *str, ...);
+void GfxEdit_ConRunCmd(GfxEdit_Context *ctx, char *str);

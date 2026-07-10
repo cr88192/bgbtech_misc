@@ -117,6 +117,28 @@ char **gfxedit_split(char *str)
 	return(a);
 }
 
+char *gfxedit_strcify(char *str)
+{
+	char tbuf[512];
+	char *cs, *ct;
+	
+	cs=str; ct=tbuf;
+	while(*cs)
+	{
+		if(*cs=='\\')
+			{ *ct++='\\'; *ct++='\\'; cs++; continue; }
+		if(*cs=='\n')
+			{ *ct++='\\'; *ct++='n'; cs++; continue; }
+		if(*cs=='\r')
+			{ *ct++='\\'; *ct++='r'; cs++; continue; }
+		if(*cs=='\t')
+			{ *ct++='\\'; *ct++='t'; cs++; continue; }
+		*ct++=*cs++;
+	}
+	*ct=0;
+	return(gfxedit_strdup(tbuf));
+}
+
 int gfxedit_tolower(int ch)
 {
 	if((ch>='A') && (ch<='Z'))
@@ -132,6 +154,17 @@ int gfxedit_stricmp(char *s1, char *s2)
 	while(c0 && (c0==c1))
 		{ s1++; s2++; c0=gfxedit_tolower(*s1); c1=gfxedit_tolower(*s2); }
 	return(c0-c1);
+}
+
+int gfxedit_strisext(char *s1, char *s2)
+{
+	int l1, l2;
+
+	l1=strlen(s1);
+	l2=strlen(s2);
+	if(l2>=l1)
+		return(0);
+	return(!gfxedit_stricmp(s1+(l1-l2), s2));
 }
 
 GfxEdit_ConCmd *GfxEdit_AllocConCmd()
@@ -216,6 +249,8 @@ void GfxEdit_ConPuts(GfxEdit_Context *ctx, char *str)
 {
 	char *cs;
 	int p;
+	
+	fputs(str, stdout);
 	
 	cs=str;
 	while(*cs)
@@ -384,6 +419,13 @@ void GfxEdit_ConRun_DoConvPal(GfxEdit_Context *ctx, u32 *oldpal, int dithfl)
 		if((bd*4)<bd1)
 			bi1=bi;
 		
+		if(	((oldpal[i]>>24)==(ctx->canvas_pal4[bi ]>>24)) &&
+			((oldpal[i]>>24)!=(ctx->canvas_pal4[bi1]>>24)))
+				bi1=bi;
+		if(	((oldpal[i]>>24)==(ctx->canvas_pal4[bi1]>>24)) &&
+			((oldpal[i]>>24)!=(ctx->canvas_pal4[bi ]>>24)))
+				bi=bi1;
+		
 		remap[  0+i]=bi;
 		remap[256+i]=bi1;
 		reld[i]=0;
@@ -526,6 +568,7 @@ void GfxEdit_ConRun_LoadPal(GfxEdit_Context *ctx, char **args)
 	}
 	
 	memcpy(orgb, ctx->canvas_pal4, 256*4);
+	GfxEdit_MarkUndoPal(ctx);
 
 	if(!gfxedit_stricmp(args[1], "rgbi"))
 	{
@@ -534,6 +577,7 @@ void GfxEdit_ConRun_LoadPal(GfxEdit_Context *ctx, char **args)
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, dith);
 		else
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, 7);
+		GfxEdit_MarkRedoPal(ctx);
 		return;
 	}
 
@@ -544,6 +588,7 @@ void GfxEdit_ConRun_LoadPal(GfxEdit_Context *ctx, char **args)
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, dith);
 		else
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, 7);
+		GfxEdit_MarkRedoPal(ctx);
 		return;
 	}
 
@@ -554,6 +599,7 @@ void GfxEdit_ConRun_LoadPal(GfxEdit_Context *ctx, char **args)
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, dith);
 		else
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, 7);
+		GfxEdit_MarkRedoPal(ctx);
 		return;
 	}
 
@@ -566,6 +612,7 @@ void GfxEdit_ConRun_LoadPal(GfxEdit_Context *ctx, char **args)
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, dith);
 		else
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, 7);
+		GfxEdit_MarkRedoPal(ctx);
 		return;
 	}
 
@@ -577,6 +624,7 @@ void GfxEdit_ConRun_LoadPal(GfxEdit_Context *ctx, char **args)
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, dith);
 		else
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, 7);
+		GfxEdit_MarkRedoPal(ctx);
 		return;
 	}
 
@@ -600,6 +648,7 @@ void GfxEdit_ConRun_LoadPal(GfxEdit_Context *ctx, char **args)
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, dith);
 		else
 			GfxEdit_ConRun_DoConvPal(ctx, orgb, 7);
+		GfxEdit_MarkRedoPal(ctx);
 		return;
 	}
 
@@ -637,7 +686,8 @@ void GfxEdit_ConRun_LoadPal(GfxEdit_Context *ctx, char **args)
 	
 	ctx->canvas_bpp=1;
 	if(n>2)		ctx->canvas_bpp=2;
-	if(n>4)		ctx->canvas_bpp=4;
+	if(n>4)		ctx->canvas_bpp=3;
+	if(n>8)		ctx->canvas_bpp=4;
 	if(n>16)	ctx->canvas_bpp=5;
 	if(n>32)	ctx->canvas_bpp=8;
 	
@@ -646,6 +696,7 @@ void GfxEdit_ConRun_LoadPal(GfxEdit_Context *ctx, char **args)
 		GfxEdit_ConRun_DoConvPal(ctx, orgb, dith);
 	else
 		GfxEdit_ConRun_DoConvPal(ctx, orgb, 7);
+	GfxEdit_MarkRedoPal(ctx);
 }
 
 void GfxEdit_ConRun_SavePal(GfxEdit_Context *ctx, char **args)
@@ -712,12 +763,13 @@ void GfxEdit_ConRun_Save(GfxEdit_Context *ctx, char **args)
 	int i;
 
 	imgname=ctx->imgname;
-	if(args[1])
+	if(args && args[1])
 		imgname=args[1];
 
 	if(!imgname)
 	{
-		GfxEdit_ConPrintf(ctx, "save <image>\n");
+		if(args)
+			GfxEdit_ConPrintf(ctx, "save <image>\n");
 		return;
 	}
 
@@ -749,31 +801,19 @@ void GfxEdit_ConRun_Save(GfxEdit_Context *ctx, char **args)
 				ctx->canvas_width, ctx->canvas_height,
 				ctx->canvas_pal4, 8);
 		}else
-			if(ctx->canvas_bpp==4)
+			if((ctx->canvas_bpp>=2) && (ctx->canvas_bpp<=4))
 		{
+			memset(rgb, 0, 256*4);
+			memcpy(rgb, ctx->canvas_pal4, (1<<ctx->canvas_bpp)*4);
 			sz=GfxEdit_EncodeImageBMP4I(buf, ctx->canvas_pixels,
-				ctx->canvas_width, ctx->canvas_height,
-				ctx->canvas_pal4, 8);
-		}else
-			if(ctx->canvas_bpp==5)
-		{
-			memset(rgb, 0, 256*4);
-			memcpy(rgb, ctx->canvas_pal4, 32*4);
-			sz=GfxEdit_EncodeImageBMP8I(buf, ctx->canvas_pixels,
 				ctx->canvas_width, ctx->canvas_height, rgb, 8);
 		}else
-			if(ctx->canvas_bpp==6)
+			if((ctx->canvas_bpp>=5) && (ctx->canvas_bpp<=8))
 		{
 			memset(rgb, 0, 256*4);
-			memcpy(rgb, ctx->canvas_pal4, 64*4);
+			memcpy(rgb, ctx->canvas_pal4, (1<<ctx->canvas_bpp)*4);
 			sz=GfxEdit_EncodeImageBMP8I(buf, ctx->canvas_pixels,
 				ctx->canvas_width, ctx->canvas_height, rgb, 8);
-		}else
-			if(ctx->canvas_bpp==8)
-		{
-			sz=GfxEdit_EncodeImageBMP8I(buf, ctx->canvas_pixels,
-				ctx->canvas_width, ctx->canvas_height,
-				ctx->canvas_pal4, 8);
 		}
 	}
 
@@ -794,12 +834,13 @@ void GfxEdit_ConRun_Load(GfxEdit_Context *ctx, char **args)
 	int i;
 	
 	imgname=ctx->imgname;
-	if(args[1])
+	if(args && args[1])
 		imgname=args[1];
 
 	if(!imgname)
 	{
-		GfxEdit_ConPrintf(ctx, "load <image>\n");
+		if(args)
+			GfxEdit_ConPrintf(ctx, "load <image>\n");
 		return;
 	}
 

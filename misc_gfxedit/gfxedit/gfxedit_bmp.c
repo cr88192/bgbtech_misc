@@ -461,7 +461,7 @@ byte *GfxEdit_DecodeBMP8(byte *imgbuf, u32 *rpal, int *rw, int *rh, int flag)
 	byte *buf, *ct;
 	int ofs_bmi;
 	int ofs_dat;
-	int xstr, bc, bc1, xs, ys, flip;
+	int xstr, bc, bc1, xs, ys, flip, nclr;
 	int p0, p1, p2, p3;
 	int cr, cg, cb, ca;
 	int x, y;
@@ -617,7 +617,15 @@ byte *GfxEdit_DecodeBMP8(byte *imgbuf, u32 *rpal, int *rw, int *rh, int flag)
 		*rh=ys;
 
 	if(bc<=8)
-		{ memcpy(rpal, pal, (1<<bc)*4); }
+	{
+		nclr=bmi->biClrUsed;
+		if(!nclr || (nclr>(1<<bc)))
+			nclr=1<<bc;
+		
+		memset(rpal, 0, 256*4);
+//		memcpy(rpal, pal, (1<<bc)*4);
+		memcpy(rpal, pal, nclr*4);
+	}
 	else
 		{ memcpy(rpal, pal, 256*4); }
 
@@ -633,18 +641,27 @@ int GfxEdit_EncodeImageBMP8I(byte *obuf, byte *ibuf,
 	int ofs_pal;
 	int ofs_dat;
 	int cr, cg, cb, ca, ci, cj, ck, aki;
-	int xstr, sz;
+	int xstr, sz, nclr, ncbpp;
 	int x, y;
 	int i;
 
 	xstr=(xs+3)&(~3);
 //	sz=ofs_dat+ys*xstr;
 
+	for(nclr=256; (nclr>=1) && !pal[nclr-1]; nclr--);
+	ncbpp=gfxedit_log2up(nclr);
+	nclr=1<<ncbpp;
+	if(nclr>256)
+		nclr=256;
+
 	if(fl&1)
 	{
 		ofs_bmi=0x0010;
 		ofs_pal=0x0038;
-		ofs_dat=0x0440;
+//		ofs_dat=0x0440;
+		ofs_dat=ofs_pal+(nclr*4);
+		ofs_dat=(ofs_dat+15)&(~15);
+		
 		sz=ofs_dat+ys*xstr;
 
 		memcpy(obuf, " BMP", 4);
@@ -656,7 +673,10 @@ int GfxEdit_EncodeImageBMP8I(byte *obuf, byte *ibuf,
 	{
 		ofs_bmi=0x000E;
 		ofs_pal=0x0036;
-		ofs_dat=0x0440;
+//		ofs_dat=0x0440;
+		ofs_dat=ofs_pal+(nclr*4);
+		ofs_dat=(ofs_dat+15)&(~15);
+
 		sz=ofs_dat+ys*xstr;
 
 		memcpy(obuf, "BM", 2);
@@ -675,8 +695,8 @@ int GfxEdit_EncodeImageBMP8I(byte *obuf, byte *ibuf,
 	bmi->biSizeImage=ys*xstr;
 	bmi->biXPelsPerMeter=2835;
 	bmi->biYPelsPerMeter=2835;
-	bmi->biClrUsed=256;
-	bmi->biClrImportant=256;
+	bmi->biClrUsed=nclr;
+	bmi->biClrImportant=nclr;
 	
 	aki=0xFF;
 	

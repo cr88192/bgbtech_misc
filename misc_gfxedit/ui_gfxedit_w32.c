@@ -317,14 +317,29 @@ u32 repack_rgb555to32(u16 px)
 	return(c);
 }
 
-int main()
+int main(int argc, char **argv)
 {
+	char tbuf[512];
 	GfxEdit_Context *ctx;
+	char *ifn;
 	u16 *kcs;
 	int t0, t1, dt;
 	int mx, my, mz, mb;
 	int x, y, z, c;
 	int i, j, k;
+
+	ifn=NULL;
+	for(i=1; i<argc; i++)
+	{
+		if(argv[i][0]=='-')
+		{
+			continue;
+		}
+		if(!ifn)
+		{
+			ifn=argv[i];
+		}
+	}
 
 	btesh2_gfxcon_fbxs=320;
 	btesh2_gfxcon_fbys=200;
@@ -346,41 +361,30 @@ int main()
 
 	GfxEdit_SetupPalRGBIx2(ctx);
 
-#if 0
-	for(i=0; i<256; i++)
-		{ ctx->canvas_pal2[i]=gfxedit_uipal[0xD]; }
-	ctx->canvas_pal2[255]|=0x8000;
-	
-	for(i=0; i<16; i++)
-	{
-		ctx->canvas_pal2[i]=gfxedit_uipal[i];
-		ctx->canvas_pal4[i]=repack_rgb555to32(gfxedit_uipal[i]);
-
-		mx=i*2; my=mx; mz=mx;
-		k=(mz<<10)|(my<<5)|(mz<<0);
-		ctx->canvas_pal2[16+i]=k;
-	}
-
-	for(i=0; i<216; i++)
-	{
-		mx=(i/ 1)%6;
-		my=(i/ 6)%6;
-		mz=(i/36)%6;
-		mx*=6; my*=6; mz*=6;
-		k=(mz<<10)|(my<<5)|(mx<<0);
-		ctx->canvas_pal2[32+i]=k;
-	}
-
-	for(i=0; i<256; i++)
-		{ ctx->canvas_pal4[i]=repack_rgb555to32(ctx->canvas_pal2[i]); }
-#endif
-
 	ctx->sel_tool=GFXEDIT_TOOL_PENCIL;
 	ctx->sel_color1=0;
 	ctx->sel_color2=15;
 
 	GfxEdit_InitConsole();
 //	GfxEdit_ConPuts(ctx, "Console Test\n");
+
+	if(ifn)
+	{
+		if((ifn[1]==':') && ((ifn[2]=='\\') || (ifn[2]=='/')))
+		{
+			ctx->cwd=gfxedit_combinepath(ifn, "..");
+		}
+		if(	gfxedit_strisext(ifn, ".bmp") ||
+			gfxedit_strisext(ifn, ".dib") ||
+			gfxedit_strisext(ifn, ".pcx") ||
+			gfxedit_strisext(ifn, ".tga") ||
+			gfxedit_strisext(ifn, ".png") ||
+			gfxedit_strisext(ifn, ".jpg") )
+		{
+			sprintf(tbuf, "load \"%s\"", gfxedit_strcify(ifn));
+			GfxEdit_ConRunCmd(ctx, tbuf);
+		}
+	}
 
 #if 1
 	GfxDrv_Start();
@@ -418,6 +422,9 @@ int main()
 		{
 //			printf("click %d %d\n", mx, my);
 			GfxEdit_MouseClickDown(ctx, mx, my, mb);
+		}else
+		{
+			GfxEdit_MouseClickUp(ctx, mx, my, mb);
 		}
 		
 		GfxEdit_RedrawView(ctx);

@@ -2,5 +2,6 @@
 #include "gfxedit_bmp.c"
 #include "gfxedit_pcx.c"
 #include "gfxedit_tga.c"
+#include "gfxedit_context.c"
 #include "gfxedit_console.c"
 #include "gfxedit_drawui.c"
