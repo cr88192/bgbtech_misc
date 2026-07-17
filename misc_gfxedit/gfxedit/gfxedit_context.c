@@ -74,7 +74,7 @@ void GfxEdit_DoUndoLimit(GfxEdit_Context *ctx)
 	tmp=ctx->undo; n=0;
 	while(tmp && tmp->undo)
 		{ n++; tmp=tmp->undo; }
-	while(n>=32)
+	while(n>=512)
 	{
 		nxt=tmp->redo;
 		nxt->undo=NULL;
@@ -128,6 +128,7 @@ void GfxEdit_MarkUndoRect(GfxEdit_Context *ctx,
 	}
 
 	tmp=GfxEdit_AllocUndoRect(ctx, x0, y0, x1, y1, flags);
+	tmp->layer_cur=ctx->layer_cur;
 	
 	if(flags&1)
 	{
@@ -135,13 +136,15 @@ void GfxEdit_MarkUndoRect(GfxEdit_Context *ctx,
 		{
 			memcpy(
 				tmp->pixels_old+(y*tmp->xs),
-				ctx->canvas_pixels+(y0+y)*ctx->canvas_width+x0, tmp->xs);
+//				ctx->canvas_pixels+(y0+y)*ctx->canvas_width+x0, tmp->xs);
+				ctx->layer_pixels+(y0+y)*ctx->canvas_width+x0, tmp->xs);
 		}
 	}
 
 	if(flags&2)
 	{
-		tmp->pix_old=ctx->canvas_pixels[y0*ctx->canvas_width+x0];
+//		tmp->pix_old=ctx->canvas_pixels[y0*ctx->canvas_width+x0];
+		tmp->pix_old=ctx->layer_pixels[y0*ctx->canvas_width+x0];
 	}
 	
 	if(flags&4)
@@ -172,14 +175,16 @@ void GfxEdit_MarkRedoRect(GfxEdit_Context *ctx)
 		{
 			memcpy(
 				tmp->pixels_new+(y*tmp->xs),
-				ctx->canvas_pixels+(tmp->y0+y)*ctx->canvas_width+tmp->x0,
+//				ctx->canvas_pixels+(tmp->y0+y)*ctx->canvas_width+tmp->x0,
+				ctx->layer_pixels+(tmp->y0+y)*ctx->canvas_width+tmp->x0,
 				tmp->xs);
 		}
 	}
 
 	if(tmp->flags&2)
 	{
-		tmp->pix_new=ctx->canvas_pixels[tmp->y0*ctx->canvas_width+tmp->x0];
+//		tmp->pix_new=ctx->canvas_pixels[tmp->y0*ctx->canvas_width+tmp->x0];
+		tmp->pix_new=ctx->layer_pixels[tmp->y0*ctx->canvas_width+tmp->x0];
 	}	
 
 	if(tmp->flags&4)
@@ -228,25 +233,31 @@ void GfxEdit_MarkRedoPal(GfxEdit_Context *ctx)
 void GfxEdit_DoUndo(GfxEdit_Context *ctx)
 {
 	GfxEdit_UndoLevel *tmp;
+	int oldlyr;
 	int y;
 	
 	tmp=ctx->undo;
 	if(!tmp->undo)
 		return;
-		
+
+	oldlyr=ctx->layer_cur;
+	GfxEdit_SelectLayer(ctx, tmp->layer_cur);
+	
 	if(tmp->flags&1)
 	{
 		for(y=0; y<tmp->ys; y++)
 		{
 			memcpy(
-				ctx->canvas_pixels+(tmp->y0+y)*ctx->canvas_width+tmp->x0,
+//				ctx->canvas_pixels+(tmp->y0+y)*ctx->canvas_width+tmp->x0,
+				ctx->layer_pixels+(tmp->y0+y)*ctx->canvas_width+tmp->x0,
 				tmp->pixels_old+(y*tmp->xs),
 				tmp->xs);
 		}
 	}
 	if(tmp->flags&2)
 	{
-		ctx->canvas_pixels[tmp->y0*ctx->canvas_width+tmp->x0]=tmp->pix_old;
+//		ctx->canvas_pixels[tmp->y0*ctx->canvas_width+tmp->x0]=tmp->pix_old;
+		ctx->layer_pixels[tmp->y0*ctx->canvas_width+tmp->x0]=tmp->pix_old;
 	}
 
 	if(tmp->flags&4)
@@ -256,13 +267,15 @@ void GfxEdit_DoUndo(GfxEdit_Context *ctx)
 		GfxEdit_SetupPalFinish(ctx);
 	}
 	
+	GfxEdit_SelectLayer(ctx, oldlyr);
+
 	ctx->undo=tmp->undo;
 }
 
 void GfxEdit_DoRedo(GfxEdit_Context *ctx)
 {
 	GfxEdit_UndoLevel *tmp;
-	int y;
+	int y, oldlyr;
 	
 	tmp=ctx->undo;
 	if(!tmp->redo)
@@ -270,19 +283,24 @@ void GfxEdit_DoRedo(GfxEdit_Context *ctx)
 	tmp=tmp->redo;
 	ctx->undo=tmp;
 
+	oldlyr=ctx->layer_cur;
+	GfxEdit_SelectLayer(ctx, tmp->layer_cur);
+	
 	if(tmp->flags&1)
 	{
 		for(y=0; y<tmp->ys; y++)
 		{
 			memcpy(
-				ctx->canvas_pixels+(tmp->y0+y)*ctx->canvas_width+tmp->x0,
+//				ctx->canvas_pixels+(tmp->y0+y)*ctx->canvas_width+tmp->x0,
+				ctx->layer_pixels+(tmp->y0+y)*ctx->canvas_width+tmp->x0,
 				tmp->pixels_new+(y*tmp->xs),
 				tmp->xs);
 		}
 	}
 	if(tmp->flags&2)
 	{
-		ctx->canvas_pixels[tmp->y0*ctx->canvas_width+tmp->x0]=tmp->pix_new;
+//		ctx->canvas_pixels[tmp->y0*ctx->canvas_width+tmp->x0]=tmp->pix_new;
+		ctx->layer_pixels[tmp->y0*ctx->canvas_width+tmp->x0]=tmp->pix_new;
 	}
 
 	if(tmp->flags&4)
@@ -291,6 +309,8 @@ void GfxEdit_DoRedo(GfxEdit_Context *ctx)
 		ctx->canvas_bpp=tmp->pal4_bpp_new;
 		GfxEdit_SetupPalFinish(ctx);
 	}
+
+	GfxEdit_SelectLayer(ctx, oldlyr);
 }
 
 void GfxEdit_BucketFill(GfxEdit_Context *ctx, int cax, int cay, int clr)
@@ -302,7 +322,8 @@ void GfxEdit_BucketFill(GfxEdit_Context *ctx, int cax, int cay, int clr)
 	
 	xs=ctx->canvas_width;
 	ys=ctx->canvas_height;
-	ibuf=ctx->canvas_pixels;
+//	ibuf=ctx->canvas_pixels;
+	ibuf=ctx->layer_pixels;
 	clr_ref=ibuf[cay*xs+cax];
 	if(clr_ref==clr)
 		return;
@@ -373,62 +394,192 @@ void GfxEdit_BucketFill(GfxEdit_Context *ctx, int cax, int cay, int clr)
 
 void GfxEdit_DoBoxPaste(GfxEdit_Context *ctx, int fl)
 {
+	byte *src_pix, *dst_pix;
 	int caw, cah;
 	int x, y, x0, y0, x1, y1, z0, z1, xd, yd, c;
 	int xini, xfin, xsgn, yini, yfin, ysgn;
-	
-	if(ctx->paste_xr<0)		return;
-	if(ctx->paste_yr<0)		return;
-	if(ctx->paste_x0<0)		return;
-	if(ctx->paste_y0<0)		return;
-	
+	int p_xr, p_yr, p_x0, p_y0;
+
+	src_pix=ctx->layer_pixels;
+	dst_pix=ctx->layer_pixels;
+	p_xr=ctx->paste_xr;
+	p_yr=ctx->paste_yr;
+	p_x0=ctx->paste_x0;
+	p_y0=ctx->paste_y0;
+
 	caw=ctx->canvas_width;
 	cah=ctx->canvas_height;
-	
 	xd=ctx->paste_xd;
 	yd=ctx->paste_yd;
+	
+	if(fl&4)
+	{
+		if(!ctx->clip_pixels)
+		{
+			ctx->clip_pixels=malloc(caw*cah);
+			memset(ctx->clip_pixels, ctx->clr_trans, caw*cah);
+		}
 
-	if((ctx->paste_xr+xd)>=caw)
-		xd=(caw-1)-ctx->paste_xr;
-	if((ctx->paste_x0+xd)>=caw)
-		xd=(caw-1)-ctx->paste_x0;
-	if((ctx->paste_xr+xd)>=cah)
-		yd=(cah-1)-ctx->paste_yr;
-	if((ctx->paste_x0+xd)>=cah)
-		yd=(cah-1)-ctx->paste_y0;
+		dst_pix=ctx->clip_pixels;
+
+		x0=ctx->line_x0;	y0=ctx->line_y0;
+		x1=ctx->line_x1;	y1=ctx->line_y1;
+		if(x1<x0)	{ x=x0; x0=x1; x1=x; }
+		if(y1<y0)	{ y=y0; y0=y1; y1=y; }
+
+		p_xr=x0;
+		p_yr=y0;
+		xd=x1-x0;
+		yd=y1-y0;
+
+//		p_xr=ctx->paste_xr;
+//		p_yr=ctx->paste_yr;
+		p_x0=p_xr;
+		p_y0=p_yr;
+	}
+	
+	if(fl&8)
+	{
+		if(!ctx->clip_pixels)
+		{
+			ctx->clip_pixels=malloc(caw*cah);
+			memset(ctx->clip_pixels, ctx->clr_trans, caw*cah);
+		}
+
+		src_pix=ctx->clip_pixels;
+
+		p_xr=ctx->clip_x0;
+		p_yr=ctx->clip_y0;
+		p_x0=ctx->paste_x0;
+		p_y0=ctx->paste_y0;
+		xd=(ctx->clip_x1-ctx->clip_x0);
+		yd=(ctx->clip_y1-ctx->clip_y0);
+	}
+	
+	if(p_xr<0)		return;
+	if(p_yr<0)		return;
+	if(p_x0<0)		return;
+	if(p_y0<0)		return;
+	
+	if((p_xr+xd)>=caw)		xd=(caw-1)-p_xr;
+	if((p_x0+xd)>=caw)		xd=(caw-1)-p_x0;
+	if((p_yr+yd)>=cah)		yd=(cah-1)-p_yr;
+	if((p_y0+yd)>=cah)		yd=(cah-1)-p_y0;
 	if(xd<0)		return;
 	if(yd<0)		return;
-	
+
+	if(fl&4)
+	{
+		ctx->clip_x0=p_xr;
+		ctx->clip_y0=p_yr;
+		ctx->clip_x1=p_xr+xd;
+		ctx->clip_y1=p_yr+yd;
+	}
+
 	xini=0;		yini=0;
 	xfin=xd;	yfin=yd;
 	xsgn=1;		ysgn=1;
 
 	if(fl&1)
 	{
-		if(ctx->paste_xr>ctx->paste_x0)
-			{ xini=xd; xfin=0; xsgn=-1; }
-		if(ctx->paste_yr>ctx->paste_y0)
-			{ yini=yd; yfin=0; ysgn=-1; }
+		if(p_xr>p_x0)	{ xini=xd; xfin=0; xsgn=-1; }
+		if(p_yr>p_y0)	{ yini=yd; yfin=0; ysgn=-1; }
 	}else
 	{
-		if(ctx->paste_xr<ctx->paste_x0)
-			{ xini=xd; xfin=0; xsgn=-1; }
-		if(ctx->paste_yr<ctx->paste_y0)
-			{ yini=yd; yfin=0; ysgn=-1; }
+		if(p_xr<p_x0)	{ xini=xd; xfin=0; xsgn=-1; }
+		if(p_yr<p_y0)	{ yini=yd; yfin=0; ysgn=-1; }
 	}
 	
 	for(y=yini; (y-ysgn)!=yfin; y+=ysgn)
 		for(x=xini; (x-xsgn)!=xfin; x+=xsgn)
 	{
-		x0=ctx->paste_xr+x;
-		y0=ctx->paste_yr+y;
-		x1=ctx->paste_x0+x;
-		y1=ctx->paste_y0+y;
+		x0=p_xr+x;	y0=p_yr+y;
+		x1=p_x0+x;	y1=p_y0+y;
 		z0=y0*caw+x0;
 		z1=y1*caw+x1;
-		c=ctx->canvas_pixels[z0];
-		ctx->canvas_pixels[z1]=c;
+
+		if((x0<caw) && (y0<cah))
+		{
+//			c=ctx->canvas_pixels[z0];
+//			c=ctx->layer_pixels[z0];
+			c=src_pix[z0];
+			
+			if(fl&2)
+			{
+//				ctx->layer_pixels[z0]=ctx->clr_trans;
+				src_pix[z0]=ctx->clr_trans;
+			}
+		}else
+		{
+			c=ctx->clr_trans;
+		}
+	
+//		ctx->canvas_pixels[z1]=c;
+//		ctx->layer_pixels[z1]=c;
+		dst_pix[z1]=c;
 	}
+}
+
+void GfxEdit_CopyClip(GfxEdit_Context *ctx)
+{
+	GfxEdit_DoBoxPaste(ctx, 4);
+}
+
+void GfxEdit_CutClip(GfxEdit_Context *ctx)
+{
+	GfxEdit_DoBoxPaste(ctx, 6);
+}
+
+void GfxEdit_PasteClip(GfxEdit_Context *ctx)
+{
+	GfxEdit_DoBoxPaste(ctx, 8);
+}
+
+void GfxEdit_StrokeBrush(GfxEdit_Context *ctx, int cax, int cay, int clr)
+{
+	byte *pixels;
+	int caw, cah, bsz;
+	int x, y, x0, x1, y0, y1, dx, dy, d;
+
+	pixels=ctx->layer_pixels;
+	caw=ctx->canvas_width;
+	cah=ctx->canvas_height;
+	bsz=ctx->brushsize;
+
+	if(!bsz)
+	{
+		pixels[cay*caw+cax]=clr;
+		return;
+	}
+	
+	x0=cax-bsz;		y0=cay-bsz;
+	x1=cax+bsz;		y1=cay+bsz;
+	if(x0<0)		x0=0;
+	if(y0<0)		y0=0;
+	if(x1>(caw-1))	x1=(caw-1);
+	if(y1>(cah-1))	y1=(cah-1);
+
+	for(y=y0; y<=y1; y++)
+		for(x=x0; x<=x1; x++)
+	{
+#if 1
+		dx=x-cax;	dy=y-cay;
+		d=dx*dx+dy*dy;
+		d=gfxedit_isqrtapx(d);
+#endif
+#if 0
+		dx=x-cax;	dy=y-cay;
+		if(dx<0)	dx=-dx;
+		if(dy<0)	dy=-dy;
+		if(dx>dy)
+			d=dx+(dy>>1);
+		else
+			d=dy+(dx>>1);
+#endif
+		if(d>bsz)continue;
+		pixels[y*caw+x]=clr;
+	}
+	
 }
 
 void GfxEdit_MouseClickDown(GfxEdit_Context *ctx, int mx, int my, int mb)
@@ -454,19 +605,54 @@ void GfxEdit_MouseClickDown(GfxEdit_Context *ctx, int mx, int my, int mb)
 		if(cay>=ctx->canvas_height)
 			return;
 		
-		if(	(ctx->sel_tool==GFXEDIT_TOOL_PENCIL) ||
-			(ctx->sel_tool==GFXEDIT_TOOL_BRUSH)	)
+		if(ctx->undo_inhibit)
+		{
+			if(cax!=ctx->undo_inhibit_cax)
+				ctx->undo_inhibit=0;
+			if(cay!=ctx->undo_inhibit_cay)
+				ctx->undo_inhibit=0;
+		}
+
+		ctx->undo_inhibit_cax=cax;
+		ctx->undo_inhibit_cay=cay;
+		
+//		if(	(ctx->sel_tool==GFXEDIT_TOOL_PENCIL) ||
+//			(ctx->sel_tool==GFXEDIT_TOOL_BRUSH)	)
+		if(ctx->sel_tool==GFXEDIT_TOOL_PENCIL)
 		{
 			z=cay*ctx->canvas_width+cax;
 			GfxEdit_MarkUndoPix(ctx, cax, cay);
 			if(mb&1)
-				{ ctx->canvas_pixels[z]=ctx->sel_color1; }
+//				{ ctx->canvas_pixels[z]=ctx->sel_color1; }
+				{ ctx->layer_pixels[z]=ctx->sel_color1; }
 			if(mb&4)
-				{ ctx->canvas_pixels[z]=ctx->sel_color2; }
+//				{ ctx->canvas_pixels[z]=ctx->sel_color2; }
+				{ ctx->layer_pixels[z]=ctx->sel_color2; }
 			GfxEdit_MarkRedoPix(ctx);
 			ctx->redraw_img_dirty=1;
 			return;
 		}
+
+		if(ctx->sel_tool==GFXEDIT_TOOL_BRUSH)
+		{
+			z=cay*ctx->canvas_width+cax;
+			GfxEdit_MarkUndoRect(ctx,
+				cax-ctx->brushsize, cay-ctx->brushsize,
+				cax+ctx->brushsize, cay+ctx->brushsize,
+				1);
+			if(mb&1)
+				{ GfxEdit_StrokeBrush(ctx, cax, cay, ctx->sel_color1); }
+//				{ ctx->canvas_pixels[z]=ctx->sel_color1; }
+//				{ ctx->layer_pixels[z]=ctx->sel_color1; }
+			if(mb&4)
+				{ GfxEdit_StrokeBrush(ctx, cax, cay, ctx->sel_color2); }
+//				{ ctx->canvas_pixels[z]=ctx->sel_color2; }
+//				{ ctx->layer_pixels[z]=ctx->sel_color2; }
+			GfxEdit_MarkRedoRect(ctx);
+			ctx->redraw_img_dirty=1;
+			return;
+		}
+
 		if(ctx->sel_tool==GFXEDIT_TOOL_PICK)
 		{
 			if(ctx->canvas_bpp==1)
@@ -474,20 +660,40 @@ void GfxEdit_MouseClickDown(GfxEdit_Context *ctx, int mx, int my, int mb)
 		
 			z=cay*ctx->canvas_width+cax;
 			if(mb&1)
-				{ ctx->sel_color1=ctx->canvas_pixels[z]; }
+//				{ ctx->sel_color1=ctx->canvas_pixels[z]; }
+				{ ctx->sel_color1=ctx->layer_pixels[z]; }
 			if(mb&4)
-				{ ctx->sel_color2=ctx->canvas_pixels[z]; }
+//				{ ctx->sel_color2=ctx->canvas_pixels[z]; }
+				{ ctx->sel_color2=ctx->layer_pixels[z]; }
 			ctx->redraw_img_dirty=1;
 			ctx->redraw_tools_dirty=1;
 			return;
 		}
-		if(ctx->sel_tool==GFXEDIT_TOOL_ERASE)
+		if(ctx->sel_tool==GFXEDIT_TOOL_ERASESMOL)
 		{
 			z=cay*ctx->canvas_width+cax;
 			if(mb&5)
 			{
 				GfxEdit_MarkUndoPix(ctx, cax, cay);
-				ctx->canvas_pixels[z]=ctx->clr_trans;
+//				ctx->canvas_pixels[z]=ctx->clr_trans;
+				ctx->layer_pixels[z]=ctx->clr_trans;
+				GfxEdit_MarkRedoPix(ctx);
+			}
+			ctx->redraw_img_dirty=1;
+			return;
+		}
+
+		if(ctx->sel_tool==GFXEDIT_TOOL_ERASEBIG)
+		{
+			z=cay*ctx->canvas_width+cax;
+			if(mb&5)
+			{
+//				GfxEdit_MarkUndoPix(ctx, cax, cay);
+				GfxEdit_MarkUndoRect(ctx,
+					cax-ctx->brushsize, cay-ctx->brushsize,
+					cax+ctx->brushsize, cay+ctx->brushsize,
+					1);
+				GfxEdit_StrokeBrush(ctx, cax, cay, ctx->clr_trans);
 				GfxEdit_MarkRedoPix(ctx);
 			}
 			ctx->redraw_img_dirty=1;
@@ -508,7 +714,8 @@ void GfxEdit_MouseClickDown(GfxEdit_Context *ctx, int mx, int my, int mb)
 
 		if(	(ctx->sel_tool==GFXEDIT_TOOL_LINE) ||
 			(ctx->sel_tool==GFXEDIT_TOOL_BOXSEL) ||
-			(ctx->sel_tool==GFXEDIT_TOOL_BOX)	)
+			(ctx->sel_tool==GFXEDIT_TOOL_BOX)	 ||
+			(ctx->sel_tool==GFXEDIT_TOOL_CIRC)	)
 		{		
 			if(mb&1)
 				{ ctx->line_x0=cax; ctx->line_y0=cay; }
@@ -519,13 +726,13 @@ void GfxEdit_MouseClickDown(GfxEdit_Context *ctx, int mx, int my, int mb)
 		}
 
 		if(		(ctx->sel_tool==GFXEDIT_TOOL_PASTESEL) ||
-				(ctx->sel_tool==GFXEDIT_TOOL_PASTEREP) )
+				(ctx->sel_tool==GFXEDIT_TOOL_PASTEREP) ||
+				(ctx->sel_tool==GFXEDIT_TOOL_MOVESEL) )
 		{
 			if(mb&5)
 				{ ctx->paste_x0=cax; ctx->paste_y0=cay; }
 			ctx->redraw_img_dirty=1;
 		}
-
 		return;
 	}else
 	{
@@ -585,7 +792,8 @@ void GfxEdit_UseDrawLine(GfxEdit_Context *ctx,
 	byte *img;
 	int x, y, zf, ixs, iys, xdist, ydist, xsgn, ysgn;
 	
-	img=ctx->canvas_pixels;
+//	img=ctx->canvas_pixels;
+	img=ctx->layer_pixels;
 	ixs=ctx->canvas_width;
 	iys=ctx->canvas_height;
 	
@@ -626,7 +834,8 @@ void GfxEdit_DoBoxFill(GfxEdit_Context *ctx,
 	byte *img;
 	int x, y, zf, ixs, iys, xdist, ydist, xsgn, ysgn;
 	
-	img=ctx->canvas_pixels;
+//	img=ctx->canvas_pixels;
+	img=ctx->layer_pixels;
 	ixs=ctx->canvas_width;
 	iys=ctx->canvas_height;
 	
@@ -647,6 +856,59 @@ void GfxEdit_DoBoxFill(GfxEdit_Context *ctx,
 		for(x=x0; x<=x1; x++)
 			{ img[y*ixs+x]=clr; }
 	}
+}
+
+void GfxEdit_DoDrawBox(GfxEdit_Context *ctx,
+	int x0, int y0, int x1, int y1, int clr)
+{
+	GfxEdit_UseDrawLine(ctx, x0, y0, x1, y0, clr);
+	GfxEdit_UseDrawLine(ctx, x1, y0, x1, y1, clr);
+	GfxEdit_UseDrawLine(ctx, x0, y1, x1, y1, clr);
+	GfxEdit_UseDrawLine(ctx, x0, y0, x0, y1, clr);
+}
+
+void GfxEdit_DoDrawCircle(GfxEdit_Context *ctx,
+	int x0, int y0, int x1, int y1, int clr)
+{
+	static float sctab[256];
+	float cx, cy, rx, ry, f, s;
+	int i, j, n, j0, j1;
+
+	if(sctab[64]==0)
+	{
+		for(i=0; i<256; i++)
+			sctab[i]=sin(i*(3.1415926535899/128));
+	}
+
+	cx=(x0+x1)*0.5;	cy=(y0+y1)*0.5;
+	rx=x1-x0;		ry=y1-y0;
+	if(rx<0)		rx=-rx;
+	if(ry<0)		ry=-ry;
+	rx*=0.5;		ry*=0.5;
+
+//	n=gfxedit_log2up(rx+ry)-2;
+//	if(n<1)	n=1;
+//	n=n*16;
+
+	n=6.3*((rx+ry)*0.5+1.0)*0.5;
+	if(n>256)	n=256;
+
+	f=0;	s=256.0/n;
+	for(i=0; i<n; i++)
+	{
+		j0=f; f+=s; j1=f;
+		GfxEdit_UseDrawLine(ctx,
+			cx+sctab[(j0+ 0)&255]*rx+0.5,
+			cy+sctab[(j0+64)&255]*ry+0.5,
+			cx+sctab[(j1+ 0)&255]*rx+0.5,
+			cy+sctab[(j1+64)&255]*ry+0.5,
+			clr);
+	}
+
+//	GfxEdit_UseDrawLine(ctx, x0, y0, x1, y0, clr);
+//	GfxEdit_UseDrawLine(ctx, x1, y0, x1, y1, clr);
+//	GfxEdit_UseDrawLine(ctx, x0, y1, x1, y1, clr);
+//	GfxEdit_UseDrawLine(ctx, x0, y0, x0, y1, clr);
 }
 
 void GfxEdit_PumpKey(GfxEdit_Context *ctx, int key, int down)
@@ -762,10 +1024,42 @@ void GfxEdit_PumpKey(GfxEdit_Context *ctx, int key, int down)
 				ctx->redraw_tools_dirty=1;
 			}
 
+			if(key=='n')
+			{
+				GfxEdit_AddLayer(ctx);
+				ctx->redraw_img_dirty=1;
+				ctx->redraw_tools_dirty=1;
+			}
+
+			if(key=='c')
+			{
+				GfxEdit_CopyClip(ctx);
+				ctx->redraw_img_dirty=1;
+				ctx->redraw_tools_dirty=1;
+			}
+
+			if(key=='x')
+			{
+				GfxEdit_MarkUndoAll(ctx, 1);
+				GfxEdit_CutClip(ctx);
+				GfxEdit_MarkRedoRect(ctx);
+				ctx->redraw_img_dirty=1;
+				ctx->redraw_tools_dirty=1;
+			}
+
+			if(key=='v')
+			{
+				GfxEdit_MarkUndoAll(ctx, 1);
+				GfxEdit_PasteClip(ctx);
+				GfxEdit_MarkRedoRect(ctx);
+				ctx->redraw_img_dirty=1;
+				ctx->redraw_tools_dirty=1;
+			}
+
 			return;
 		}
 
-		if(key=='-')
+		if((key=='-') || (key==K_NUMPAD_SUB))
 		{
 //			if(ctx->zoom>0)
 			if(ctx->zoom>(-4))
@@ -774,7 +1068,7 @@ void GfxEdit_PumpKey(GfxEdit_Context *ctx, int key, int down)
 				ctx->redraw_img_dirty=1;
 			}
 		}
-		if((key=='+') || (key=='='))
+		if((key=='+') || (key=='=') || (key==K_NUMPAD_ADD))
 		{
 			if(ctx->zoom<3)
 			{
@@ -790,14 +1084,77 @@ void GfxEdit_PumpKey(GfxEdit_Context *ctx, int key, int down)
 		if(!step)
 			step=1;
 		
-		if(key==K_LEFTARROW)
+		if((key==K_LEFTARROW) || (key==K_NUMPAD4))
 			{ ctx->canvas_xorg-=step; ctx->redraw_img_dirty=1; }
-		if(key==K_UPARROW)
+		if((key==K_UPARROW) || (key==K_NUMPAD8))
 			{ ctx->canvas_yorg-=step; ctx->redraw_img_dirty=1; }
-		if(key==K_RIGHTARROW)
+		if((key==K_RIGHTARROW) || (key==K_NUMPAD6))
 			{ ctx->canvas_xorg+=step; ctx->redraw_img_dirty=1; }
-		if(key==K_DOWNARROW)
+		if((key==K_DOWNARROW) || (key==K_NUMPAD2))
 			{ ctx->canvas_yorg+=step; ctx->redraw_img_dirty=1; }
+
+		if(key==K_NUMPAD5)
+		{
+			ctx->canvas_xorg=0;
+			ctx->canvas_yorg=0;
+			ctx->zoom=1;
+			ctx->redraw_img_dirty=1;
+		}
+
+		if(!ctx->keydown_shift)
+		{
+			if((key>='0') && (key<='9'))
+			{
+				GfxEdit_SelectLayer(ctx, key-'0');
+			}
+		}
+
+		if(key=='{')
+		{
+			if(	(ctx->sel_tool==GFXEDIT_TOOL_BRUSH) ||
+				(ctx->sel_tool==GFXEDIT_TOOL_ERASEBIG))
+			{
+				if(ctx->brushsize>0)
+					ctx->brushsize--;
+			}
+			ctx->redraw_tools_dirty=1;
+		}
+
+		if(key=='}')
+		{
+			if(	(ctx->sel_tool==GFXEDIT_TOOL_BRUSH) ||
+				(ctx->sel_tool==GFXEDIT_TOOL_ERASEBIG))
+			{
+				if(ctx->brushsize<255)
+					ctx->brushsize++;
+			}
+			ctx->redraw_tools_dirty=1;
+		}
+		
+		if(ctx->layer_max)
+		{
+			if(key=='[')
+			{
+				if(ctx->layer_cur>0)
+					{ GfxEdit_SelectLayer(ctx, ctx->layer_cur-1); }
+				ctx->redraw_img_dirty=1;
+				ctx->redraw_tools_dirty=1;
+			}
+			if(key==']')
+			{
+				if(ctx->layer_cur<(ctx->layer_max-1))
+					{ GfxEdit_SelectLayer(ctx, ctx->layer_cur+1); }
+				ctx->redraw_img_dirty=1;
+				ctx->redraw_tools_dirty=1;
+			}
+
+			if(key=='/')
+			{
+				GfxEdit_FlipLayerVisible(ctx);
+				ctx->redraw_img_dirty=1;
+				ctx->redraw_tools_dirty=1;
+			}
+		}
 
 		if((key==K_ENTER) || (key==K_INS))
 		{
@@ -825,6 +1182,7 @@ void GfxEdit_PumpKey(GfxEdit_Context *ctx, int key, int down)
 					ctx->paste_x0, ctx->paste_y0,
 					ctx->paste_x1, ctx->paste_y1,
 					1);
+//				GfxEdit_MarkUndoAll(ctx, 1);
 				GfxEdit_DoBoxPaste(ctx, 0);
 				GfxEdit_MarkRedoRect(ctx);
 				ctx->redraw_img_dirty=1;
@@ -835,7 +1193,19 @@ void GfxEdit_PumpKey(GfxEdit_Context *ctx, int key, int down)
 					ctx->paste_x0, ctx->paste_y0,
 					ctx->paste_x1, ctx->paste_y1,
 					1);
+//				GfxEdit_MarkUndoAll(ctx, 1);
 				GfxEdit_DoBoxPaste(ctx, 1);
+				GfxEdit_MarkRedoRect(ctx);
+				ctx->redraw_img_dirty=1;
+			}
+			if(ctx->sel_tool==GFXEDIT_TOOL_MOVESEL)
+			{
+//				GfxEdit_MarkUndoRect(ctx,
+//					ctx->paste_x0, ctx->paste_y0,
+//					ctx->paste_x1, ctx->paste_y1,
+//					1);
+				GfxEdit_MarkUndoAll(ctx, 1);
+				GfxEdit_DoBoxPaste(ctx, 2);
 				GfxEdit_MarkRedoRect(ctx);
 				ctx->redraw_img_dirty=1;
 			}
@@ -849,21 +1219,27 @@ void GfxEdit_PumpKey(GfxEdit_Context *ctx, int key, int down)
 						ctx->line_x0, ctx->line_y0,
 						ctx->line_x1, ctx->line_y1,
 						1);
-					GfxEdit_UseDrawLine(ctx,
+					GfxEdit_DoDrawBox(ctx,
 						ctx->line_x0, ctx->line_y0,
-						ctx->line_x1, ctx->line_y0,
-						ctx->sel_color1);
-					GfxEdit_UseDrawLine(ctx,
-						ctx->line_x1, ctx->line_y0,
 						ctx->line_x1, ctx->line_y1,
 						ctx->sel_color1);
-					GfxEdit_UseDrawLine(ctx,
-						ctx->line_x0, ctx->line_y1,
-						ctx->line_x1, ctx->line_y1,
-						ctx->sel_color1);
-					GfxEdit_UseDrawLine(ctx,
+					GfxEdit_MarkRedoRect(ctx);
+					ctx->redraw_img_dirty=1;
+				}
+			}
+
+			if(ctx->sel_tool==GFXEDIT_TOOL_CIRC)
+			{
+				if(	(ctx->line_x0>=0) && (ctx->line_y0>=0) &&
+					(ctx->line_x1>=0) && (ctx->line_y1>=0))
+				{
+					GfxEdit_MarkUndoRect(ctx,
 						ctx->line_x0, ctx->line_y0,
-						ctx->line_x0, ctx->line_y1,
+						ctx->line_x1, ctx->line_y1,
+						1);
+					GfxEdit_DoDrawCircle(ctx,
+						ctx->line_x0, ctx->line_y0,
+						ctx->line_x1, ctx->line_y1,
 						ctx->sel_color1);
 					GfxEdit_MarkRedoRect(ctx);
 					ctx->redraw_img_dirty=1;
@@ -920,21 +1296,30 @@ void GfxEdit_PumpKey(GfxEdit_Context *ctx, int key, int down)
 						ctx->line_x0, ctx->line_y0,
 						ctx->line_x1, ctx->line_y1,
 						1);
-					GfxEdit_UseDrawLine(ctx,
+					GfxEdit_DoDrawBox(ctx,
 						ctx->line_x0, ctx->line_y0,
-						ctx->line_x1, ctx->line_y0,
-						p);
-					GfxEdit_UseDrawLine(ctx,
-						ctx->line_x1, ctx->line_y0,
 						ctx->line_x1, ctx->line_y1,
 						p);
-					GfxEdit_UseDrawLine(ctx,
-						ctx->line_x0, ctx->line_y1,
-						ctx->line_x1, ctx->line_y1,
-						p);
-					GfxEdit_UseDrawLine(ctx,
+					GfxEdit_MarkRedoRect(ctx);
+					ctx->redraw_img_dirty=1;
+				}
+			}
+
+			if(ctx->sel_tool==GFXEDIT_TOOL_CIRC)
+			{
+				p=ctx->sel_color2;
+				if(key==K_DEL)
+					p=ctx->clr_trans;
+				if(	(ctx->line_x0>=0) && (ctx->line_y0>=0) &&
+					(ctx->line_x1>=0) && (ctx->line_y1>=0))
+				{
+					GfxEdit_MarkUndoRect(ctx,
 						ctx->line_x0, ctx->line_y0,
-						ctx->line_x0, ctx->line_y1,
+						ctx->line_x1, ctx->line_y1,
+						1);
+					GfxEdit_DoDrawCircle(ctx,
+						ctx->line_x0, ctx->line_y0,
+						ctx->line_x1, ctx->line_y1,
 						p);
 					GfxEdit_MarkRedoRect(ctx);
 					ctx->redraw_img_dirty=1;

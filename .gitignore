@@ -16,7 +16,7 @@ randbits.txt
 *.zip
 *.png
 *.jpg
-*.bmp
+# *.bmp
 *.dat
 *.avi
 

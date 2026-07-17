@@ -2,15 +2,36 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <stdint.h>
 
-typedef unsigned char			byte;
-typedef signed char			sbyte;
-typedef unsigned short		u16;
-typedef signed short			s16;
-typedef unsigned int			u32;
-typedef signed int			s32;
-typedef unsigned long long	u64;
-typedef signed long long		s64;
+#ifndef GFXEDIT_BASETYPES
+#define GFXEDIT_BASETYPES
+// typedef unsigned char			byte;
+// typedef signed char			sbyte;
+// typedef unsigned short		u16;
+// typedef signed short			s16;
+// typedef unsigned int			u32;
+// typedef signed int			s32;
+// typedef unsigned long long	u64;
+// typedef signed long long		s64;
+
+typedef uint8_t			byte;
+typedef int8_t				sbyte;
+typedef uint16_t			u16;
+typedef int16_t			s16;
+typedef uint32_t			u32;
+typedef int32_t			s32;
+typedef uint64_t			u64;
+typedef int64_t			s64;
+
+typedef volatile uint16_t	vol_u16;
+typedef volatile uint32_t	vol_u32;
+typedef volatile uint64_t	vol_u64;
+typedef volatile uint16_t	*vol_u16p;
+typedef volatile uint32_t	*vol_u32p;
+typedef volatile uint64_t	*vol_u64p;
+
+#endif
 
 #ifdef _WIN32
 #include "gfxdrv_w32.c"
@@ -26,100 +47,6 @@ char *gfxedit_combinepath(char *cwd, char *newdir);
 
 
 #include "gfxedit/gfxedit_multi.c"
-
-char *gfxedit_emitutf(char *ct, int val)
-{
-	if(val<=0)
-	{
-		*ct++=0xC0;
-		*ct++=0x80;
-		return(ct);
-	}
-
-	if(val<0x80)
-	{
-		*ct++=val;
-		return(ct);
-	}
-
-	if(val<0x0800)
-	{
-		*ct++=0xC0|((val>>6)&31);
-		*ct++=0x80|((val>>0)&63);
-		return(ct);
-	}
-
-	if(val<0x10000)
-	{
-		*ct++=0xE0|((val>>12)&15);
-		*ct++=0x80|((val>> 6)&63);
-		*ct++=0x80|((val>> 0)&63);
-		return(ct);
-	}
-
-	*ct++=0xF0|((val>>18)& 7);
-	*ct++=0x80|((val>>12)&63);
-	*ct++=0x80|((val>> 6)&63);
-	*ct++=0x80|((val>> 0)&63);
-	return(ct);
-}
-
-int gfxedit_readutf(char **rcs)
-{
-	byte *cs;
-	int c;
-	
-	cs=(byte *)(*rcs);
-	c=*cs;
-	
-	if(c<0x80)
-	{
-		*rcs=(char *)(cs+1);
-		return(c);
-	}
-	
-	if(c<0xC0)
-	{
-		*rcs=(char *)(cs+1);
-		return(c);
-	}
-	
-	if(c<0xE0)
-	{
-		c=((cs[0]&0x1F)<<6)|((cs[1]&63)<<0);
-		*rcs=(char *)(cs+2);
-		return(c);
-	}
-
-	if(c<0xF0)
-	{
-		c=((cs[0]&0x0F)<<12)|((cs[1]&63)<<6)|((cs[2]&63)<<0);
-		*rcs=(char *)(cs+3);
-		return(c);
-	}
-
-	if(c<0xF8)
-	{
-		c=((cs[0]&0x07)<<18)|((cs[1]&63)<<12)|((cs[2]&63)<<6)|((cs[3]&63)<<0);
-		*rcs=(char *)(cs+4);
-		return(c);
-	}
-	
-	return(0);
-}
-
-char *gfxedit_strdup_wcs2utf(wchar_t *wstr)
-{
-	char tbuf[512];
-	char *ct;
-	wchar_t *wcs;
-	
-	wcs=wstr; ct=tbuf;
-	while(*wcs)
-		{ ct=gfxedit_emitutf(ct, *wcs++); }
-	*ct=0;
-	return(gfxedit_strdup(tbuf));
-}
 
 char *gfxedit_getcwd()
 {
@@ -321,7 +248,7 @@ int main(int argc, char **argv)
 {
 	char tbuf[512];
 	GfxEdit_Context *ctx;
-	char *ifn;
+	char *ifn, *cmdandexit;
 	u16 *kcs;
 	int t0, t1, dt;
 	int mx, my, mz, mb;
@@ -329,10 +256,13 @@ int main(int argc, char **argv)
 	int i, j, k;
 
 	ifn=NULL;
+	cmdandexit=NULL;
 	for(i=1; i<argc; i++)
 	{
 		if(argv[i][0]=='-')
 		{
+			if(!strcmp(argv[i], "--benchrp2"))
+				{ cmdandexit="benchrp2"; continue; }
 			continue;
 		}
 		if(!ifn)
@@ -355,6 +285,7 @@ int main(int argc, char **argv)
 	memset(ctx->canvas_pixels, 15, 64*64);
 	ctx->canvas_bpp=8;
 	ctx->zoom=1;
+	ctx->layer_pixels=ctx->canvas_pixels;
 	
 	ctx->conbuf=malloc(40*25);
 	memset(ctx->conbuf, 0, 40*25);
@@ -364,6 +295,8 @@ int main(int argc, char **argv)
 	ctx->sel_tool=GFXEDIT_TOOL_PENCIL;
 	ctx->sel_color1=0;
 	ctx->sel_color2=15;
+
+	ctx->brushsize=4;
 
 	GfxEdit_InitConsole();
 //	GfxEdit_ConPuts(ctx, "Console Test\n");
@@ -379,10 +312,23 @@ int main(int argc, char **argv)
 			gfxedit_strisext(ifn, ".pcx") ||
 			gfxedit_strisext(ifn, ".tga") ||
 			gfxedit_strisext(ifn, ".png") ||
-			gfxedit_strisext(ifn, ".jpg") )
+			gfxedit_strisext(ifn, ".jpg") ||
+			gfxedit_strisext(ifn, ".gel") )
 		{
 			sprintf(tbuf, "load \"%s\"", gfxedit_strcify(ifn));
 			GfxEdit_ConRunCmd(ctx, tbuf);
+		}
+
+		if(	gfxedit_strisext(ifn, ".cfg") )
+		{
+			sprintf(tbuf, "exec \"%s\"", gfxedit_strcify(ifn));
+			GfxEdit_ConRunCmd(ctx, tbuf);
+		}
+		
+		if(cmdandexit)
+		{
+			GfxEdit_ConRunCmd(ctx, cmdandexit);
+			exit(0);
 		}
 	}
 

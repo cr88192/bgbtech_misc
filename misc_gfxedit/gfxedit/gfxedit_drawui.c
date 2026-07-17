@@ -312,6 +312,17 @@ const u32 gfxedit_icon_pasterep_8px[8] = {
 0x00000000
 };
 
+const u32 gfxedit_icon_move_8px[8] = {
+0x00000000,
+0x08787870,
+0x07EEE080,
+0x08EE0070,
+0x07E0E080,
+0x08000E70,
+0x07878780,
+0x00000000
+};
+
 const u32 gfxedit_icon_pencil_8px[8] = {
 0x00000000,
 0x00000CD0,
@@ -345,7 +356,7 @@ const u32 gfxedit_icon_brush_8px[8] = {
 0x00000000
 };
 
-const u32 gfxedit_icon_erase_8px[8] = {
+const u32 gfxedit_icon_erasebig_8px[8] = {
 0x00000000,
 0x0000DD00,
 0x000DDD50,
@@ -353,6 +364,17 @@ const u32 gfxedit_icon_erase_8px[8] = {
 0x0DDD5000,
 0x00D50000,
 0x00000000,
+0x00000000
+};
+
+const u32 gfxedit_icon_erasesmol_8px[8] = {
+0x00000000,
+0x00000880,
+0x0000E880,
+0x000EC600,
+0x00EC6000,
+0x0CD60000,
+0x0DC00000,
 0x00000000
 };
 
@@ -386,6 +408,17 @@ const u32 gfxedit_icon_box_8px[8] = {
 0x08000080,
 0x08000080,
 0x08888880,
+0x00000000
+};
+
+const u32 gfxedit_icon_circle_8px[8] = {
+0x00000000,
+0x00088000,
+0x00800800,
+0x08000080,
+0x08000080,
+0x00800800,
+0x00088000,
 0x00000000
 };
 
@@ -425,6 +458,11 @@ void GfxEdit_DrawCell8px(GfxEdit_Context *ctx, u64 cell,
 	int xb, int yb, int clr)
 {
 	int x, y, z, c;
+
+	if((xb<0) || ((xb+8)>320))
+		return;
+	if((yb<0) || ((yb+8)>200))
+		return;
 
 	c=gfxedit_uipal[clr];
 	for(y=0; y<8; y++)
@@ -512,8 +550,23 @@ void GfxEdit_DrawConsole(GfxEdit_Context *ctx)
 	}
 }
 
+void GfxEdit_DrawViewString(GfxEdit_Context *ctx,
+	int x, int y, int clr, char *str)
+{
+	char *cs;
+	int cx, cy;
+	
+	cs=str; cx=x; cy=y;
+	while(*cs)
+	{
+		GfxEdit_DrawCell8px(ctx, gfxedit_gfxcon_glyphs[*cs++], cx, cy, clr);
+		cx+=8;
+	}
+}
+
 void GfxEdit_RedrawView(GfxEdit_Context *ctx)
 {
+	char tb1[64];
 	int x, y, z, ci, c, cax, cay, caw, cah, caxo, cayo, zoom;
 	int cax2, cay2, z2, di, d, c0, c1, c2, c3, d0, d1, d2, d3;
 	int cax0, cay0, cax1, cay1, zng;
@@ -569,16 +622,33 @@ void GfxEdit_RedrawView(GfxEdit_Context *ctx)
 		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_select_8px, 0, 0);
 		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_paste_8px, 8, 0);
 		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_pasterep_8px, 16, 0);
+		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_move_8px, 24, 0);
 
 		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_brush_8px, 0, 8);
-		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_erase_8px, 8, 8);
+		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_erasebig_8px, 8, 8);
 
 		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_pencil_8px, 0, 16);
 		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_picker_8px, 8, 16);
+		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_erasesmol_8px, 16, 8);
 
 		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_bucket_8px, 0, 24);
 		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_line_8px, 8, 24);
 		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_box_8px, 16, 24);
+		GfxEdit_DrawIcon8px(ctx, gfxedit_icon_circle_8px, 24, 24);
+
+		if(ctx->layer_max)
+		{
+			sprintf(tb1, "%d/%d", ctx->layer_cur+1, ctx->layer_max);
+			GfxEdit_DrawViewString(ctx, 0, 40, 8, tb1);
+		}
+		
+		if(	(ctx->sel_tool==GFXEDIT_TOOL_BRUSH) ||
+			(ctx->sel_tool==GFXEDIT_TOOL_ERASEBIG))
+		{
+			sprintf(tb1, "%d", ctx->brushsize);
+			GfxEdit_DrawViewString(ctx, 0, 40, 8, tb1);
+		}
+
 
 		if(	(ctx->canvas_bpp> 1) &&
 			(ctx->canvas_bpp<=5) )
@@ -617,6 +687,8 @@ void GfxEdit_RedrawView(GfxEdit_Context *ctx)
 
 	if(ctx->redraw_img_dirty)
 	{
+		GfxEdit_RenderLayers(ctx);
+	
 		caw=ctx->canvas_width;
 		cah=ctx->canvas_height;
 		caxo=ctx->canvas_xorg;
@@ -632,7 +704,8 @@ void GfxEdit_RedrawView(GfxEdit_Context *ctx)
 			{ cayo=0; ctx->canvas_yorg=0; }
 		
 		if(	(ctx->sel_tool==GFXEDIT_TOOL_PASTESEL) ||
-			(ctx->sel_tool==GFXEDIT_TOOL_PASTEREP) )
+			(ctx->sel_tool==GFXEDIT_TOOL_PASTEREP) ||
+			(ctx->sel_tool==GFXEDIT_TOOL_MOVESEL) )
 		{
 			ctx->paste_xr=ctx->line_x0;
 			ctx->paste_yr=ctx->line_y0;
@@ -775,6 +848,13 @@ void GfxEdit_RedrawView(GfxEdit_Context *ctx)
 #endif
 				}
 				
+				d=c;
+				if(c&0x8000)
+				{
+					ci=((x^y)&2)?8:7;
+					c=gfxedit_uipal[ci];
+				}
+
 				if(zoom>=2)
 				{
 					if(	(((x+1)>>zoom)!=(x>>zoom)) ||
@@ -783,20 +863,23 @@ void GfxEdit_RedrawView(GfxEdit_Context *ctx)
 						if(c&0x001F)	c-=0x0001;
 						if(c&0x03E0)	c-=0x0020;
 						if(c&0x7C00)	c-=0x0400;
+
+						if(d&0x8000)
+						{
+//							ci=((x^y)&2)?15:0;
+//							c=gfxedit_uipal[8];
+							c=gfxedit_uipal[0];
+						}
 					}
 				}
 				
-				if(c&0x8000)
-				{
-					ci=((x^y)&2)?8:7;
-					c=gfxedit_uipal[ci];
-				}
-
-				if(	(ctx->sel_tool==GFXEDIT_TOOL_LINE) ||
-					(ctx->sel_tool==GFXEDIT_TOOL_BOXSEL) ||
-					(ctx->sel_tool==GFXEDIT_TOOL_PASTESEL) ||
-					(ctx->sel_tool==GFXEDIT_TOOL_PASTEREP) ||
-					(ctx->sel_tool==GFXEDIT_TOOL_BOX)	)
+				if(	(ctx->sel_tool==GFXEDIT_TOOL_LINE)		||
+					(ctx->sel_tool==GFXEDIT_TOOL_BOXSEL)	||
+					(ctx->sel_tool==GFXEDIT_TOOL_PASTESEL)	||
+					(ctx->sel_tool==GFXEDIT_TOOL_PASTEREP)	||
+					(ctx->sel_tool==GFXEDIT_TOOL_MOVESEL)	||
+					(ctx->sel_tool==GFXEDIT_TOOL_BOX)		||
+					(ctx->sel_tool==GFXEDIT_TOOL_CIRC)		)
 				{
 					if(	(cax==ctx->line_x0) &&
 						(cay==ctx->line_y0))
@@ -813,7 +896,8 @@ void GfxEdit_RedrawView(GfxEdit_Context *ctx)
 					}
 
 					if(		(ctx->sel_tool==GFXEDIT_TOOL_PASTESEL) ||
-							(ctx->sel_tool==GFXEDIT_TOOL_PASTEREP) )
+							(ctx->sel_tool==GFXEDIT_TOOL_PASTEREP) ||
+							(ctx->sel_tool==GFXEDIT_TOOL_MOVESEL) )
 					{
 						if(	(cax==ctx->paste_x0) &&
 							(cay==ctx->paste_y0))

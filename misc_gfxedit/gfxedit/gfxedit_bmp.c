@@ -702,7 +702,7 @@ int GfxEdit_EncodeImageBMP8I(byte *obuf, byte *ibuf,
 	
 	bpal=obuf+ofs_pal;
 	bdat=obuf+ofs_dat;
-	for(i=0; i<256; i++)
+	for(i=0; i<nclr; i++)
 	{
 		bpal[i*4+0]=(pal[i]>> 0)&255;
 		bpal[i*4+1]=(pal[i]>> 8)&255;
