@@ -1,0 +1,22 @@
+Special purpose codec that compresses images as blocks of RGB555 pixels.
+* Will optimize for random access to compressed images, but with ability to preserve full detail for RGB555.
+
+Format (Transposed):
+ rrrrrgggggbbbbb0  //Raw RGB555
+ ddddllllllll0001  //LZ Match (shallow but long)
+ ddddddddllll0101  //LZ Match (deep but short)
+         iiii0011  //Repeat prior
+         llll1011  //Short RLE (EOB, 1..15)
+         rgbi0111  //RGBI color
+
+Generally, Image blocks will be accessed via an offset table into a compressed buffer.
+
+Offset Table Entries:
+  (31:20): Packed Size (Non-zero for normal blocks).
+  (19: 0): Offset, padded to a multiple of 2 bytes
+
+If packed size is 0:
+  (19:16)==0:
+    Flat Color, (15:0) holds the color.
+  (19:16)==1:
+    Reused Block, (15:0) holds the index of the actual block.
