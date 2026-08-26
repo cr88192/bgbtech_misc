@@ -124,37 +124,37 @@ int RImg5_UnpackBlock(byte *ibuf, u16 *obuf)
 	{
 		pxv=*(u64 *)cs;
 
-#if 0
-		if(!(pxv&pxm4))
-		{
-			pxv1=pxv>>1;
-			*(u64 *)ct=pxv1;
-			pxl=pxv1>>48;
-			pxr=(pxr-4)&15;
-			cs+=8; ct+=4;
-//			pxa[pxr]=pxl;
-			pxa[(pxr+0)&15]=pxv1>>48;
-			pxa[(pxr+1)&15]=pxv1>>32;
-			pxa[(pxr+2)&15]=pxv1>>16;
-			pxa[(pxr+3)&15]=pxv1>> 0;
-			continue;
-		}
-		if(!(pxv&pxm2))
-		{
-			pxv1=((u32)pxv)>>1;
-			*(u32 *)ct=pxv1;
-			pxl=pxv1>>16;
-			pxr=(pxr-2)&15;
-			cs+=4; ct+=2;
-//			pxa[pxr]=pxl;
-			pxa[(pxr+0)&15]=pxv1>>16;
-			pxa[(pxr+1)&15]=pxv1>> 0;
-			continue;
-		}
-#endif
-
 		if(!(pxv&1))
 		{
+#if 1
+			if(!(pxv&pxm2) && ((ct+4)<=cte))
+			{
+#if 1
+				if(!(pxv&pxm4))
+				{
+					pxv1=pxv>>1;
+					*(u64 *)ct=pxv1;
+					pxl=pxv1>>48;
+					pxr=(pxr-4)&15;
+					cs+=8; ct+=4;
+					pxa[(pxr+0)&15]=pxv1>>48;
+					pxa[(pxr+1)&15]=pxv1>>32;
+					pxa[(pxr+2)&15]=pxv1>>16;
+					pxa[(pxr+3)&15]=pxv1>> 0;
+					continue;
+				}
+#endif
+				pxv1=((u32)pxv)>>1;
+				*(u32 *)ct=pxv1;
+				pxl=pxv1>>16;
+				pxr=(pxr-2)&15;
+				cs+=4; ct+=2;
+				pxa[(pxr+0)&15]=pxv1>>16;
+				pxa[(pxr+1)&15]=pxv1>> 0;
+				continue;
+			}
+#endif
+
 			pxl=((u16)pxv)>>1;
 			cs+=2;
 			pxr=(pxr-1)&15;
@@ -170,16 +170,27 @@ int RImg5_UnpackBlock(byte *ibuf, u16 *obuf)
 				cs+=2;
 				ml=(pxv>> 4)&255;
 				md=(pxv>>12)& 15;
-				if(!md)
+				if(md<2)
 				{
-					if(!ml)
+					pxl=ct[-1];
+					pxv1=pxl;
+					pxv1=pxv1|(pxv1<<16);
+					pxv1=pxv1|(pxv1<<32);
+					while(ml>=8)
 					{
-						pxl=0x8000;
-						pxr=(pxr-1)&15;
-						*ct++=pxl;
-						pxa[pxr]=pxl;
-						continue;
+//						ct[0]=pxl; ct[1]=pxl;
+//						ct[2]=pxl; ct[3]=pxl;
+//						ct[4]=pxl; ct[5]=pxl;
+//						ct[6]=pxl; ct[7]=pxl;
+						((u64 *)ct)[0]=pxv1;
+						((u64 *)ct)[1]=pxv1;
+						ml-=8; ct+=8;
 					}
+//					if(ml>=4)
+//					{
+//						*((u64 *)ct)=pxv1;
+//						ml-=4; ct+=4;
+//					}
 					while(ml--)
 						*ct++=pxl;
 					continue;
@@ -214,8 +225,18 @@ int RImg5_UnpackBlock(byte *ibuf, u16 *obuf)
 						*ct++=pxl;
 					break;
 				}
-				while(ml--)
+				while(ml>=4)
+				{
+					ml-=4;	ct[0]=pxl; ct[1]=pxl;
+					ct[2]=pxl; ct[3]=pxl;	ct+=4;
+				}
+				if(ml>=2)
+					{ ml-=2; ct[0]=pxl; ct[1]=pxl; ct+=2; }
+				if(ml)
 					*ct++=pxl;
+
+//				while(ml--)
+//					*ct++=pxl;
 				cs++;
 				continue;
 			}else if(!(pxv&0x08))
@@ -227,7 +248,55 @@ int RImg5_UnpackBlock(byte *ibuf, u16 *obuf)
 			}
 		}
 	}
+	
+	if(ct>cte)
+	{
+		__debugbreak();
+	}
+	
 	return(cs-ibuf);
+}
+
+int RImg5_UnpackBlockRaw(byte *ibuf, u16 *obuf)
+{
+	u16 *ct, *cte;
+	byte *cs;
+	u64 pxv;
+
+	cs=ibuf;
+	ct=obuf;
+	cte=obuf+256;
+	while(ct<cte)
+	{
+		pxv=*(u64 *)cs;
+		*(u64 *)ct=pxv>>1;
+		cs+=8;
+		ct+=4;
+	}
+	return(512);
+}
+
+int RImg5_PackBlockRaw(byte *cbuf, u16 *ibuf)
+{
+	u16 *cs, *cse;
+	byte *ct;
+	u64 pxv;
+
+	cs=ibuf;
+	cse=ibuf+256;
+	ct=cbuf;
+	while(cs<cse)
+	{
+		pxv=*(u64 *)cs;
+		if(pxv&0x8000800080008000ULL)
+			break;
+		*(u64 *)ct=pxv<<1;
+		cs+=4; ct+=8;
+	}
+	
+	if(cs<cse)
+		return(0);
+	return(512);
 }
 
 int RImg5_PackBlock(byte *cbuf, u16 *ibuf)
@@ -280,6 +349,13 @@ int RImg5_PackBlock(byte *cbuf, u16 *ibuf)
 			{
 				*ct++=0x0B|(mrle<<4);
 			}else
+#if 0
+				if(mrle<=30)
+			{
+				*ct++=0x0B|(15<<4);
+				*ct++=0x0B|((mrle-15)<<4);
+			}else
+#endif
 			{
 				*ct++=0x01|(mrle<<4);
 				*ct++=0x10|(mrle>>4);
@@ -293,7 +369,9 @@ int RImg5_PackBlock(byte *cbuf, u16 *ibuf)
 
 		mo=pxoh[h];
 		md=(cs-ibuf)-mo;
-		if((md>1) && (ibuf[mo]==pxc))
+//		if((md>1) && (ibuf[mo]==pxc))
+		if((md>0) && (ibuf[mo]==pxc))
+//		if(0)
 		{
 			for(ml=0; (cs+ml)<cse; ml++)
 				if(cs[ml]!=ibuf[mo+ml])
@@ -323,6 +401,8 @@ int RImg5_PackBlock(byte *cbuf, u16 *ibuf)
 				{
 					__debugbreak();
 				}
+				
+				pxl=0x80FF;
 				
 				while(ml--)
 				{
@@ -561,10 +641,21 @@ int RImg5_PackImage(u16 *ibuf, int xs, int ys, byte *cbuf, u32 *ixbuf)
 		
 		psz=RImg5_PackBlock(ct, pxbuf);
 		
+		if(psz>=480)
+		{
+			k=RImg5_PackBlockRaw(ct+768, pxbuf);
+			if(k==512)
+			{
+				memcpy(ct, ct+768, 512);
+				psz=512;
+			}
+		}
+		
 		RImg5_UnpackBlock(ct, px2buf);
 		
 		if(memcmp(pxbuf, px2buf, 16*16*2))
 		{
+			RImg5_UnpackBlock(ct, px2buf);
 			__debugbreak();
 		}
 		
@@ -650,7 +741,14 @@ u16 *RImg5_UnpackImageCachedBlock(byte *cbuf, u32 *ixbuf, int sz, int idx)
 	poff=(k&0x000FFFFF)<<1;
 	psz=(k>>20)&0xFFF;
 
-	RImg5_UnpackBlock(cbuf+poff, pxbuf);
+	if(psz==512)
+	{
+//		memcpy(pxbuf, cbuf+poff, 512);
+		RImg5_UnpackBlockRaw(cbuf+poff, pxbuf);
+	}else
+	{
+		RImg5_UnpackBlock(cbuf+poff, pxbuf);
+	}
 	rimg5_pxcbuf[h]=cbuf;
 	rimg5_pxcofs[h]=k;
 	return(pxbuf);
@@ -743,8 +841,34 @@ int main(int argc, char *argv[])
 	double f, g, h;
 	long long tpix;
 	int t0, t1, t2, t0e;
+	int cr, cg, cb, ch, cl, cv;
 	int xs, ys, xs1, ys1, sz, qfl, md, cxs, cys;
 	int i, j, k;
+
+#if 0
+	for(i=0; i<16; i++)
+	{
+		if(i&8)
+			{ cl=0x55; ch=0xFF; }
+		else
+			{ cl=0x00; ch=0xAA; }
+		cr=(i&4)?ch:cl;
+		cg=(i&2)?ch:cl;
+		cb=(i&1)?ch:cl;
+		
+		if(i==6)
+		{
+			cr=0xAA;
+			cg=0x55;
+			cb=0;
+		}
+		
+		cr>>=3;	cg>>=3;	cb>>=3;
+		
+		cv=(cr<<10)|(cg<<5)|cb;
+		printf("%04X %04X\n", cv, rgbitab[i]);
+	}
+#endif
 
 #if 0
 	for(md=0; md<32; md++)

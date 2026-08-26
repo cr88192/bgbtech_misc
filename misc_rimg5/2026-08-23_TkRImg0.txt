@@ -7,9 +7,16 @@ Format (Transposed):
  ddddddddllll0101  //LZ Match (deep but short)
          iiii0011  //Repeat prior
          llll1011  //Short RLE (EOB, 1..15)
-         rgbi0111  //RGBI color
+         pppp0111  //RGBI color
 
 Generally, Image blocks will be accessed via an offset table into a compressed buffer.
+
+RGBI Colors:
+* I,R,G,B
+* I=Intensity: 0=00/AA, 1=55/FF
+* R/G/B: Select between Low and High.
+* Color 6 is special: AA5500
+* Color 13 is Transparent.
 
 Offset Table Entries:
   (31:20): Packed Size (Non-zero for normal blocks).
