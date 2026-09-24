@@ -152,8 +152,10 @@ typedef unsigned int uint;
 #define BTIC4B_DBGTRAP		
 #endif
 
-#define BTIC4B_QFL_PFRAME		0x0100
-#define BTIC4B_QFL_IFRAME		0x0200
+// #define BTIC4B_QFL_PFRAME		0x0100
+// #define BTIC4B_QFL_IFRAME		0x0200
+#define BTIC4B_QFL_PFRAME		0x0200
+#define BTIC4B_QFL_IFRAME		0x0100
 #define BTIC4B_QFL_USEPRED		0x0400
 #define BTIC4B_QFL_USEBFQ		0x0800
 #define BTIC4B_QFL_OPTBCN		0x1000

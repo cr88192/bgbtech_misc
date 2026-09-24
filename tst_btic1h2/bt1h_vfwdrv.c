@@ -81,6 +81,10 @@ void btjpg_printf(char *str, ...);
 #include "bt5b_decode.c"
 #include "bt5b_encode.c"
 
+#include "gfxedit_minrp2.c"
+#include "bt5c_decode.c"
+#include "bt5c_encode.c"
+
 #include "snd_btac1c.c"
 
 #include "btjdrv_util.c"
@@ -90,4 +94,5 @@ void btjpg_printf(char *str, ...);
 #include "btjdrv_codec_bt4b.c"
 #include "btjdrv_codec_bt5a.c"
 #include "btjdrv_codec_bt5b.c"
+#include "btjdrv_codec_bt5c.c"
 #include "btjvfw_driverproc.c"

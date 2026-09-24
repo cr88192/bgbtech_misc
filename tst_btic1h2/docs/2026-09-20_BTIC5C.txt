@@ -1,0 +1,201 @@
+BTIC 5C
+* FOURCC: 'bt5c'
+
+
+=== TLV Wrapper ===
+
+Will use a TLV wrapper as the outer packaging.
+
+ TwoCC:
+ TWOCC tcc; //tag
+ U16 nlen;  //length stored as bitwise complement
+ FourCC:
+ FOURCC fcc; //tag
+ U32 nlen;  //length stored as bitwise complement
+
+Length will include both the tag and length itself in the total, as well as being stored as a bitwise complement.
+
+Note that normally, tags may only be encoded in the range 00..7F, with 20..7E being normal characters, and 00 as a special case when expanding a TWOCC to fit in a FOURCC spot.
+
+The length will always have the MSB set, which will make it possible to unambiguously determine tag type.
+
+ I-Frame:
+ 'HX': Header Tag
+     U16 xsize;
+     U16 ysize;
+     U16 flags;
+     //Data past this point is reserved
+ 'IX': I-Frame Image Data
+ P-Frame:
+ 'PX': P-Frame Image Data
+
+P-Frames may only be encoded after I-Frames, and will lack a header. The simple form header will be repeated for every I-Frame.
+
+Flags:
+* (0): P-Frames will use bare Skip (no block translation)
+* Rest: Reserved/MBZ 
+
+
+Frames may be post-compressed with RP2:
+
+ 'Z3': RP2 Blob
+     U32 len;  //length of uncompressed blob
+     ... RP2 compressed data
+
+In this case, after decompressing, the frame data tags may be found.
+
+
+=== Image Data ===
+
+The encoded stream will be byte-based.
+* The encoded stream will start with block command, and commands will continue until the end of the tag data.
+
+The baseline block size will be 4x4 pixels, but the format will work in terms of larger 16x16 pixel blocks encoded in terms of 4x4 sub-blocks, with the sub-blocks encoded in Hilbert order.
+
+Hilbert Order Curve, in hex:
+
+  0 1 E F
+  3 2 D C
+  4 7 8 B
+  5 6 9 A
+
+Image will always be encoded as-if it were padded up to a multiple of 16 pixels.
+
+
+
+
+=== Color Endpoints ===
+
+Endpoints will be encoded following the relevant block commands.
+
+
+Color Endpoints (Transposed):
+
+                   rrrryggg gybbbby0  RGB with Dy
+                            jjjjj001  RGB or Dy Delta
+                            jjjj0101  Repeat a prior endpoint.
+                   bbbbbaaa aay01101  Compound Delta
+                   bbbbbaaa aa011101  Compound Repeat
+                   bbbbbaaa aa111101  -
+ rrrrrggg ggbbbbbr rrrrgggg gbbbbb11  RGB555 Pair (B=high, A=low)
+
+Endpoints will normally exist as pairs, though with the RGB+Dy cases encoding both pairs together (As a central color with a Y separation).
+
+Color B will be encoded as the base color with Dy added to each 4-bit component, and Color A will subtract Dy.
+
+RGB Deltas will be applied to both endpoint colors, and Dy deltas will add to one component while subtracting from the others.
+
+
+==== Color Deltas ====
+
+Note that deltas will be defined in terms of 16-bit arithmetic on the RGB555 values, not as separate per-component operations, and as such there would be carry propagation between components. However, for normal deltas these will be masked by 0x7BDE after applying the delta (on average this gave better results than not masking).
+
+Deltas will be defined in terms of a 3x3x3 cube (27 possible offsets), in the order 0, +1, -1, skipping 0x0x0 (thus leaving 26 patters), with the last 6 patterns left to Dy offsets +1, -1, +2, -2, +3, -3.
+
+The normal RGB Deltas will apply the same delta value to both colors in the endpoint pair. In contrast, the Dy deltas will apply a positive adjustment to all 3 components of one endpoint, while applying a negative adjustment to the other endpoint.
+
+Note that the deltas will be in steps of 2 relative to the RGB555 values, with the assumption that each RGB555 value is masked by 0x7BDE after applying the delta step.
+
+The Compound Delta case will in the usual case apply two deltas:
+
+* y=0: Both a and b specify deltas to apply to Color A and B.
+* y=1: The two deltas are applied as in the original Delta.
+
+The Compound Repeat case will build a new endpoint by selecting colors from two prior endpoints from the history. The low 4 bits of each selector will select which endpoint pair to use, with the high bit selecting whether to use color A or B from the selected pair.
+
+A history of 16 endpoints will be retained. Each time a new endpoint is expressed, it will be added to the front of the list and all other endpoints will be pushed back, with the oldest endpoint pushed off the end.
+
+For index 0 to 13, the endpoint will be reused with no change to the list.
+
+For index 14 and 15, the pair will be moved to the front of the list. Note however, that for 15 this essentially means the list is rotated by 1 position, and for 14 it is a rotate and swap.
+
+Normally, inserting a new pair can be seen as rotating the list by one position and adding the pair to the front.
+
+
+=== Blocks ===
+
+Block Commands (Transposed)
+
+             P? jjjjjjp0  6-bit pattern table
+       nnnnnnnn jjjjj001  Skip (P-Frame Only), 1..256
+             P? jjjjp101  Repreat Prior Block Pattern
+             P? jjjjp011  2x2x1 Block
+             X* nn000111  Run of 4x4x1 Blocks (2..5)
+             X* nn100111  Run of Colors (Endpoint Per Block, 2..5)
+             X* nn010111  Run of 2x2x1 Blocks (2/4/6/8)
+             X* nn110111  Run of 2x2x2 Blocks (2..5)
+                nna01111  Flat Color Run ( A=Selector, 2..5 )
+       P? XX XX p0011111  4x4x1 Block (Adds Hist)
+          P? XX p1011111  2x2x2 Block (Adds Hist)
+ P? XX XX XX XX p0111111  4x4x2 Block (Adds Hist)
+       nnnnnn00 01111111  Longer Flat Run (4..67, A=0)
+
+
+Within the commands that have a P selector, this will indicate the presence of a color endpoint.
+
+
+The individually encoded 4x4x1, 2x2x2, and 4x4x2 blocks, will add the encoded block to the block history. This will not be done for the 2x2x1, pattern 6, or block run encodings. The block pattern history will function in a similar way to the color endpoint history.
+
+Skip Offsets:
+Will be organized as a 5x5 square with values in the order 0, -1, 1, -2, 2.
+The remaining entries will be (-3,0), (3,0), (-4,0), (4,0), (0,-3), (0,3).
+
+The skip offset will be defined in terms of 4x4 blocks.
+
+Index 31 will be special in that it will reuse the prior skip offset.
+
+Note that the count will be 8 bits, and so a skip run may span multiple macroblocks. A skip that covers an entire macroblock, or which starts at a macroblock, may be handled as a macroblock scale skip.
+
+
+==== Pixel Block Selectors ====
+
+Blocks may be encoded in several forms:
+
+* 2x2x1, 2x2 with 1 bit selectors.
+* 2x2x2, 2x2 with 2 bit selectors.
+* 4x4x1, 4x4 with 1 bit selectors.
+* 4x4x2, 4x4 with 2 bit selectors.
+
+With a 1 bit selector:
+* 0: Color A (Min)
+* 1: Color B (Max)
+
+With a 2 bit selector:
+* 0: Color A (Min)
+* 1: 5/8 * Color A + 3/8 * Color B
+* 2: 3/8 * Color A + 5/8 * Color B
+* 3: Color B (Max)
+
+Normally, the selectors for each block type will be encoded in raster order.
+
+
+==== Pattern Table ====
+
+The pattern table will consist of 64 patterns.
+* The low 3 bits will encode a horizontal sign and frequency.
+* The high 3 bits will encode a verical sign and frequency.
+
+The frequency field:
+* 0:  2,  2,  2,  2,
+* 1:  4,  2, -2, -4,
+* 2:  4, -1,  1, -4,
+* 3:  4, -4,  4, -4,
+* 4: -2, -2, -2, -2,
+* 5: -4, -2,  2,  4,
+* 6: -4,  1, -1,  4,
+* 7: -4,  4, -4,  4
+
+The pattern table will be generated by adding the horizontal and vertical fields (similar to a matrix multiply), and comparing each component result with zero.
+
+
+
+==== Transparency ====
+
+Transparency:
+
+Normally, Color B will represent the brighter color, and Color A the darker color.
+
+If, instead, Color B is darker than Color A, then the block may be interpreted as using transparency. In the transparent modes, interpolated pixels holding 10 within 2x2x2 and 4x4x2 blocks will be understood as transparent.
+
+This is to be ignored if the decoder does not support transparent pixels.
+
