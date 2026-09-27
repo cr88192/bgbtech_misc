@@ -2281,7 +2281,8 @@ int BTIC5C_EncodeFrameImage(BTIC5C_EncodeContext *ctx,
 	ctx->zfbuf[11]=osz>>24;
 	osz2+=12;
 
-	if((osz2*1.20)<osz)
+//	if((osz2*1.20)<osz)
+	if((osz2*1.12)<osz)
 	{
 		memcpy(obuf, ctx->zfbuf, osz2);
 		osz=osz2;

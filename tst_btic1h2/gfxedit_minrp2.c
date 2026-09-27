@@ -6,7 +6,9 @@ RP2 (Transposed, LE):
 *               dddddddd-dddddlll-lllrrr01	(l=4..67, d=0..8191)
 *      dddddddd-dddddddd-dlllllll-llrrr011	(l=4..515, d=0..131071)
 *                                 rrrr0111	(Raw Bytes, r=(r+1)*8, 8..128)
-*                               * rrr01111	(Long Match)
+*                               * rrr01111	(RP2-0, Long Match)
+*                        dddllll0-rrr01111  (RP2C, l=11..26, d=1..8, r=0..7)
+*               dddddddl-lllllll1-rrr01111  (RP2C, l=68..323, d=1..128, r=0..7)
 *                                 rr011111	(r=1..3 bytes, 0=EOB)
 *                        rrrrrrrr-r0111111 	(Long Raw, r=(r+1)*8, 8..4096)
 *                        lllllll0-01111111  (RP2B, l=4..131, d=1, r=0)
@@ -339,8 +341,22 @@ int GfxEdit_DecodeRP2(byte *dst, byte *src, int dsz, int ssz)
 #endif
 		}else if(!(tag&0x10))
 		{
-			__debugbreak();
-			break;
+			if(tag&0x100)
+			{
+				mr=(tag>>5)&7;
+				ml=((tag>>9)&255)+68;
+				md=((tag>>17)&127)+1;
+				cs+=3;
+			}else
+			{
+				mr=(tag>>5)&7;
+				ml=((tag>> 9)&15)+11;
+				md=((tag>>13)& 7)+1;
+				cs+=2;
+			}
+
+//			__debugbreak();
+//			break;
 		}else if(!(tag&0x20))
 		{
 			mr=(tag>>6)&3;
@@ -407,7 +423,8 @@ int GfxEdit_DecodeRP2(byte *dst, byte *src, int dsz, int ssz)
 
 
 #define GFXEDIT_MINRP2_HASHSZ		1024
-#define GFXEDIT_MINRP2_HASHDEPTH	16
+// #define GFXEDIT_MINRP2_HASHDEPTH	16
+#define GFXEDIT_MINRP2_HASHDEPTH	64
 
 // #define GFXEDIT_MINRP2_MAX_ML		515
 // #define GFXEDIT_MINRP2_MAX_MD		131071
@@ -417,7 +434,8 @@ int GfxEdit_DecodeRP2(byte *dst, byte *src, int dsz, int ssz)
 
 
 #define GFXEDIT_MINRP2_HASH2SZ		4096
-#define GFXEDIT_MINRP2_HASH2DEPTH	4
+// #define GFXEDIT_MINRP2_HASH2DEPTH	4
+#define GFXEDIT_MINRP2_HASH2DEPTH	16
 
 // #define GFXEDIT_MINRP2_HASH2SZ		128
 // #define GFXEDIT_MINRP2_HASH2DEPTH	128
@@ -784,6 +802,19 @@ int GfxEdit_EncodeRP2(byte *dst, byte *src, int dsz, int ssz)
 					ct+=mr; cs0+=mr;
 				}
 			}else
+#if 1
+				if((ml>=11) && (ml<=26) && (md>0) && (md<=8))
+			{
+				tag=0x0F|(mr<<5)|((ml-11)<<9)|((md-1)<<13);
+				*ct++=(tag>> 0)&255;
+				*ct++=(tag>> 8)&255;
+				if(mr)
+				{
+					memcpy(ct, cs0, mr);
+					ct+=mr; cs0+=mr;
+				}
+			}else
+#endif
 				if((mr==0) && (ml>=4) && (ml<=131) && (md==1))
 			{
 				tag=0x7F|((ml-4)<<9);
@@ -802,6 +833,20 @@ int GfxEdit_EncodeRP2(byte *dst, byte *src, int dsz, int ssz)
 					ct+=mr; cs0+=mr;
 				}
 			}else
+#if 1
+				if((ml>=68) && (ml<=323) && (md>0) && (md<=128))
+			{
+				tag=0x00010F|(mr<<5)|((ml-68)<<9)|((md-1)<<17);
+				*ct++=(tag>> 0)&255;
+				*ct++=(tag>> 8)&255;
+				*ct++=(tag>>16)&255;
+				if(mr)
+				{
+					memcpy(ct, cs0, mr);
+					ct+=mr; cs0+=mr;
+				}
+			}else
+#endif
 				if((ml>=4) && (ml<=515) && (md<=131071))
 			{
 				tag=3|(mr<<3)|((ml-4)<<6)|(md<<15);

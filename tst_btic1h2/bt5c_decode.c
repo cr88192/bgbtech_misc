@@ -332,7 +332,24 @@ int BTIC5C_DecodeBufferRP2(
 		}else
 			if(!(t0&0x10))
 		{
-			/* Long Match */
+#if 1
+			if(t0&0x100)
+			{
+				rl=(t0>>5)&7;
+				l=((t0>>9)&255)+68;
+				d=((t0>>17)&127)+1;
+				cs+=3;
+			}else
+			{
+				rl=(t0>>5)&7;
+				l=((t0>> 9)&15)+11;
+				d=((t0>>13)& 7)+1;
+				cs+=2;
+			}
+#endif
+
+#if 0
+			/* Long Match, RP2-Org */
 			cs++;
 			rl=(t0>>5)&7;
 			t1=t0>>8;
@@ -344,6 +361,7 @@ int BTIC5C_DecodeBufferRP2(
 				{ d=((t2>>1)&0x007FFF); cs+=2; }
 			else
 				{ d=((t2>>2)&0x3FFFFF); cs+=3; }
+#endif
 		}else
 			if(!(t0&0x20))
 		{
