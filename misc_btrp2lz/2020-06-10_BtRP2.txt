@@ -15,6 +15,7 @@ BtRP2 (Transposed, LE):
 *                        rrrrrrrr-r0111111 	(Long Raw, r=(r+1)*8, 8..4096)
 *                        lllllll0-01111111  (RP2B, l=4..131, d=1, r=0)
 * 2x D-ddddddll-llllllll-llllrrr1-01111111  (RP2B, l=4..16K, d=0..4M, r=0..7)
+*   DD-dddddddd-ddddddll-llllrrr0-11111111  (RP2B?, l=4..67, d=0..4M, r=0..7)
 ** d: Distance
 ** l: Match Length
 ** r: Literal Length

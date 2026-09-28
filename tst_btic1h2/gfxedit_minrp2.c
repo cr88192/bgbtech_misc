@@ -13,6 +13,7 @@ RP2 (Transposed, LE):
 *                        rrrrrrrr-r0111111 	(Long Raw, r=(r+1)*8, 8..4096)
 *                        lllllll0-01111111  (RP2B, l=4..131, d=1, r=0)
 * 2x D-ddddddll-llllllll-llllrrr1-01111111  (RP2B, l=4..16K, d=0..4M, r=0..7)
+*   DD-dddddddd-ddddddll-llllrrr0-11111111  (RP2B1, l=4..67, d=0..4M, r=0..7)
 *
 ** d: Distance
 ** l: Match Length
@@ -392,6 +393,12 @@ int GfxEdit_DecodeRP2(byte *dst, byte *src, int dsz, int ssz)
 				md=(gfxedit_getu32(cs+3)>>2)&0x3FFFFF;
 				cs+=6;
 			}
+		}else if(!(tag&0x100))
+		{
+			mr=(tag>>9)&7;
+			ml=((tag>>12)&63)+4;
+			md=(gfxedit_getu32(cs+2)>>2)&0x3FFFFF;
+			cs+=5;
 		}else
 		{
 			__debugbreak();
@@ -687,6 +694,8 @@ int GfxEdit_EncodeRP2_GetMatchCost(int mr, int ml, int md)
 		return(3+GfxEdit_EncodeRP2_GetRawM7Cost(mr));
 	if((ml>=4) && (ml<=515) && (md<=131071))
 		return(4+GfxEdit_EncodeRP2_GetRawM7Cost(mr));
+	if((ml>=4) && (ml<=67))
+		return(5+GfxEdit_EncodeRP2_GetRawM7Cost(mr));
 	return(6+GfxEdit_EncodeRP2_GetRawM7Cost(mr));
 }
 
@@ -854,6 +863,20 @@ int GfxEdit_EncodeRP2(byte *dst, byte *src, int dsz, int ssz)
 				*ct++=(tag>> 8)&255;
 				*ct++=(tag>>16)&255;
 				*ct++=(tag>>24)&255;
+				if(mr)
+				{
+					memcpy(ct, cs0, mr);
+					ct+=mr; cs0+=mr;
+				}
+			}else
+				if((ml<=67) && (md<=0x3FFFFF))
+			{
+				tag=0x00FF|(mr<<9)|((ml-4)<<12)|(md<<18);
+				*ct++=(tag>> 0)&255;
+				*ct++=(tag>> 8)&255;
+				*ct++=(tag>>16)&255;
+				*ct++=(tag>>24)&255;
+				*ct++=(md >>14)&255;
 				if(mr)
 				{
 					memcpy(ct, cs0, mr);

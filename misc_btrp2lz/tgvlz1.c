@@ -569,6 +569,9 @@ int TgvLz_LookupMatchB(TgvLz_Context *ctx,
 		i=0;
 	}
 	
+//	if(i && (d>=131072) && (l<14))
+//		i=0;
+	
 	if(i)
 	{
 		/* Check if a better match is just around the corner. */
@@ -983,6 +986,22 @@ int TgvLz_EncodeBufferRP2I(TgvLz_Context *ctx,
 		else
 #endif
 #if 1
+		if((flag&1) && (rl<8) && (l<=67) && (d<=0x3FFFFF))
+		{
+			d1=d;
+			l1=l-4;
+			v=(d1<<18)|(l1<<12)|(rl<<9)|0x00FF;
+			*ct++=v >> 0;
+			*ct++=v >> 8;
+			*ct++=v >>16;
+			*ct++=v >>24;
+			*ct++=d1>>14;
+			memcpy(ct, lcs, rl);
+			ct+=rl;
+		}
+		else
+#endif
+#if 1
 		if((flag&1) && (rl<8) && (l<=0x3FFF) && (d<=0x3FFFFF))
 		{
 			d1=d;
@@ -1211,6 +1230,13 @@ int TgvLz_DecodeBufferRP2I(
 				d=1;
 				cs+=2;
 			}
+		}else
+			if(!(t0&0x0100))
+		{
+			rl=(t0>>9)&7;
+			l=((t0>>12)&63)+4;
+			d=(t0>>18)&0x3FFFFF;
+			cs+=5;
 		}else
 		{
 			debug_break
