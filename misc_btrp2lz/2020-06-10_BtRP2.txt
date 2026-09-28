@@ -4,13 +4,17 @@ Its design takes some inspiration from the EA RefPack format, but changes were m
 
 
 BtRP2 (Transposed, LE):
-*                   dddddddd-dlllrrr0	(l=3..10, d=0..511, r=0..7)
-*          dddddddd-dddddlll-lllrrr01	(l=4..67, d=0..8191)
-* dddddddd-dddddddd-dlllllll-llrrr011	(l=4..515, d=0..131071)
-*                            rrrr0111	(Raw Bytes, r=(r+1)*8, 8..128)
-*                          * rrr01111	(Long Match)
-*                            rr011111	(r=1..3 bytes, 0=EOB)
-*                   rrrrrrrr-r0111111 	(Long Raw, r=(r+1)*8, 8..4096)
+*                        dddddddd-dlllrrr0	(l=3..10, d=0..511, r=0..7)
+*               dddddddd-dddddlll-lllrrr01	(l=4..67, d=0..8191)
+*      dddddddd-dddddddd-dlllllll-llrrr011	(l=4..515, d=0..131071)
+*                                 rrrr0111	(Raw Bytes, r=(r+1)*8, 8..128)
+*                               * rrr01111	(RP2 Original, Long Match)
+*                        dddllll0-rrr01111  (RP2C, l=11..26, d=1..8, r=0..7)
+*               dddddddl-lllllll1-rrr01111  (RP2C, l=68..323, d=1..128, r=0..7)
+*                                 rr011111	(r=1..3 bytes, 0=EOB)
+*                        rrrrrrrr-r0111111 	(Long Raw, r=(r+1)*8, 8..4096)
+*                        lllllll0-01111111  (RP2B, l=4..131, d=1, r=0)
+* 2x D-ddddddll-llllllll-llllrrr1-01111111  (RP2B, l=4..16K, d=0..4M, r=0..7)
 ** d: Distance
 ** l: Match Length
 ** r: Literal Length
@@ -33,6 +37,11 @@ Note the lack of length/distance predictors:
 While predictors can be useful, their effectiveness in byte-oriented encoders is limited, and supporting these cases tends to have a detrimental effect on performance (they make more sense in Entropy-coded designs).
 
 
+Note that the Long Match case is not used in the RP2B or RP2C variants; and in RP2C is replaced by new encodings.
+
+The Original format may make more sense as as a general file compressor; the 2B and 2C variants were more tuned for things like data buffers.
+
+
 Simple File Format:
 *  0: 'RP2A'
 *  4: Compressed Size
@@ -41,3 +50,6 @@ Simple File Format:
 * Compressed data starts at 16.
 
 This format will not attempt to deal with chunking or streaming.
+
+The magics 'RP2B' and 'RP2C' will be used by the tool if using the B or C variants.
+
