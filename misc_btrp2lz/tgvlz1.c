@@ -16,6 +16,7 @@ BtRP2 (Transposed, LE):
 *                        rrrrrrrr-r0111111 	(Long Raw, r=(r+1)*8, 8..4096)
 *                        lllllll0-01111111  (RP2B, l=4..131, d=1, r=0)
 * 2x D-ddddddll-llllllll-llllrrr1-01111111  (RP2B, l=4..16K, d=0..4M, r=0..7)
+*   DD-dddddddd-ddddddll-llllrrr0-11111111  (RP2B?, l=4..67, d=0..4M, r=0..7)
 ** d: Distance
 ** l: Match Length
 ** r: Literal Length
@@ -68,17 +69,57 @@ This format will not attempt to deal with chunking or streaming.
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 
-typedef uint8_t	byte;
+#ifndef BYTE_T
+#define BYTE_T
+typedef unsigned char byte;
+#endif
+
+#ifndef SBYTE_T
+#define SBYTE_T
+typedef signed char sbyte;
+#endif
+
+#ifndef U8_T
+#define U8_T
+typedef unsigned char u8;
+#endif
+
+#ifndef S8_T
+#define S8_T
+typedef signed char s8;
+#endif
+
+#ifndef PDLIB_INT_BITS_T
+#define PDLIB_INT_BITS_T
+
+// typedef uint8_t	byte;
 typedef uint16_t	u16;
 typedef uint32_t	u32;
 typedef uint64_t	u64;
 
+// typedef int8_t		sbyte;
+typedef int16_t	s16;
+typedef int32_t	s32;
+typedef int64_t	s64;
+
+#endif
+
 #else
 
-typedef unsigned char byte;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef unsigned long long u64;
+#ifndef PDLIB_INT_BITS_T
+#define PDLIB_INT_BITS_T
+
+typedef unsigned char			byte;
+typedef unsigned short		u16;
+typedef unsigned int			u32;
+typedef unsigned long long	u64;
+
+typedef signed char			sbyte;
+typedef signed short			s16;
+typedef signed int			s32;
+typedef signed long long		s64;
+
+#endif
 
 #endif
 
@@ -541,7 +582,10 @@ int TgvLz_EstMatchCost(TgvLz_Context *ctx, int rl, int bl, int bd)
 			c+=1+((bl<128)?1:2)+((bd<32768)?2:3);
 		}else
 		{
-			c+=6;
+			if(bl<=67)
+				c+=5;
+			else
+				c+=6;
 		}
 	}
 	return(c);
@@ -1463,6 +1507,45 @@ u32 TgvLz_CalculateImagePel4BChecksum(byte *buf, int size)
 	acc_hi=((u32)acc_hi)+(acc_hi>>32);
 	csum=(u32)(acc_lo^acc_hi);
 	return(csum);
+}
+
+u16 TgvLz_CalculateSmallByteCsum(byte *buf, int sz)
+{
+	byte *cs, *cse;
+	u32 ac0, ac1, csum;
+	
+	if(!sz)
+		return(0);
+
+	cs=buf; cse=buf+sz;
+	ac0=1; ac1=0;
+	while(cs<cse)
+	{
+		ac0+=*cs;
+		ac1+=ac0;
+		cs++;
+	}
+	ac0=((u16)ac0)+(ac0>>16);
+	ac1=((u16)ac1)+(ac1>>16);
+	ac0=((u16)ac0)+(ac0>>16);
+	ac1=((u16)ac1)+(ac1>>16);
+	csum=(u16)(ac0^ac1);
+	return(csum);
+}
+
+u32 TgvLz_CalculateImagePel4BChecksumAc(byte *buf, int sz)
+{
+	u32 csum0, csum1;
+
+	if(!(sz&15))
+	{
+		csum0=TgvLz_CalculateImagePel4BChecksum(buf, sz);
+		return(csum0);
+	}
+
+	csum0=TgvLz_CalculateImagePel4BChecksum(buf, sz&(~15));
+	csum1=TgvLz_CalculateSmallByteCsum(buf+(sz&(~15)), sz&15);
+	return(csum0^csum1);
 }
 
 int TgvLz_DoEncode(TgvLz_Context *ctx,

@@ -22,6 +22,9 @@ BtRP2 (Transposed, LE):
 
 Values are encoded in little-endian order, with tag bits located in the LSB. Bits will be contiguous within the value, with shift-and-mask being used to extract individual elements.
 
+Note:
+Raw/literal bytes will directly follow the tag when r!=0, which will be copied to the decoded output before applying the LZ match.
+
 Long Match will encode length and distance using variable-length encodings directly following the initial tag byte.
 
 Length VLN:
@@ -42,6 +45,11 @@ Note that the Long Match case is not used in the RP2B or RP2C variants; and in R
 
 The Original format may make more sense as as a general file compressor; the 2B and 2C variants were more tuned for things like data buffers.
 
+Some optional "Post Compressors" may be used alongside RP2.
+These are non default, and (if relevant for a use-case) may add an entropy coding stage at the expense of speed.
+
+
+=== Standalone File Format ===
 
 Simple File Format:
 *  0: 'RP2A'
@@ -53,4 +61,62 @@ Simple File Format:
 This format will not attempt to deal with chunking or streaming.
 
 The magics 'RP2B' and 'RP2C' will be used by the tool if using the B or C variants.
+
+
+=== Post Compressor: RP2+Range ===
+
+Entropy stage intended to fit onto RP2.
+* May be signaled with a magic escape.
+* Assumed as an entropy-coded super-stage on top of RP2.
+
+If it starts with 30 00, this will signal the start of a Range-Coded block. This block will follow the same structure as RP2, but will apply a bitwise range coder over each byte, with the symbols split into 3 contexts.
+
+Will use 3 contexts:
+One for Tag Bytes (the first byte in the match pattern).
+One for Length/Distance Bytes (any secondary bytes in the match).
+One for raw/literal bytes.
+
+This will use a shared bit history between symbols, with each symbol being encoded with 11 bits of context combining local bit history with the bit position within the byte.
+
+Symbols will be encoded in LSB first order in this case.
+LSB first typically being a slightly better fit for the data being encoded.
+ 
+Range coding shoulg only used if it brings sufficient benefit.
+Otherwise, the comparably high CPU cost of range coding is undesirable.
+
+The exact behavior of the range coder will not be described here as it is nearly impossible to implement a range coder with consistent results based on a prose description (decoding being far too sensitive to arcane edge cases).
+
+
+=== Post Compressor: RP2+STF+AdRice ===
+
+STF+AdRice post-compressor for RP2.
+
+Escape Magic: 10-00
+* This will represent an illegal match in RP2.
+
+Uses 3 contexts: Tag, Length/Distance, and Literal.
+
+Mostly separates bytes by category and then uses the appropriate context.
+
+The first Byte of the Tag will be encoded using the Tag context, with Length/Distance for any following bytes. Any encoded Raw/Literal bytes will use the Literal context.
+
+Uses an AdRice implementation that steps by a fraction of a bit.
+The slower stepping was better for compression in this case.
+Where, Rice involves splitting the value into a unary coded prefix (Q)
+and a K bit suffix. In AdRice, the K value is adjusted based on Q.
+Rather than directly incrementing/decrementing K, was more effective to
+step with a partial bit here to slow the adaptation.
+
+In this case there will be 5 fractional bits (or 32 steps to adjust K by 1 bit), with contexts initialized with a starting K value of 6 bits.
+
+Note that the AdRice codes will be length limited, where if Q would be greater or equal to 8, it is encoded as 8 one-bits, followed by an 8 bit index.
+
+
+STF: Swap Towards Front
+
+As each symbol is encoded, it is swapped towards the front of the list.
+This will typically swap symbols towards an approximation of an optimal order.
+
+Initial state will be to fill each context with all symbols in order.
+For each encoded symbol, it will be swapped with the symbol at (I*15)/16 of the current position.
 

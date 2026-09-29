@@ -1,12 +1,12 @@
 /*
-Basic RP2/RP2B encoder/decoder.
+Basic RP2/RP2B/RP2C encoder/decoder.
 
 RP2 (Transposed, LE):
 *                        dddddddd-dlllrrr0	(l=3..10, d=0..511, r=0..7)
 *               dddddddd-dddddlll-lllrrr01	(l=4..67, d=0..8191)
 *      dddddddd-dddddddd-dlllllll-llrrr011	(l=4..515, d=0..131071)
 *                                 rrrr0111	(Raw Bytes, r=(r+1)*8, 8..128)
-*                               * rrr01111	(RP2-0, Long Match)
+*                               * rrr01111	(RP2-Org, Long Match)
 *                        dddllll0-rrr01111  (RP2C, l=11..26, d=1..8, r=0..7)
 *               dddddddl-lllllll1-rrr01111  (RP2C, l=68..323, d=1..128, r=0..7)
 *                                 rr011111	(r=1..3 bytes, 0=EOB)
@@ -19,7 +19,7 @@ RP2 (Transposed, LE):
 ** l: Match Length
 ** r: Literal Length
 
-The original long match is excluded.
+The original Long Match is excluded.
 
 
 Portability:
@@ -678,7 +678,7 @@ int GfxEdit_EncodeRP2_GetRawM0Cost(int mr)
 		k&=7;
 	}
 	while(k>=3)
-		{ c=+1; k-=3; }
+		{ c+=1; k-=3; }
 	if(k)
 		{ c+=1; }
 	return(c);
@@ -814,7 +814,7 @@ int GfxEdit_EncodeRP2(byte *dst, byte *src, int dsz, int ssz)
 #if 1
 				if((ml>=11) && (ml<=26) && (md>0) && (md<=8))
 			{
-				tag=0x0F|(mr<<5)|((ml-11)<<9)|((md-1)<<13);
+				tag=0x000F|(mr<<5)|((ml-11)<<9)|((md-1)<<13);
 				*ct++=(tag>> 0)&255;
 				*ct++=(tag>> 8)&255;
 				if(mr)
