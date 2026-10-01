@@ -65,6 +65,8 @@ The magics 'RP2B' and 'RP2C' will be used by the tool if using the B or C varian
 
 === Post Compressor: RP2+Range ===
 
+Escape Magic: 30 00
+
 Entropy stage intended to fit onto RP2.
 * May be signaled with a magic escape.
 * Assumed as an entropy-coded super-stage on top of RP2.
@@ -91,7 +93,7 @@ The exact behavior of the range coder will not be described here as it is nearly
 
 STF+AdRice post-compressor for RP2.
 
-Escape Magic: 10-00
+Escape Magic: 10 00
 * This will represent an illegal match in RP2.
 
 Uses 3 contexts: Tag, Length/Distance, and Literal.
@@ -119,4 +121,96 @@ This will typically swap symbols towards an approximation of an optimal order.
 
 Initial state will be to fill each context with all symbols in order.
 For each encoded symbol, it will be swapped with the symbol at (I*15)/16 of the current position.
+
+
+=== Post Compressor: RP2+Huffman ===
+
+RP2 Post Encoder: Huffman
+Magic: 20 00
+
+This version consists of a bitstream, which is broken up into chunks.
+This bitstream will be encoded in LSB first order.
+
+4b chunk tag:
+  0: Raw Bytes Chunk
+    len: VLI(4)
+    data: len*8 bits
+      Data will remain in bitstram, so bytes may be misaligned.
+
+  1: Single-Table Compressed Chunk
+    tti: 2-bits  //Table Index (0=T / 1=L / 2=D)
+    ttg: 2-bits  //Table Type Tag
+      if(ttg==1)
+        Packed-Symbol-Lengths
+      if(ttg==2)
+        Reuse existing lengths.
+    len: VLI(4)
+    data: Huff compressed XBlob (table=TTI)
+
+  2: Multi-Table Compressed Chunk
+    ttg_t: 2b  //Table Type, Tag
+      if(ttg_t==1)
+        Packed-Symbol-Lengths, Tag Table
+    ttg_l: 2b  //Table Type, Literals
+      if(ttg_l==1)
+        Packed-Symbol-Lengths, Literal Table
+    ttg_d: 2b  //Table Type, Distance
+      if(ttg_d==1)
+        Packed-Symbol-Lengths, Distance Table
+    len_t: VLI(4)
+    len_l: VLI(4)
+    len_d: VLI(4)
+    data_t: Huff compressed XBlob, Tag
+    data_l: Huff compressed XBlob, Literal
+    data_d: Huff compressed XBlob, Distance
+
+Table Types:
+  0: Raw Bytes (8-bits per byte within bitstream)
+    Doesn't modify prior Hufftab for this index.
+    Simply causes the blob to decode as fixed 8 bits.
+  1: Packed Lengths, Update Table
+    Encode Packed lengths for a new version of the table.
+  2: Reuse Last Table
+    No new lengths, keep previous table.
+  3: Reserved for Now.
+
+VLI(K): Will be encoded as an K-Bit prefix giving the length of the suffix.
+This will then read the (N-1) bit suffix holding the rest of the value.
+This encoding strips the highest '1' bit from the value, which is added back.
+
+XBlob:
+  ty: 2b  //Encoding Type
+  if(ty==0)
+    Linearly encoded Huffman Symbols
+  if(ty==1)
+    bits0: VLI(5)	//Total Number of Bits, Plane 0
+    bits1: VLI(5)	//Total Number of Bits, Plane 1
+    bits2: VLI(5)	//Total Number of Bits, Plane 2
+    bits3: VLI(5)	//Total Number of Bits, Plane 3
+    Huffman Symbols, Plane 0
+    Huffman Symbols, Plane 1
+    Huffman Symbols, Plane 2
+    Huffman Symbols, Plane 3
+  2/3: Reserved
+
+The XBlob format may encode the Huffman coded stream into 4 planes.
+This can potentially allow for faster decoding by reducing dependencies.
+If the number of symbols was not evenly divisible by 4,
+it will be encoded as-if padded up to the next multiple of 4.
+
+Huffman Tables:
+Will encode the tables as a series of lengths in "Canonical Huffman" style.
+Will use 4-bits for lengths.
+  0: represents an unused symbol
+  1..D: Lengths
+  E: 4b follows, run of 3..18 zeroes.
+  F: 2b follows:
+    00: 6b follows, run of 19..82 zeroes
+    01: 6b follows, run of 4..66 repeats of last value.
+      Bias is 3, but the 6b is 1 or greater.
+      If the 6b value is 0, this is an EOT marker.
+        Rest of table filled with zeroes.
+    10/11: Reserved
+
+This post compressor can be faster when the payload is large enough to offset the constant costs. For small payloads, this may work out as having a higher overhead than STF+Rice, but may move into a performance lead for larger payloads.
 

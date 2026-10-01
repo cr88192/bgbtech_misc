@@ -1637,7 +1637,7 @@ int BTIC5C_DecodeFrame(BTIC5C_DecodeContext *ctx,
 
 	if(tag==BTPIC_TCC_Z3)
 	{
-		dsz=btpic_getu16(cs0);
+		dsz=btpic_getu32(cs0);
 	
 		if(!ctx->zfbuf)
 		{
