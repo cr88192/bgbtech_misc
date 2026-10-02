@@ -6,12 +6,15 @@
  * This bitstream will be encoded in LSB first order.
  *
  * 4b chunk tag:
- *   0: Raw Bytes Chunk
+ *
+ *   0: End of Stream
+ *
+ *   1: Raw Bytes Chunk
  *     len: VLI(4)
  *     data: len*8 bits
  *       Data will remain in bitstram, so bytes may be misaligned.
  *
- *   1: Single-Table Compressed Chunk
+ *   2: Single-Table Compressed Chunk
  *     tti: 2-bits  //Table Index (0=T / 1=L / 2=D)
  *     ttg: 2-bits  //Table Type Tag
  *       if(ttg==1)
@@ -21,7 +24,7 @@
  *     len: VLI(4)
  *     data: Huff compressed XBlob (table=TTI)
  *
- *   2: Multi-Table Compressed Chunk
+ *   3: Multi-Table Compressed Chunk
  *     ttg_t: 2b  //Table Type, Tag
  *       if(ttg_t==1)
  *         Packed-Symbol-Lengths, Tag Table
@@ -97,6 +100,10 @@
 #define POSTRP2HUFF_HTABNB 12
 #endif
 
+#define POSTRP2HUFF_HTABMSK		(POSTRP2HUFF_HTABSZ-1)
+
+#define POSTRP2HUFF_MAXBLOB		(4096+48)
+
 
 typedef struct PostRp2Huff_DecState_s PostRp2Huff_DecState;
 
@@ -104,8 +111,13 @@ struct PostRp2Huff_DecState_s {
 	byte *cs;
 	byte *ct;
 	byte pos;
+	byte status;
 
 	u16 hufftab[3][POSTRP2HUFF_HTABSZ];
+
+	byte *ttgbuf;
+	byte *ttrbuf;
+	byte *ttdbuf;
 };
 
 static const byte tkulz_trans4[16]={
@@ -114,8 +126,6 @@ static const byte tkulz_trans4[16]={
 
 static const byte tkulz_qtab[16]={
 	0, 1, 0, 2,  0, 1, 0, 3,  0, 1, 0, 2,  0, 1, 0, 4 };
-
-
 
 void PostRp2Huff_SkipBits(PostRp2Huff_DecState *ctx, int bits)
 {
@@ -147,33 +157,6 @@ u64 PostRp2Huff_ReadBits(PostRp2Huff_DecState *ctx, int bits)
 	PostRp2Huff_SkipBits(ctx, bits);
 	return(b);
 }
-
-#if 0
-int TKuLZ_ReadRiceL4(PostRp2Huff_DecState *ctx, byte rk)
-{
-	int b, q, l, v;
-	b=PostRp2Huff_PeekBits(ctx, 24);
-	q=tkulz_qtab[b&15];
-	if(q>=4)
-		{ v=(b>>4)&255; l=12; }
-	else
-		{ v=(b>>(q+1))&((1<<rk)-1); v|=(q<<rk); l=q+1+rk; }
-	PostRp2Huff_SkipBits(ctx, l);
-	return(v);
-}
-
-int TKuLZ_ReadRiceVLN(PostRp2Huff_DecState *ctx, byte rk)
-{
-	int pfx, e, v;
-	pfx=TKuLZ_ReadRiceL4(ctx, rk);
-	if(pfx<16)
-		{ return(pfx); }
-	v=pfx&15;
-	e=(pfx>>3)-1;
-	v=((8|v)<<e)|PostRp2Huff_ReadBits(ctx, e);
-	return(v);
-}
-#endif
 
 int TKuLZ_ReadPackVLI(PostRp2Huff_DecState *ctx, int pfsz)
 {
@@ -209,15 +192,15 @@ int PostRp2Huff_ReadPackedLengths(PostRp2Huff_DecState *ctx, byte *cls)
 				if(nz==3)
 					{ nz=te-t; zc=0; }
 			}
-//			else
-//				{ ctx->status=TKULZ_STATUS_BADHT; }
+			else
+				{ ctx->status=2; }
 		}
 		while(nz>0)
 			{ *t++=zc; nz--; }
 	}
 	
-//	if(t>te)
-//		{ ctx->status=TKULZ_STATUS_BADHT; }
+	if(t>te)
+		{ ctx->status=2; }
 	return(0);
 }
 
@@ -294,27 +277,27 @@ void PostRp2Huff_ReadSymbolBlob(
 	{
 		win=gfxedit_getu64(cs);
 
-		hti=(win>>pos)&4095;
+		hti=(win>>pos)&POSTRP2HUFF_HTABMSK;
 		hte=htab[hti];
 		pos+=hte>>12;
 		ct[0]=hte;
 
-		hti=(win>>pos)&4095;
+		hti=(win>>pos)&POSTRP2HUFF_HTABMSK;
 		hte=htab[hti];
 		pos+=hte>>12;
 		ct[1]=hte;
 
-		hti=(win>>pos)&4095;
+		hti=(win>>pos)&POSTRP2HUFF_HTABMSK;
 		hte=htab[hti];
 		pos+=hte>>12;
 		ct[2]=hte;
 
-		hti=(win>>pos)&4095;
+		hti=(win>>pos)&POSTRP2HUFF_HTABMSK;
 		hte=htab[hti];
 		pos+=hte>>12;
 		ct[3]=hte;
 
-		hti=(win>>pos)&4095;
+		hti=(win>>pos)&POSTRP2HUFF_HTABMSK;
 		hte=htab[hti];
 		pos+=hte>>12;
 		ct[4]=hte;
@@ -389,13 +372,16 @@ void PostRp2Huff_ReadSymbolBlob4W(
 	l=(len+3)>>2;
 
 #if 1
-	while(l>=5)
+//	while(l>=5)
+	while(l>=4)
 	{
 		win0=gfxedit_getu64(cs0);	win1=gfxedit_getu64(cs1);
 		win2=gfxedit_getu64(cs2);	win3=gfxedit_getu64(cs3);
 
-		hti0=(win0>>pos0)&4095;		hti1=(win1>>pos1)&4095;
-		hti2=(win2>>pos2)&4095;		hti3=(win3>>pos3)&4095;
+		hti0=(win0>>pos0)&POSTRP2HUFF_HTABMSK;
+		hti1=(win1>>pos1)&POSTRP2HUFF_HTABMSK;
+		hti2=(win2>>pos2)&POSTRP2HUFF_HTABMSK;
+		hti3=(win3>>pos3)&POSTRP2HUFF_HTABMSK;
 		hte0=htab[hti0];			hte1=htab[hti1];
 		hte2=htab[hti2];			hte3=htab[hti3];
 		pos0+=hte0>>12;				pos1+=hte1>>12;
@@ -403,8 +389,10 @@ void PostRp2Huff_ReadSymbolBlob4W(
 		ct[0]=hte0;					ct[1]=hte1;
 		ct[2]=hte2;					ct[3]=hte3;
 
-		hti0=(win0>>pos0)&4095;		hti1=(win1>>pos1)&4095;
-		hti2=(win2>>pos2)&4095;		hti3=(win3>>pos3)&4095;
+		hti0=(win0>>pos0)&POSTRP2HUFF_HTABMSK;
+		hti1=(win1>>pos1)&POSTRP2HUFF_HTABMSK;
+		hti2=(win2>>pos2)&POSTRP2HUFF_HTABMSK;
+		hti3=(win3>>pos3)&POSTRP2HUFF_HTABMSK;
 		hte0=htab[hti0];			hte1=htab[hti1];
 		hte2=htab[hti2];			hte3=htab[hti3];
 		pos0+=hte0>>12;				pos1+=hte1>>12;
@@ -412,8 +400,10 @@ void PostRp2Huff_ReadSymbolBlob4W(
 		ct[4]=hte0;					ct[5]=hte1;
 		ct[6]=hte2;					ct[7]=hte3;
 
-		hti0=(win0>>pos0)&4095;		hti1=(win1>>pos1)&4095;
-		hti2=(win2>>pos2)&4095;		hti3=(win3>>pos3)&4095;
+		hti0=(win0>>pos0)&POSTRP2HUFF_HTABMSK;
+		hti1=(win1>>pos1)&POSTRP2HUFF_HTABMSK;
+		hti2=(win2>>pos2)&POSTRP2HUFF_HTABMSK;
+		hti3=(win3>>pos3)&POSTRP2HUFF_HTABMSK;
 		hte0=htab[hti0];			hte1=htab[hti1];
 		hte2=htab[hti2];			hte3=htab[hti3];
 		pos0+=hte0>>12;				pos1+=hte1>>12;
@@ -421,8 +411,10 @@ void PostRp2Huff_ReadSymbolBlob4W(
 		ct[ 8]=hte0;				ct[ 9]=hte1;
 		ct[10]=hte2;				ct[11]=hte3;
 
-		hti0=(win0>>pos0)&4095;		hti1=(win1>>pos1)&4095;
-		hti2=(win2>>pos2)&4095;		hti3=(win3>>pos3)&4095;
+		hti0=(win0>>pos0)&POSTRP2HUFF_HTABMSK;
+		hti1=(win1>>pos1)&POSTRP2HUFF_HTABMSK;
+		hti2=(win2>>pos2)&POSTRP2HUFF_HTABMSK;
+		hti3=(win3>>pos3)&POSTRP2HUFF_HTABMSK;
 		hte0=htab[hti0];			hte1=htab[hti1];
 		hte2=htab[hti2];			hte3=htab[hti3];
 		pos0+=hte0>>12;				pos1+=hte1>>12;
@@ -430,33 +422,56 @@ void PostRp2Huff_ReadSymbolBlob4W(
 		ct[12]=hte0;				ct[13]=hte1;
 		ct[14]=hte2;				ct[15]=hte3;
 
-		hti0=(win0>>pos0)&4095;		hti1=(win1>>pos1)&4095;
-		hti2=(win2>>pos2)&4095;		hti3=(win3>>pos3)&4095;
+#if 0
+		hti0=(pos0+13);		hti1=(pos1+13);
+		hti2=(pos2+13);		hti3=(pos3+13);
+		if((hti0|hti1|hti2|hti3)&0x40)
+		{
+			cs0+=(pos0>>3);				cs1+=(pos1>>3);
+			cs2+=(pos2>>3);				cs3+=(pos3>>3);
+			pos0&=7;					pos1&=7;
+			pos2&=7;					pos3&=7;
+			ct+=16;						l-=4;
+			continue;
+		}
+
+		hti0=(win0>>pos0)&POSTRP2HUFF_HTABMSK;
+		hti1=(win1>>pos1)&POSTRP2HUFF_HTABMSK;
+		hti2=(win2>>pos2)&POSTRP2HUFF_HTABMSK;
+		hti3=(win3>>pos3)&POSTRP2HUFF_HTABMSK;
 		hte0=htab[hti0];			hte1=htab[hti1];
 		hte2=htab[hti2];			hte3=htab[hti3];
 		pos0+=hte0>>12;				pos1+=hte1>>12;
 		pos2+=hte2>>12;				pos3+=hte3>>12;
 		ct[16]=hte0;				ct[17]=hte1;
 		ct[18]=hte2;				ct[19]=hte3;
+#endif
 
 		cs0+=(pos0>>3);				cs1+=(pos1>>3);
 		cs2+=(pos2>>3);				cs3+=(pos3>>3);
 		pos0&=7;					pos1&=7;
 		pos2&=7;					pos3&=7;
-		ct+=20;						l-=5;
+//		ct+=20;						l-=5;
+		ct+=16;						l-=4;
 	}
 #endif
 
-	while(l)
+	while(l>0)
 	{
-		win0=*(u64 *)cs0;				win1=*(u64 *)cs1;
-		win2=*(u64 *)cs2;				win3=*(u64 *)cs3;
-		hte0=htab[(win0>>pos0)&4095];	hte1=htab[(win1>>pos1)&4095];
-		hte2=htab[(win2>>pos2)&4095];	hte3=htab[(win3>>pos3)&4095];
+		win0=gfxedit_getu64(cs0);		win1=gfxedit_getu64(cs1);
+		win2=gfxedit_getu64(cs2);		win3=gfxedit_getu64(cs3);
+
+		hti0=(win0>>pos0)&POSTRP2HUFF_HTABMSK;
+		hti1=(win1>>pos1)&POSTRP2HUFF_HTABMSK;
+		hti2=(win2>>pos2)&POSTRP2HUFF_HTABMSK;
+		hti3=(win3>>pos3)&POSTRP2HUFF_HTABMSK;
+		hte0=htab[hti0];				hte1=htab[hti1];
+		hte2=htab[hti2];				hte3=htab[hti3];
 		pos0+=hte0>>12;					pos1+=hte1>>12;
 		pos2+=hte2>>12;					pos3+=hte3>>12;
 		ct[0]=hte0;						ct[1]=hte1;
 		ct[2]=hte2;						ct[3]=hte3;
+
 		cs0+=(pos0>>3);					cs1+=(pos1>>3);
 		cs2+=(pos2>>3);					cs3+=(pos3>>3);
 		pos0&=7;						pos1&=7;
@@ -466,6 +481,31 @@ void PostRp2Huff_ReadSymbolBlob4W(
 
 	ctx->cs=cs3;
 	ctx->pos=pos3;
+}
+
+static int printblob_harr[512];
+static int printblob_rov;
+
+void PostRp2Huff_PrintBlobCheck(
+	int tab, byte *dst, int len)
+{
+#if 0
+	u32 h0, h1, h, hi;
+	int hne;
+	byte *cs, *cse;
+	
+	cs=dst; cse=dst+len; h0=1; h1=0;
+	while(cs<cse)
+		{ h0+=*cs++; h1+=h0; }
+	h=h0^h1;
+	
+	hi=printblob_rov++;
+	
+	hne=(h!=printblob_harr[hi]);
+	printblob_harr[hi]=h;
+	
+	printf("  %d %4dB %08X, %d\n", tab, len, h, hne);
+#endif
 }
 
 void PostRp2Huff_ReadSymbolXBlob(
@@ -486,6 +526,8 @@ void PostRp2Huff_ReadSymbolXBlob(
 	{
 		printf("PostRp2Huff_ReadSymbolXBlob: Bad Type %d\n", ti);
 	}
+	
+	PostRp2Huff_PrintBlobCheck(tab, dst, len);
 }
 
 void PostRp2Huff_ReadRawBytesBlob(
@@ -500,6 +542,26 @@ void PostRp2Huff_ReadRawBytesBlob(
 //	htab=ctx->hufftab[tab];
 	ct=dst;
 
+	if(!pos)
+	{
+		l=len;
+		while(l>=8)
+		{
+			win=gfxedit_getu64(cs);
+			gfxedit_setu64(ct, win);
+			cs+=8; ct+=8; l-=8;
+		}
+
+		if(l)
+		{
+			win=gfxedit_getu64(cs);
+			gfxedit_setu64(ct, win);
+			cs+=l; ct+=l;
+		}
+		ctx->cs=cs;
+		return;
+	}
+
 	l=len;
 	while(l>=7)
 	{
@@ -507,6 +569,7 @@ void PostRp2Huff_ReadRawBytesBlob(
 		gfxedit_setu64(ct, win>>pos);
 		cs+=7;
 		ct+=7;
+		l-=7;
 	}
 	if(l)
 	{
@@ -553,17 +616,37 @@ void PostRp2Huff_UnpackRp2BlobSingleInner(
 void PostRp2Huff_UnpackRp2BlobMultiInner(
 	PostRp2Huff_DecState *ctx)
 {
-	static byte ttgbuf[4096+256];
-	static byte ttrbuf[4096+256];
-	static byte ttdbuf[4096+256];
+//	static byte ttgbuf[4096+256];
+//	static byte ttrbuf[4096+256];
+//	static byte ttdbuf[4096+256];
+//	static byte *ttgbuf;
+//	static byte *ttrbuf;
+//	static byte *ttdbuf;
 	byte tgcls[256];
 	byte trcls[256];
 	byte tdcls[256];
+	byte *ttgbuf;
+	byte *ttrbuf;
+	byte *ttdbuf;
 	byte *ct, *cs_tg, *cs_tge, *cs_tr, *cs_td;
 	int pos_r, pos_d;
 	int tg_t, tg_l, tg_d;
 	int ntb, nrb, ndb, ntp, nrp, ndp, tg, ti, nd, nr;
 	int i, j, k, l;
+	
+	ttgbuf=ctx->ttgbuf;
+	ttrbuf=ctx->ttrbuf;
+	ttdbuf=ctx->ttdbuf;
+	
+	if(!ttgbuf)
+	{
+		ttgbuf=malloc((POSTRP2HUFF_MAXBLOB+64)*3);
+		ttrbuf=ttgbuf+(POSTRP2HUFF_MAXBLOB+16);
+		ttdbuf=ttrbuf+(POSTRP2HUFF_MAXBLOB+16);
+		ctx->ttgbuf=ttgbuf;
+		ctx->ttrbuf=ttrbuf;
+		ctx->ttdbuf=ttdbuf;
+	}
 	
 	tg_t=PostRp2Huff_ReadBits(ctx, 2);
 	if(tg_t==1)
@@ -588,27 +671,28 @@ void PostRp2Huff_UnpackRp2BlobMultiInner(
 	nrb=TKuLZ_ReadPackVLI(ctx, 4);
 	ndb=TKuLZ_ReadPackVLI(ctx, 4);
 
-//	ntp=TKuLZ_ReadPackVLI(ctx, 5);
-//	nrp=TKuLZ_ReadPackVLI(ctx, 5);
-//	ndp=TKuLZ_ReadPackVLI(ctx, 5);
+	if(	(ntb>POSTRP2HUFF_MAXBLOB) ||
+		(nrb>POSTRP2HUFF_MAXBLOB) ||
+		(ndb>POSTRP2HUFF_MAXBLOB))
+	{
+		ctx->status=1;
+		return;
+	}
 
 	if(tg_t)
 		{ PostRp2Huff_ReadSymbolXBlob(ctx, 0, ttgbuf, ntb); }
 	else
 		{ PostRp2Huff_ReadRawBytesBlob(ctx, ttgbuf, ntb); }
-//	nd=PostRp2Huff_ReadBits(ctx, 16);
 
 	if(tg_l)
 		{ PostRp2Huff_ReadSymbolXBlob(ctx, 1, ttrbuf, nrb); }
 	else
 		{ PostRp2Huff_ReadRawBytesBlob(ctx, ttrbuf, nrb); }
-//	nd=PostRp2Huff_ReadBits(ctx, 16);
 
 	if(tg_d)
 		{ PostRp2Huff_ReadSymbolXBlob(ctx, 2, ttdbuf, ndb); }
 	else
 		{ PostRp2Huff_ReadRawBytesBlob(ctx, ttdbuf, ndb); }
-//	nd=PostRp2Huff_ReadBits(ctx, 16);
 	
 	ct=ctx->ct;
 	
@@ -670,6 +754,13 @@ void PostRp2Huff_UnpackRp2BlobMultiInner(
 				{ nd=4; nr=(ti>>1)&7; }
 			else
 				{ nd=0; nr=0; }
+		}else
+		{
+			ti=*cs_td++;
+			*ct++=ti;
+			
+			if(!(ti&1))
+				{ nd=3; nr=(ti>>1)&7; }
 		}
 
 		if(nd)
@@ -720,8 +811,18 @@ int PostRp2Huff_UnpackRp2BlobCtx(
 			printf("PostRp2Huff_UnpackRp2BlobCtx: Bad Tag %d\n", tag);
 			break;
 		}
+		if(ctx->status)
+		{
+			printf("PostRp2Huff_UnpackRp2BlobCtx: Status %d\n", ctx->status);
+			break;
+		}
+		
 		tag=PostRp2Huff_ReadBits(ctx, 4);
 	}
+	
+	if(ctx->status)
+		return(-1);
+	
 	return(ctx->ct-obuf);
 }
 
@@ -736,7 +837,7 @@ int PostRp2Huff_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 		memset(st_ctx, 0, sizeof(PostRp2Huff_DecState));
 	}
 
-	memset(st_ctx, 0, sizeof(PostRp2Huff_DecState));
+//	memset(st_ctx, 0, sizeof(PostRp2Huff_DecState));
 
 	sz=PostRp2Huff_UnpackRp2BlobCtx(st_ctx, obuf, ibuf);
 	return(sz);

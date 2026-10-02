@@ -109,7 +109,9 @@ void PostRp2Huff_EncodeHuffSymbolXBlob(PostRp2Huff_EncState *ctx,
 	byte *cs, *cse;
 	int nbi0, nbi1, nbi2, nbi3;
 	int i, j, k, l;
-	
+
+	PostRp2Huff_PrintBlobCheck(0, buf, len);
+
 //	if(1)
 //	if(len<512)
 //	if(len<384)
@@ -150,6 +152,16 @@ void PostRp2Huff_EncodeHuffSymbolXBlob(PostRp2Huff_EncState *ctx,
 		{ PostRp2Huff_EncodeHuffSym(ctx, hetab, buf[i*4+2]); }
 	for(i=0; i<l; i++)
 		{ PostRp2Huff_EncodeHuffSym(ctx, hetab, buf[i*4+3]); }
+}
+
+void PostRp2Huff_EncodeRawBlob(PostRp2Huff_EncState *ctx,
+	byte *buf, int len)
+{
+	byte *cs, *cse;
+	
+	cs=buf; cse=buf+len;
+	while(cs<cse)
+		{ PostRp2Huff_WriteBits(ctx, *cs++, 8); }
 }
 
 int PostRp2Huff_WritePackedLengths(PostRp2Huff_EncState *ctx, byte *cls)
@@ -498,6 +510,12 @@ int PostRp2Huff_StatBufferRp2(byte *ibuf, int ibsz,
 		if(tsz<1)
 			return(-1);
 		
+		if(nr>=3072)
+		{
+			stat_l[cs[0]]++;
+			stat_l[cs[1]]++;
+		}
+		
 		stat_t[*cs++]++;
 		for(i=1; i<tsz; i++)
 			stat_d[*cs++]++;
@@ -544,8 +562,10 @@ int PostRp2Huff_SplitBuffersRp2(byte *ibuf, int ibsz, int obmax,
 			if(tag&0x100)		{ tsz=3; }
 			else				{ tsz=2; }
 		}
-		else if(!(tag&0x20))	{ tsz=1; nr=(tag>>6)&3; }
-		else if(!(tag&0x40))	{ tsz=2; nr=(((tag>>7)&511)+1)*8; }
+		else if(!(tag&0x20))
+			{ tsz=1; nr=(tag>>6)&3; }
+		else if(!(tag&0x40))
+			{ tsz=2; nr=(((tag>>7)&511)+1)*8; }
 		else if(!(tag&0x80))
 		{
 			if(tag&0x100)
@@ -553,13 +573,10 @@ int PostRp2Huff_SplitBuffersRp2(byte *ibuf, int ibsz, int obmax,
 			else
 				{ tsz=2; nr=0; }
 		}
+		else if(!(tag&0x100))
+			{ tsz=5; nr=(tag>>9)&7; }
 		else
-		{
-			if(!(tag&0x100))
-				{ tsz=5; nr=(tag>>9)&7; }
-			else
-				{ tsz=-1; }
-		}
+			{ tsz=-1; }
 		
 		if((ct_t+1)>=cte_t)
 			break;
@@ -585,11 +602,13 @@ int PostRp2Huff_SplitBuffersRp2(byte *ibuf, int ibsz, int obmax,
 	return(cs-ibuf);
 }
 
+#define POSTRP2HUFF_RAWBIAS		1.05
+
 int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 {
-	static byte blob_t[4096];
-	static byte blob_l[4096];
-	static byte blob_d[4096];
+	static byte blob_t[POSTRP2HUFF_MAXBLOB+16];
+	static byte blob_l[POSTRP2HUFF_MAXBLOB+16];
+	static byte blob_d[POSTRP2HUFF_MAXBLOB+16];
 	static PostRp2Huff_EncState t_ctx;
 	int stat_t[256];
 	int stat_l[256];
@@ -601,6 +620,7 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	int bsz_t, bsz_l, bsz_d;
 	int tsz_t, tsz_l, tsz_d;
 	int pad_t, pad_l, pad_d;
+	int raw_t, raw_l, raw_d;
 	PostRp2Huff_EncState *ctx;
 	byte *cs, *cse, *cs0;
 	
@@ -697,15 +717,50 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	{
 		cs0=cs;
 		
-//		memset(blob_t, pad_t, 4096);
-//		memset(blob_l, pad_l, 4096);
-//		memset(blob_d, pad_d, 4096);
+		if((cs0!=ibuf) && ((cs[0]&0x7F)==0x3F) && (cs[1]>=0xC0))
+		{
+			k=(cs[1]<<1)|(cs[0]>>7);
+			tsz_l=2+((k+1)*8);
+
+			l=0;
+			for(i=0; i<tsz_l; i++)
+				{ l+=cl_l[blob_l[i]]; }
+			
+			k=l>>3;
+			if((k*POSTRP2HUFF_RAWBIAS)>tsz_l)
+			{
+				PostRp2Huff_WriteBits(ctx, 1, 4);
+				PostRp2Huff_WritePackVLI(ctx, tsz_l, 4);
+				PostRp2Huff_EncodeRawBlob(ctx, cs, tsz_l);
+				cs+=tsz_l;
+				continue;
+			}
 		
-		i=PostRp2Huff_SplitBuffersRp2(cs, cse-cs, 4096,
+			PostRp2Huff_WriteBits(ctx, 2, 4);
+			PostRp2Huff_WriteBits(ctx, 1, 2);
+			PostRp2Huff_WriteBits(ctx, 2, 2);
+
+			PostRp2Huff_WritePackVLI(ctx, tsz_l, 4);
+			PostRp2Huff_EncodeHuffSymbolXBlob(ctx,
+				ctx->hfetab[1], cs, tsz_l);
+			cs+=tsz_l;
+			continue;
+		}
+		
+		i=PostRp2Huff_SplitBuffersRp2(cs, cse-cs, POSTRP2HUFF_MAXBLOB,
 			blob_t, blob_l, blob_d,
 			&tsz_t, &tsz_l, &tsz_d);
 		if(i<0)
 			return(-1);
+			
+		if(!i)
+		{
+			i=PostRp2Huff_SplitBuffersRp2(cs, cse-cs, POSTRP2HUFF_MAXBLOB,
+				blob_t, blob_l, blob_d,
+				&tsz_t, &tsz_l, &tsz_d);
+			return(-1);
+		}
+
 		cs+=i;
 
 		blob_t[tsz_t+0]=pad_t;		blob_t[tsz_t+1]=pad_t;
@@ -717,10 +772,47 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 		blob_d[tsz_d+0]=pad_d;		blob_d[tsz_d+1]=pad_d;
 		blob_d[tsz_d+2]=pad_d;		blob_d[tsz_d+3]=pad_d;
 
+#if 1
+		l=0;
+		for(i=0; i<tsz_t; i++)
+			{ l+=cl_t[blob_t[i]]; }
+		psz_t=l;
+
+		l=0;
+		for(i=0; i<tsz_l; i++)
+			{ l+=cl_l[blob_l[i]]; }
+		psz_l=l;
+
+		l=0;
+		for(i=0; i<tsz_d; i++)
+			{ l+=cl_d[blob_d[i]]; }
+		psz_d=l;
+#endif
+
+		j=cs-cs0;
+		k=(psz_t+psz_l+psz_d+10+48)>>3;
+		if((cs0!=ibuf) && ((k*POSTRP2HUFF_RAWBIAS)>j))
+		{
+			/* If chunk compresses poorly, emit as raw blob. */
+			j=cs-cs0;
+			PostRp2Huff_WriteBits(ctx, 1, 4);
+			PostRp2Huff_WritePackVLI(ctx, j, 4);
+			PostRp2Huff_EncodeRawBlob(ctx, cs0, j);
+			continue;
+		}
+		
+		raw_t=((psz_t>>3)*POSTRP2HUFF_RAWBIAS)>tsz_t;
+		raw_l=((psz_l>>3)*POSTRP2HUFF_RAWBIAS)>tsz_l;
+		raw_d=((psz_d>>3)*POSTRP2HUFF_RAWBIAS)>tsz_d;
+
 		PostRp2Huff_WriteBits(ctx, 3, 4);
 		
 		if(cs0==ibuf)
 		{
+			raw_t=0;
+			raw_l=0;
+			raw_d=0;
+
 			PostRp2Huff_WriteBits(ctx, 1, 2);
 			PostRp2Huff_WritePackedLengths(ctx, cl_t);
 			PostRp2Huff_WriteBits(ctx, 1, 2);
@@ -729,42 +821,41 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 			PostRp2Huff_WritePackedLengths(ctx, cl_d);
 		}else
 		{
-			PostRp2Huff_WriteBits(ctx, 2, 2);
-			PostRp2Huff_WriteBits(ctx, 2, 2);
-			PostRp2Huff_WriteBits(ctx, 2, 2);
+			PostRp2Huff_WriteBits(ctx, raw_t?0:2, 2);
+			PostRp2Huff_WriteBits(ctx, raw_l?0:2, 2);
+			PostRp2Huff_WriteBits(ctx, raw_d?0:2, 2);
 		}
-
-		l=0;
-		for(i=0; i<tsz_t; i++)
-			{ l+=cl_t[blob_t[i]]; }
-		psz_t=l;
-
-		l=0;
-		for(i=0; i<tsz_t; i++)
-			{ l+=cl_t[blob_t[i]]; }
-		psz_l=l;
-
-		l=0;
-		for(i=0; i<tsz_t; i++)
-			{ l+=cl_t[blob_t[i]]; }
-		psz_d=l;
 
 		PostRp2Huff_WritePackVLI(ctx, tsz_t, 4);
 		PostRp2Huff_WritePackVLI(ctx, tsz_l, 4);
 		PostRp2Huff_WritePackVLI(ctx, tsz_d, 4);
 
-//		PostRp2Huff_WritePackVLI(ctx, psz_t, 5);
-//		PostRp2Huff_WritePackVLI(ctx, psz_l, 5);
-//		PostRp2Huff_WritePackVLI(ctx, psz_d, 5);
+		if(raw_t)
+		{
+			PostRp2Huff_EncodeRawBlob(ctx, blob_t, tsz_t);
+		}else
+		{
+			PostRp2Huff_EncodeHuffSymbolXBlob(ctx,
+				ctx->hfetab[0], blob_t, tsz_t);
+		}
 
-		PostRp2Huff_EncodeHuffSymbolXBlob(ctx, ctx->hfetab[0], blob_t, tsz_t);
-//		PostRp2Huff_WriteBits(ctx, 0xFFFF, 16);
+		if(raw_l)
+		{
+			PostRp2Huff_EncodeRawBlob(ctx, blob_l, tsz_l);
+		}else
+		{
+			PostRp2Huff_EncodeHuffSymbolXBlob(ctx,
+				ctx->hfetab[1], blob_l, tsz_l);
+		}
 
-		PostRp2Huff_EncodeHuffSymbolXBlob(ctx, ctx->hfetab[1], blob_l, tsz_l);
-//		PostRp2Huff_WriteBits(ctx, 0xFFFF, 16);
-
-		PostRp2Huff_EncodeHuffSymbolXBlob(ctx, ctx->hfetab[2], blob_d, tsz_d);
-//		PostRp2Huff_WriteBits(ctx, 0xFFFF, 16);
+		if(raw_d)
+		{
+			PostRp2Huff_EncodeRawBlob(ctx, blob_d, tsz_d);
+		}else
+		{
+			PostRp2Huff_EncodeHuffSymbolXBlob(ctx,
+				ctx->hfetab[2], blob_d, tsz_d);
+		}
 	}
 	PostRp2Huff_WriteBits(ctx, 0, 4);
 	PostRp2Huff_FlushWriteBits(ctx);
@@ -793,7 +884,11 @@ int PostRp2Huff_EncodeBufferPostRp2Test(byte *obuf, byte *ibuf, int ibsz)
 		st_sztbuf=tsz;
 	}
 	
+	printblob_rov=0;
 	osz=PostRp2Huff_EncodeBufferPostRp2(obuf, ibuf, ibsz);
+	printf("\n");
+
+	printblob_rov=0;
 	tsz=PostRp2Huff_DecodeBufferPostRp2(st_tbuf, obuf, osz);
 
 	printf("Enc %d -> %d\n", ibsz, osz);

@@ -132,12 +132,14 @@ This version consists of a bitstream, which is broken up into chunks.
 This bitstream will be encoded in LSB first order.
 
 4b chunk tag:
-  0: Raw Bytes Chunk
+  0: End of Stream
+
+  1: Raw Bytes Chunk
     len: VLI(4)
     data: len*8 bits
       Data will remain in bitstram, so bytes may be misaligned.
 
-  1: Single-Table Compressed Chunk
+  2: Single-Table Compressed Chunk
     tti: 2-bits  //Table Index (0=T / 1=L / 2=D)
     ttg: 2-bits  //Table Type Tag
       if(ttg==1)
@@ -147,7 +149,7 @@ This bitstream will be encoded in LSB first order.
     len: VLI(4)
     data: Huff compressed XBlob (table=TTI)
 
-  2: Multi-Table Compressed Chunk
+  3: Multi-Table Compressed Chunk
     ttg_t: 2b  //Table Type, Tag
       if(ttg_t==1)
         Packed-Symbol-Lengths, Tag Table

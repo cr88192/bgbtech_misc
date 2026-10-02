@@ -480,6 +480,17 @@ int BTM_StfRk_DummyDecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 			tsi=2;
 			if(tag&0x0100)
 				tsz=6;
+		}else
+		{
+			tsz=2;
+			j=BTM_StfRk_ReadAdRiceSTF(ctx, &rk_d, prbtab_d);
+//			*ct++=j;
+			if((*ct++)!=j)
+				break;
+			tag|=j<<8;
+			tsi=2;
+			if(!(tag&0x0100))
+				tsz=5;
 		}
 		
 		for(i=tsi; i<tsz; i++)
@@ -517,4 +528,14 @@ int BTM_StfRk_DummyDecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 		tag1=tag;
 	}
 	return(ct-obuf);
+}
+
+int BTM_StfRk_EncodeBufferPostRp2Test(byte *obuf, byte *ibuf, int ibsz)
+{
+	int osz, i2sz;
+	osz=BTM_StfRk_EncodeBufferPostRp2(obuf, ibuf, ibsz);
+	i2sz=BTM_StfRk_DummyDecodeBufferPostRp2(ibuf, obuf, osz);
+	if(i2sz!=ibsz)
+		return(-1);
+	return(osz);
 }

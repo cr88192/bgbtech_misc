@@ -354,7 +354,7 @@ int BTM_BItRc_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	BTM_BitRcCtx t_ctx;
 	BTM_BitRcCtx *ctx;
 	byte *cs, *cse, *cs1, *csr, *ct;
-	u32 tag;
+	u64 tag;
 	int lc, tsz, tsi, nr, tg;
 	int i, j, k;
 
@@ -413,13 +413,22 @@ int BTM_BItRc_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 			tsi=2;
 			if(tag&0x0100)
 				tsz=6;
+		}else
+		{
+			tsz=2;
+			j=BTM_BItRc_DecodeByteLeCtx8B(ctx, prbtab_d, &lc);
+			*ct++=j;
+			tag|=j<<8;
+			tsi=2;
+			if(!(tag&0x0100))
+				tsz=5;
 		}
 		
 		for(i=tsi; i<tsz; i++)
 		{
 			j=BTM_BItRc_DecodeByteLeCtx8B(ctx, prbtab_d, &lc);
 			*ct++=j;
-			tag|=j<<(i*8);
+			tag|=((u64)j)<<(i*8);
 		}
 		
 		if(!tag)
@@ -438,4 +447,33 @@ int BTM_BItRc_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 			{ *ct++=BTM_BItRc_DecodeByteLeCtx8B(ctx, prbtab_l, &lc); }
 	}
 	return(ct-obuf);
+}
+
+int BTM_BItRc_EncodeBufferPostRp2Test(byte *obuf, byte *ibuf, int ibsz)
+{
+	byte *i2buf;
+	int osz, i2sz;
+	
+	osz=BTM_BItRc_EncodeBufferPostRp2(obuf, ibuf, ibsz);
+	if(osz<0)
+		return(-1);
+
+	i2buf=malloc(ibsz*2);
+	i2sz=BTM_BItRc_DecodeBufferPostRp2(i2buf, obuf, osz);
+
+	if(i2sz!=ibsz)
+	{
+		free(i2buf);
+		return(-1);
+	}
+
+	if(memcmp(i2buf, ibuf, ibsz))
+	{
+		free(i2buf);
+		return(-1);
+	}
+
+	free(i2buf);
+
+	return(osz);
 }
