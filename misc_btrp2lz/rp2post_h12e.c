@@ -623,6 +623,7 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	int raw_t, raw_l, raw_d;
 	PostRp2Huff_EncState *ctx;
 	byte *cs, *cse, *cs0;
+	int tti;
 	
 	int i, j, k, l;
 
@@ -719,6 +720,7 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 		
 		if((cs0!=ibuf) && ((cs[0]&0x7F)==0x3F) && (cs[1]>=0xC0))
 		{
+			/* Large Raw-Bytes Blob, Encode Special */
 			k=(cs[1]<<1)|(cs[0]>>7);
 			tsz_l=2+((k+1)*8);
 
@@ -729,20 +731,58 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 			k=l>>3;
 			if((k*POSTRP2HUFF_RAWBIAS)>tsz_l)
 			{
+				/* Raw Bytes Chunk */
 				PostRp2Huff_WriteBits(ctx, 1, 4);
 				PostRp2Huff_WritePackVLI(ctx, tsz_l, 4);
 				PostRp2Huff_EncodeRawBlob(ctx, cs, tsz_l);
 				cs+=tsz_l;
 				continue;
 			}
+
+#if 1
+			l=0;
+			for(i=0; i<tsz_l; i++)
+			{
+				j=cl_t[cs[i]];
+				if(j<1) {l=-1; break; }
+				l+=j;
+			}
+			psz_t=l;
+
+			l=0;
+			for(i=0; i<tsz_l; i++)
+			{
+				j=cl_l[cs[i]];
+				if(j<1) {l=-1; break; }
+				l+=j;
+			}
+			psz_l=l;
+
+			l=0;
+			for(i=0; i<tsz_l; i++)
+			{
+				j=cl_d[cs[i]];
+				if(j<1) {l=-1; break; }
+				l+=j;
+			}
+			psz_d=l;
+#endif
 		
+			/* Single-Table */
+			tti=1;
+			l=psz_l;
+			if((psz_t>0) && (psz_t<l))
+				{ tti=0; l=psz_t; }
+			if((psz_d>0) && (psz_d<l))
+				{ tti=2; l=psz_d; }
+			
 			PostRp2Huff_WriteBits(ctx, 2, 4);
-			PostRp2Huff_WriteBits(ctx, 1, 2);
-			PostRp2Huff_WriteBits(ctx, 2, 2);
+			PostRp2Huff_WriteBits(ctx, tti, 2);	//TTi: Lit
+			PostRp2Huff_WriteBits(ctx, 2, 2);	//TTg: Reuse Table
 
 			PostRp2Huff_WritePackVLI(ctx, tsz_l, 4);
 			PostRp2Huff_EncodeHuffSymbolXBlob(ctx,
-				ctx->hfetab[1], cs, tsz_l);
+				ctx->hfetab[tti], cs, tsz_l);
 			cs+=tsz_l;
 			continue;
 		}
@@ -805,7 +845,7 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 		raw_l=((psz_l>>3)*POSTRP2HUFF_RAWBIAS)>tsz_l;
 		raw_d=((psz_d>>3)*POSTRP2HUFF_RAWBIAS)>tsz_d;
 
-		PostRp2Huff_WriteBits(ctx, 3, 4);
+		PostRp2Huff_WriteBits(ctx, 3, 4);	//Multi-Table Chunk
 		
 		if(cs0==ibuf)
 		{

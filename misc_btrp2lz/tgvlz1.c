@@ -225,6 +225,17 @@ force_inline void set_u64le(byte *ptr, u64 val)
 
 #endif
 
+#ifndef GFXEDIT_MISAL
+#define GFXEDIT_MISAL
+/* portability boilerplate goes here... */
+#define gfxedit_getu16(ptr)			get_u16le(ptr)
+#define gfxedit_getu32(ptr)			get_u32le(ptr)
+#define gfxedit_getu64(ptr)			get_u64le(ptr)
+#define gfxedit_setu16(ptr,val)		set_u16le(ptr, val)
+#define gfxedit_setu32(ptr,val)		set_u32le(ptr, val)
+#define gfxedit_setu64(ptr,val)		set_u64le(ptr, val)
+#endif
+
 typedef struct TgvLz_Context_s TgvLz_Context;
 
 //#define TKELZ_HASH_SZ	1024

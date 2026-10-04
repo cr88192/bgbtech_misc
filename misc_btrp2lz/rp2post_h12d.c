@@ -88,6 +88,9 @@
  *       If the 6b value is 0, this is an EOT marker.
  *         Rest of table filled with zeroes.
  *     10/11: Reserved
+ *
+ * Note that Blobs may impose a size limit of a little over 4K.
+ * The encoder may not exceed this size limit.
  */
 
 // #define POSTRP2HUFF_LEN13
@@ -103,6 +106,10 @@
 #define POSTRP2HUFF_HTABMSK		(POSTRP2HUFF_HTABSZ-1)
 
 #define POSTRP2HUFF_MAXBLOB		(4096+48)
+
+#define POSTRP2HUFF_STATUS_BADTAG		1
+#define POSTRP2HUFF_STATUS_BADHUFF		2
+#define POSTRP2HUFF_STATUS_BADBLOB		3
 
 
 typedef struct PostRp2Huff_DecState_s PostRp2Huff_DecState;
@@ -193,14 +200,14 @@ int PostRp2Huff_ReadPackedLengths(PostRp2Huff_DecState *ctx, byte *cls)
 					{ nz=te-t; zc=0; }
 			}
 			else
-				{ ctx->status=2; }
+				{ ctx->status=POSTRP2HUFF_STATUS_BADHUFF; }
 		}
 		while(nz>0)
 			{ *t++=zc; nz--; }
 	}
 	
 	if(t>te)
-		{ ctx->status=2; }
+		{ ctx->status=POSTRP2HUFF_STATUS_BADHUFF; }
 	return(0);
 }
 
@@ -311,8 +318,8 @@ void PostRp2Huff_ReadSymbolBlob(
 
 	while(l)
 	{
-		win=*(u64 *)cs;
-		hte=htab[(win>>pos)&4095];
+		win=gfxedit_getu64(cs);
+		hte=htab[(win>>pos)&POSTRP2HUFF_HTABMSK];
 		pos+=hte>>12;
 		*ct++=hte;
 		cs+=(pos>>3);
@@ -340,14 +347,14 @@ void PostRp2Huff_ReadSymbolBlob4W(
 	nbi3=TKuLZ_ReadPackVLI(ctx, 5);
 
 #if 0
-	if((nbi0<64) || (nbi0>(4096*12)))
-		__debugbreak();
-	if((nbi1<64) || (nbi1>(4096*12)))
-		__debugbreak();
-	if((nbi2<64) || (nbi2>(4096*12)))
-		__debugbreak();
-	if((nbi3<64) || (nbi3>(4096*12)))
-		__debugbreak();
+	if(	((nbi0<64) || (nbi0>((POSTRP2HUFF_MAXBLOB/4)*POSTRP2HUFF_HTABNB)))	||
+		((nbi1<64) || (nbi1>((POSTRP2HUFF_MAXBLOB/4)*POSTRP2HUFF_HTABNB)))	||
+		((nbi2<64) || (nbi2>((POSTRP2HUFF_MAXBLOB/4)*POSTRP2HUFF_HTABNB)))	||
+		((nbi3<64) || (nbi3>((POSTRP2HUFF_MAXBLOB/4)*POSTRP2HUFF_HTABNB)))	)
+	{
+		ctx->status=POSTRP2HUFF_STATUS_BADBLOB;
+		return;
+	}
 #endif
 
 	cs0=ctx->cs;
@@ -483,7 +490,7 @@ void PostRp2Huff_ReadSymbolBlob4W(
 	ctx->pos=pos3;
 }
 
-static int printblob_harr[512];
+// static int printblob_harr[512];
 static int printblob_rov;
 
 void PostRp2Huff_PrintBlobCheck(
@@ -524,7 +531,9 @@ void PostRp2Huff_ReadSymbolXBlob(
 		PostRp2Huff_ReadSymbolBlob4W(ctx, tab, dst, len);
 	}else
 	{
-		printf("PostRp2Huff_ReadSymbolXBlob: Bad Type %d\n", ti);
+		ctx->status=POSTRP2HUFF_STATUS_BADTAG;
+//		printf("PostRp2Huff_ReadSymbolXBlob: Bad Type %d\n", ti);
+		return;
 	}
 	
 	PostRp2Huff_PrintBlobCheck(tab, dst, len);
@@ -539,7 +548,6 @@ void PostRp2Huff_ReadRawBytesBlob(
 
 	cs=ctx->cs;
 	pos=ctx->pos;
-//	htab=ctx->hufftab[tab];
 	ct=dst;
 
 	if(!pos)
@@ -585,7 +593,7 @@ void PostRp2Huff_ReadRawBytesBlob(
 void PostRp2Huff_UnpackRp2BlobSingleInner(
 	PostRp2Huff_DecState *ctx)
 {
-	byte tgcls[256];
+	byte tgcls[256+96];
 	byte *ct, *cs_tg, *cs_tge, *cs_tr, *cs_rd;
 	int pos_r, pos_d;
 	int ntb, nrb, ndb, tg, ti, nd;
@@ -593,6 +601,12 @@ void PostRp2Huff_UnpackRp2BlobSingleInner(
 
 	ti=PostRp2Huff_ReadBits(ctx, 2);
 	tg=PostRp2Huff_ReadBits(ctx, 2);
+
+	if((ti==3) || (tg==3))
+	{
+		ctx->status=POSTRP2HUFF_STATUS_BADTAG;
+		return;
+	}
 
 	if(tg==0)
 	{
@@ -616,15 +630,9 @@ void PostRp2Huff_UnpackRp2BlobSingleInner(
 void PostRp2Huff_UnpackRp2BlobMultiInner(
 	PostRp2Huff_DecState *ctx)
 {
-//	static byte ttgbuf[4096+256];
-//	static byte ttrbuf[4096+256];
-//	static byte ttdbuf[4096+256];
-//	static byte *ttgbuf;
-//	static byte *ttrbuf;
-//	static byte *ttdbuf;
-	byte tgcls[256];
-	byte trcls[256];
-	byte tdcls[256];
+	byte tgcls[256+96];
+	byte trcls[256+96];
+	byte tdcls[256+96];
 	byte *ttgbuf;
 	byte *ttrbuf;
 	byte *ttdbuf;
@@ -652,19 +660,39 @@ void PostRp2Huff_UnpackRp2BlobMultiInner(
 	if(tg_t==1)
 	{
 		PostRp2Huff_ReadPackedLengths(ctx, tgcls);
+		if(ctx->status)
+			return;
 		PostRp2Huff_SetupTableLengths(ctx, ctx->hufftab[0], tgcls);
+		if(ctx->status)
+			return;
 	}
+
 	tg_l=PostRp2Huff_ReadBits(ctx, 2);
 	if(tg_l==1)
 	{
 		PostRp2Huff_ReadPackedLengths(ctx, tgcls);
+		if(ctx->status)
+			return;
 		PostRp2Huff_SetupTableLengths(ctx, ctx->hufftab[1], tgcls);
+		if(ctx->status)
+			return;
 	}
+
 	tg_d=PostRp2Huff_ReadBits(ctx, 2);
 	if(tg_d==1)
 	{
 		PostRp2Huff_ReadPackedLengths(ctx, tgcls);
+		if(ctx->status)
+			return;
 		PostRp2Huff_SetupTableLengths(ctx, ctx->hufftab[2], tgcls);
+		if(ctx->status)
+			return;
+	}
+
+	if((tg_t==3) || (tg_l==3) || (tg_d==3))
+	{
+		ctx->status=POSTRP2HUFF_STATUS_BADTAG;
+		return;
 	}
 
 	ntb=TKuLZ_ReadPackVLI(ctx, 4);
@@ -675,7 +703,7 @@ void PostRp2Huff_UnpackRp2BlobMultiInner(
 		(nrb>POSTRP2HUFF_MAXBLOB) ||
 		(ndb>POSTRP2HUFF_MAXBLOB))
 	{
-		ctx->status=1;
+		ctx->status=POSTRP2HUFF_STATUS_BADBLOB;
 		return;
 	}
 
@@ -788,6 +816,7 @@ int PostRp2Huff_UnpackRp2BlobCtx(
 	ctx->cs=ibuf+2;
 	ctx->ct=obuf;
 	ctx->pos=0;
+	ctx->status=0;
 	
 	tag=PostRp2Huff_ReadBits(ctx, 4);
 	while(tag)
@@ -808,6 +837,7 @@ int PostRp2Huff_UnpackRp2BlobCtx(
 			PostRp2Huff_UnpackRp2BlobMultiInner(ctx);
 		}else
 		{
+			ctx->status=POSTRP2HUFF_STATUS_BADTAG;
 			printf("PostRp2Huff_UnpackRp2BlobCtx: Bad Tag %d\n", tag);
 			break;
 		}
