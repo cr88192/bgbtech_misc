@@ -29,6 +29,8 @@ Granted, there are some chips around which support misaligned access, sorta, but
 
 */
 
+#ifndef GFXEDIT_MINRP2_C
+#define GFXEDIT_MINRP2_C
 
 #if 1
 #include <stdint.h>
@@ -998,3 +1000,5 @@ int GfxEdit_EncodeRP2Test(byte *dst, byte *src, int dsz, int ssz)
 	free(tptr);
 	return(csz);
 }
+
+#endif

@@ -19,6 +19,25 @@
  * This will typically swap symbols towards an approximation of an optimal order.
  */
 
+#ifndef RP2POST_RP2STF_C
+#define RP2POST_RP2STF_C
+
+#ifdef GFXEDIT_MINRP2_C
+#ifndef HAS_RP2STF_DECODERP2
+#define HAS_RP2STF_DECODERP2
+#define PostRp2Stf_DecodeRP2(obuf, ibuf, osz, isz)		\
+	GfxEdit_DecodeRP2(obuf, ibuf, osz, isz)
+#endif
+#endif
+
+#ifdef TGVLZ1_C
+#ifndef HAS_RP2STF_DECODERP2
+#define HAS_RP2STF_DECODERP2
+#define PostRp2Stf_DecodeRP2(obuf, ibuf, osz, isz)		\
+	TgvLz_DecodeBufferRP2C(ibuf, obuf, isz, osz)
+#endif
+#endif
+
 #define BTM_STFRK_ADBSHL	5
 #define BTM_STFRK_ADBINIT	6
 
@@ -539,3 +558,58 @@ int BTM_StfRk_EncodeBufferPostRp2Test(byte *obuf, byte *ibuf, int ibsz)
 		return(-1);
 	return(osz);
 }
+
+int PostRp2Stf_DecodeBufferPostRp2(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+	return(BTM_StfRk_DecodeBufferPostRp2(obuf, ibuf, ibsz));
+}
+
+int PostRp2Stf_DecodeBufferRp2Full(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+#ifdef HAS_RP2STF_DECODERP2
+	static byte *ts_buf;
+	byte *tbuf;
+	int tbsz, osz;
+	
+	if(ibsz<8192)
+	{
+		if(!ts_buf)
+			ts_buf=malloc(32768);
+		tbuf=ts_buf;
+	}else
+	{
+		tbuf=malloc(ibsz*4);
+	}
+	
+	tbsz=BTM_StfRk_DecodeBufferPostRp2(tbuf, ibuf, ibsz);
+	if(tbsz<=0)
+	{
+		if(tbuf!=ts_buf)
+			free(tbuf);
+		return(tbsz);
+	}
+	
+	osz=PostRp2Stf_DecodeRP2(obuf, tbuf, obsz, tbsz);
+	if(tbuf!=ts_buf)
+		free(tbuf);
+	return(osz);
+#else
+	return(-1);
+#endif
+}
+
+int PostRp2Stf_EncodeBufferPostRp2(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+	return(BTM_StfRk_EncodeBufferPostRp2(obuf, ibuf, ibsz));
+}
+
+int PostRp2Stf_EncodeBufferPostRp2Test(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+	return(BTM_StfRk_EncodeBufferPostRp2Test(obuf, ibuf, ibsz));
+}
+
+#endif

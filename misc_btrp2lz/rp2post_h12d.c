@@ -59,7 +59,7 @@
  *   ty: 2b  //Encoding Type
  *   if(ty==0)
  *     Linearly encoded Huffman Symbols
- *   if(ty==1)
+ *   if(ty==1)  //XBlob4W
  *     bits0: VLI(5)	//Total Number of Bits, Plane 0
  *     bits1: VLI(5)	//Total Number of Bits, Plane 1
  *     bits2: VLI(5)	//Total Number of Bits, Plane 2
@@ -70,10 +70,12 @@
  *     Huffman Symbols, Plane 3
  *   2/3: Reserved
  *
- * The XBlob format may encode the Huffman coded stream into 4 planes.
+ * The XBlob4W format may encode the Huffman coded stream into 4 planes.
  * This can potentially allow for faster decoding by reducing dependencies.
  * If the number of symbols was not evenly divisible by 4,
  * it will be encoded as-if padded up to the next multiple of 4.
+ * No padding bits are allowed between planes, nor is overlap allowed.
+ * The end of plane 3 is the canonical end of the XBlob4W case.
  *
  * Huffman Tables:
  * Will encode the tables as a series of lengths in "Canonical Huffman" style.
@@ -89,9 +91,21 @@
  *         Rest of table filled with zeroes.
  *     10/11: Reserved
  *
- * Note that Blobs may impose a size limit of a little over 4K.
- * The encoder may not exceed this size limit.
+ * Note that Blobs may impose a size limit of a little over 4K in multi-table.
+ * A higher limit of 16K may be imposed for Single-Table.
+ * The encoder may not exceed these size limits.
+ * Input larger than these limits will need to be broken into multiple chunks.
+
+ * Note that a single RP2 Tag+RawBytes structure may not be broken
+ * across chunk boundaries.
  */
+
+#ifndef RP2POST_H12D_C
+#define RP2POST_H12D_C
+
+#ifdef RP2POST_H12E_C
+#error RP2 Post H12D included after H12E, Incorrect File Order
+#endif
 
 // #define POSTRP2HUFF_LEN13
 
@@ -106,25 +120,40 @@
 #define POSTRP2HUFF_HTABMSK		(POSTRP2HUFF_HTABSZ-1)
 
 #define POSTRP2HUFF_MAXBLOB		(4096+48)
+#define POSTRP2HUFF_MAXRAWBLOB	(16384)
 
 #define POSTRP2HUFF_STATUS_BADTAG		1
 #define POSTRP2HUFF_STATUS_BADHUFF		2
 #define POSTRP2HUFF_STATUS_BADBLOB		3
+#define POSTRP2HUFF_STATUS_RP2FAIL		4
 
+#ifdef GFXEDIT_MINRP2_C
+#define HAS_MINRP2
+#endif
+
+#ifdef TGVLZ1_C
+#define HAS_TGVLZ
+#endif
 
 typedef struct PostRp2Huff_DecState_s PostRp2Huff_DecState;
 
 struct PostRp2Huff_DecState_s {
-	byte *cs;
-	byte *ct;
+	byte *cs;	/* pos for bitstream */
+	byte *ct;	/* RP2 output position */
+	byte *cse;	/* end of bitstream */
+	byte *cte;	/* end of RP2 output buffer */
+	byte *c2t;	/* output position, full decode */
+	byte *c2te;	/* end of output, full decode */
+
 	byte pos;
 	byte status;
 
 	u16 hufftab[3][POSTRP2HUFF_HTABSZ];
 
-	byte *ttgbuf;
-	byte *ttrbuf;
-	byte *ttdbuf;
+	byte *ttgbuf;	/* temp buffer, tags */
+	byte *ttrbuf;	/* temp buffer, literals */
+	byte *ttdbuf;	/* temp buffer, distance */
+	byte *t2buf;	/* temp buffer, RP2 blob */
 };
 
 static const byte tkulz_trans4[16]={
@@ -133,6 +162,22 @@ static const byte tkulz_trans4[16]={
 
 static const byte tkulz_qtab[16]={
 	0, 1, 0, 2,  0, 1, 0, 3,  0, 1, 0, 2,  0, 1, 0, 4 };
+
+#ifdef HAS_MINRP2
+#define HAS_RP2H_DECODERP2
+#define PostRp2Huff_DecodeRP2(obuf, ibuf, osz, isz)		\
+	GfxEdit_DecodeRP2(obuf, ibuf, osz, isz)
+#else
+#ifdef HAS_TGVLZ
+#define HAS_RP2H_DECODERP2
+#define PostRp2Huff_DecodeRP2(obuf, ibuf, osz, isz)		\
+	TgvLz_DecodeBufferRP2C(ibuf, obuf, isz, osz)
+#endif
+#endif
+
+#ifndef HAS_RP2H_DECODERP2
+#warning Assumes unity build with an RP2 Decoder, not detected.
+#endif
 
 void PostRp2Huff_SkipBits(PostRp2Huff_DecState *ctx, int bits)
 {
@@ -157,6 +202,26 @@ u64 PostRp2Huff_PeekBits(PostRp2Huff_DecState *ctx, int bits)
 	return(b);
 }
 
+#if 1
+u64 PostRp2Huff_ReadBits(PostRp2Huff_DecState *ctx, int bits)
+{
+	byte *cs;
+	u64 w, b;
+	int p, k;
+
+	cs=ctx->cs;
+	p=ctx->pos;
+	w=gfxedit_getu64(cs);
+	k=p+bits;
+	b=(w>>p)&((1LL<<bits)-1);
+	ctx->pos=k&7;
+	ctx->cs=cs+(k>>3);
+
+	return(b);
+}
+#endif
+
+#if 0
 u64 PostRp2Huff_ReadBits(PostRp2Huff_DecState *ctx, int bits)
 {
 	u64 b;
@@ -164,6 +229,7 @@ u64 PostRp2Huff_ReadBits(PostRp2Huff_DecState *ctx, int bits)
 	PostRp2Huff_SkipBits(ctx, bits);
 	return(b);
 }
+#endif
 
 int TKuLZ_ReadPackVLI(PostRp2Huff_DecState *ctx, int pfsz)
 {
@@ -200,8 +266,10 @@ int PostRp2Huff_ReadPackedLengths(PostRp2Huff_DecState *ctx, byte *cls)
 					{ nz=te-t; zc=0; }
 			}
 			else
-				{ ctx->status=POSTRP2HUFF_STATUS_BADHUFF; }
+				{ ctx->status=POSTRP2HUFF_STATUS_BADHUFF; break; }
 		}
+		if((t+nz)>te)
+			{ ctx->status=POSTRP2HUFF_STATUS_BADHUFF; break; }
 		while(nz>0)
 			{ *t++=zc; nz--; }
 	}
@@ -260,6 +328,8 @@ void PostRp2Huff_SetupTableLengths(PostRp2Huff_DecState *ctx,
 			i=chn[i];
 			c++;			
 		}
+		if(c>POSTRP2HUFF_HTABSZ)
+			{ ctx->status=POSTRP2HUFF_STATUS_BADHUFF; break; }
 		c=c<<1;
 	}
 }
@@ -346,6 +416,19 @@ void PostRp2Huff_ReadSymbolBlob4W(
 	nbi2=TKuLZ_ReadPackVLI(ctx, 5);
 	nbi3=TKuLZ_ReadPackVLI(ctx, 5);
 
+	/* Issue: This is performance sensitive enough so as to cause
+	 * sanity checking to have a performance impact.
+	 */
+
+#if 0
+	l=nbi0+nbi1+nbi2+nbi3;
+	if(l>(POSTRP2HUFF_MAXBLOB*POSTRP2HUFF_HTABNB))
+	{
+		ctx->status=POSTRP2HUFF_STATUS_BADBLOB;
+		return;
+	}
+#endif
+
 #if 0
 	if(	((nbi0<64) || (nbi0>((POSTRP2HUFF_MAXBLOB/4)*POSTRP2HUFF_HTABNB)))	||
 		((nbi1<64) || (nbi1>((POSTRP2HUFF_MAXBLOB/4)*POSTRP2HUFF_HTABNB)))	||
@@ -360,6 +443,19 @@ void PostRp2Huff_ReadSymbolBlob4W(
 	cs0=ctx->cs;
 	pos0=ctx->pos;
 
+#if 1
+	pos1=pos0+nbi0;
+	pos2=pos1+nbi1;
+	pos3=pos2+nbi2;
+	cs1=cs0+(pos1>>3);
+	cs2=cs0+(pos2>>3);
+	cs3=cs0+(pos3>>3);
+	pos1&=7;
+	pos2&=7;
+	pos3&=7;
+#endif
+
+#if 0
 	pos1=pos0+nbi0;
 	cs1=cs0+(pos1>>3);
 	pos1&=7;
@@ -371,6 +467,7 @@ void PostRp2Huff_ReadSymbolBlob4W(
 	pos3=pos2+nbi2;
 	cs3=cs2+(pos3>>3);
 	pos3&=7;
+#endif
 
 	htab=ctx->hufftab[tab];
 	ct=dst;
@@ -379,9 +476,11 @@ void PostRp2Huff_ReadSymbolBlob4W(
 	l=(len+3)>>2;
 
 #if 1
-//	while(l>=5)
 	while(l>=4)
 	{
+		/* Decodes 4 symbols per pass vs 5, as 5 doesn't always fit.
+		 * For a 12b limit, there is a potential shortfall of 3 bits.
+		 */
 		win0=gfxedit_getu64(cs0);	win1=gfxedit_getu64(cs1);
 		win2=gfxedit_getu64(cs2);	win3=gfxedit_getu64(cs3);
 
@@ -429,36 +528,10 @@ void PostRp2Huff_ReadSymbolBlob4W(
 		ct[12]=hte0;				ct[13]=hte1;
 		ct[14]=hte2;				ct[15]=hte3;
 
-#if 0
-		hti0=(pos0+13);		hti1=(pos1+13);
-		hti2=(pos2+13);		hti3=(pos3+13);
-		if((hti0|hti1|hti2|hti3)&0x40)
-		{
-			cs0+=(pos0>>3);				cs1+=(pos1>>3);
-			cs2+=(pos2>>3);				cs3+=(pos3>>3);
-			pos0&=7;					pos1&=7;
-			pos2&=7;					pos3&=7;
-			ct+=16;						l-=4;
-			continue;
-		}
-
-		hti0=(win0>>pos0)&POSTRP2HUFF_HTABMSK;
-		hti1=(win1>>pos1)&POSTRP2HUFF_HTABMSK;
-		hti2=(win2>>pos2)&POSTRP2HUFF_HTABMSK;
-		hti3=(win3>>pos3)&POSTRP2HUFF_HTABMSK;
-		hte0=htab[hti0];			hte1=htab[hti1];
-		hte2=htab[hti2];			hte3=htab[hti3];
-		pos0+=hte0>>12;				pos1+=hte1>>12;
-		pos2+=hte2>>12;				pos3+=hte3>>12;
-		ct[16]=hte0;				ct[17]=hte1;
-		ct[18]=hte2;				ct[19]=hte3;
-#endif
-
 		cs0+=(pos0>>3);				cs1+=(pos1>>3);
 		cs2+=(pos2>>3);				cs3+=(pos3>>3);
 		pos0&=7;					pos1&=7;
 		pos2&=7;					pos3&=7;
-//		ct+=20;						l-=5;
 		ct+=16;						l-=4;
 	}
 #endif
@@ -594,8 +667,7 @@ void PostRp2Huff_UnpackRp2BlobSingleInner(
 	PostRp2Huff_DecState *ctx)
 {
 	byte tgcls[256+96];
-	byte *ct, *cs_tg, *cs_tge, *cs_tr, *cs_rd;
-	int pos_r, pos_d;
+	byte *ct;
 	int ntb, nrb, ndb, tg, ti, nd;
 	int i, j, k, l;
 
@@ -623,6 +695,13 @@ void PostRp2Huff_UnpackRp2BlobSingleInner(
 	}
 
 	ntb=TKuLZ_ReadPackVLI(ctx, 4);
+	
+	if((ntb>POSTRP2HUFF_MAXRAWBLOB) || ((ctx->ct+ntb)>ctx->cte))
+	{
+		ctx->status=POSTRP2HUFF_STATUS_BADBLOB;
+		return;
+	}
+	
 	PostRp2Huff_ReadSymbolXBlob(ctx, ti, ctx->ct, ntb);
 	ctx->ct+=ntb;
 }
@@ -698,10 +777,12 @@ void PostRp2Huff_UnpackRp2BlobMultiInner(
 	ntb=TKuLZ_ReadPackVLI(ctx, 4);
 	nrb=TKuLZ_ReadPackVLI(ctx, 4);
 	ndb=TKuLZ_ReadPackVLI(ctx, 4);
+	k=ntb+nrb+ndb;
 
 	if(	(ntb>POSTRP2HUFF_MAXBLOB) ||
 		(nrb>POSTRP2HUFF_MAXBLOB) ||
-		(ndb>POSTRP2HUFF_MAXBLOB))
+		(ndb>POSTRP2HUFF_MAXBLOB) ||
+		((ctx->ct+k)>ctx->cte))
 	{
 		ctx->status=POSTRP2HUFF_STATUS_BADBLOB;
 		return;
@@ -809,22 +890,54 @@ void PostRp2Huff_UnpackRp2BlobMultiInner(
 }
 
 int PostRp2Huff_UnpackRp2BlobCtx(
-	PostRp2Huff_DecState *ctx, byte *obuf, byte *ibuf)
+	PostRp2Huff_DecState *ctx,
+	byte *obuf, int obsz,
+	byte *ibuf, int ibsz,
+	int mode)
 {
 	int tag, nrb;
+	int i, j, k;
+
+	if(mode&1)
+	{
+		if(!ctx->t2buf)
+			ctx->t2buf=malloc(POSTRP2HUFF_MAXRAWBLOB);
+	}
 
 	ctx->cs=ibuf+2;
+	ctx->cse=ibuf+ibsz;
 	ctx->ct=obuf;
+	ctx->cte=obuf+obsz;
 	ctx->pos=0;
 	ctx->status=0;
+	ctx->c2t=NULL;
+	ctx->c2te=NULL;
+
+	if(mode&1)
+	{
+		ctx->c2t=obuf;
+		ctx->c2te=obuf+obsz;
+
+		ctx->ct=ctx->t2buf;
+		ctx->cte=ctx->t2buf+POSTRP2HUFF_MAXRAWBLOB;
+	}
 	
 	tag=PostRp2Huff_ReadBits(ctx, 4);
 	while(tag)
 	{
+//		if(ctx->c2t)
+//			{ ctx->ct=ctx->t2buf; }
+
 		if(tag==1)
 		{
-//			nrb=TKuLZ_ReadRiceVLN(ctx, 3);
 			nrb=TKuLZ_ReadPackVLI(ctx, 4);
+	
+			if((nrb>POSTRP2HUFF_MAXRAWBLOB) || ((ctx->ct+nrb)>ctx->cte))
+			{
+				ctx->status=POSTRP2HUFF_STATUS_BADBLOB;
+				break;
+			}
+			
 			PostRp2Huff_ReadRawBytesBlob(ctx, ctx->ct, nrb);
 			ctx->ct+=nrb;
 		}else
@@ -838,13 +951,38 @@ int PostRp2Huff_UnpackRp2BlobCtx(
 		}else
 		{
 			ctx->status=POSTRP2HUFF_STATUS_BADTAG;
-			printf("PostRp2Huff_UnpackRp2BlobCtx: Bad Tag %d\n", tag);
+//			printf("PostRp2Huff_UnpackRp2BlobCtx: Bad Tag %d\n", tag);
 			break;
 		}
 		if(ctx->status)
 		{
 			printf("PostRp2Huff_UnpackRp2BlobCtx: Status %d\n", ctx->status);
 			break;
+		}
+		
+		if(ctx->cs>=ctx->cse)
+		{
+			ctx->status=POSTRP2HUFF_STATUS_BADTAG;
+			break;
+		}
+
+		if(ctx->c2t)
+		{
+#ifdef HAS_RP2H_DECODERP2
+			i=PostRp2Huff_DecodeRP2(ctx->c2t, ctx->t2buf,
+				ctx->c2te-ctx->c2t, ctx->ct-ctx->t2buf);
+			if(i<=0)
+			{
+				ctx->status=POSTRP2HUFF_STATUS_RP2FAIL;
+				break;
+			}
+			ctx->c2t+=i;
+#else
+			printf("PostRp2Huff_UnpackRp2BlobCtx: Mode Needs RP2 Decoder\n");
+			ctx->status=POSTRP2HUFF_STATUS_RP2FAIL;
+			break;
+#endif
+			ctx->ct=ctx->t2buf;
 		}
 		
 		tag=PostRp2Huff_ReadBits(ctx, 4);
@@ -856,7 +994,9 @@ int PostRp2Huff_UnpackRp2BlobCtx(
 	return(ctx->ct-obuf);
 }
 
-int PostRp2Huff_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
+/* Decode Post-Compressed RP2 to output buffer. */
+int PostRp2Huff_DecodeBufferPostRp2B(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
 {
 	static PostRp2Huff_DecState *st_ctx;
 	int sz;
@@ -869,7 +1009,34 @@ int PostRp2Huff_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 
 //	memset(st_ctx, 0, sizeof(PostRp2Huff_DecState));
 
-	sz=PostRp2Huff_UnpackRp2BlobCtx(st_ctx, obuf, ibuf);
+	sz=PostRp2Huff_UnpackRp2BlobCtx(st_ctx, obuf, 8*ibsz, ibuf, ibsz, 0);
+	return(sz);
+}
+
+/* Decode Post-Compressed RP2 to output buffer.
+ * Preserves original parameter list.
+ */
+int PostRp2Huff_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
+{
+	return(PostRp2Huff_DecodeBufferPostRp2B(obuf, ibuf, 4*ibsz, ibsz));
+}
+
+/* Decode Post-Compressed RP2, and also decompress the RP2 to output buffer. */
+int PostRp2Huff_DecodeBufferRp2Full(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+	static PostRp2Huff_DecState *st_ctx;
+	int sz;
+
+	if(!st_ctx)
+	{
+		st_ctx=malloc(sizeof(PostRp2Huff_DecState));
+		memset(st_ctx, 0, sizeof(PostRp2Huff_DecState));
+	}
+
+//	memset(st_ctx, 0, sizeof(PostRp2Huff_DecState));
+
+	sz=PostRp2Huff_UnpackRp2BlobCtx(st_ctx, obuf, obsz, ibuf, ibsz, 1);
 	return(sz);
 }
 
@@ -879,3 +1046,5 @@ int PostRp2Huff_CheckPostRp2Blob(byte *ibuf)
 		return(1);
 	return(0);
 }
+
+#endif

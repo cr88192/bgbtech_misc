@@ -184,7 +184,7 @@ XBlob:
   ty: 2b  //Encoding Type
   if(ty==0)
     Linearly encoded Huffman Symbols
-  if(ty==1)
+  if(ty==1)  //XBlob4W
     bits0: VLI(5)	//Total Number of Bits, Plane 0
     bits1: VLI(5)	//Total Number of Bits, Plane 1
     bits2: VLI(5)	//Total Number of Bits, Plane 2
@@ -199,6 +199,8 @@ The XBlob format may encode the Huffman coded stream into 4 planes.
 This can potentially allow for faster decoding by reducing dependencies.
 If the number of symbols was not evenly divisible by 4,
 it will be encoded as-if padded up to the next multiple of 4.
+No padding bits are allowed between planes, nor is overlap allowed.
+The end of plane 3 is the canonical end of the XBlob4W case.
 
 Huffman Tables:
 Will encode the tables as a series of lengths in "Canonical Huffman" style.
@@ -213,6 +215,13 @@ Will use 4-bits for lengths.
       If the 6b value is 0, this is an EOT marker.
         Rest of table filled with zeroes.
     10/11: Reserved
+
+Note that Blobs may impose a size limit of a little over 4K in multi-table.
+A higher limit of 16K may be imposed for Single-Table.
+The encoder may not exceed these size limits.
+Input larger than these limits will need to be broken into multiple chunks.
+
+Note that a single RP2 Tag+RawBytes structure may not be broken across chunk boundaries.
 
 This post compressor can be faster when the payload is large enough to offset the constant costs. For small payloads, this may work out as having a higher overhead than STF+Rice, but may move into a performance lead for larger payloads.
 

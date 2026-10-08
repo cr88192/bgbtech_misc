@@ -54,6 +54,25 @@
  *
  */
  
+#ifndef RP2POST_RP2BITRC_C
+#define RP2POST_RP2BITRC_C
+
+#ifdef GFXEDIT_MINRP2_C
+#ifndef HAS_RP2STF_DECODERP2
+#define HAS_RP2STF_DECODERP2
+#define PostRp2Stf_DecodeRP2(obuf, ibuf, osz, isz)		\
+	GfxEdit_DecodeRP2(obuf, ibuf, osz, isz)
+#endif
+#endif
+
+#ifdef TGVLZ1_C
+#ifndef HAS_RP2STF_DECODERP2
+#define HAS_RP2STF_DECODERP2
+#define PostRp2Stf_DecodeRP2(obuf, ibuf, osz, isz)		\
+	TgvLz_DecodeBufferRP2C(ibuf, obuf, isz, osz)
+#endif
+#endif
+
 typedef struct BTM_BitRcCtx_s BTM_BitRcCtx;
 
 struct BTM_BitRcCtx_s {
@@ -477,3 +496,58 @@ int BTM_BItRc_EncodeBufferPostRp2Test(byte *obuf, byte *ibuf, int ibsz)
 
 	return(osz);
 }
+
+int PostRp2BitRc_DecodeBufferPostRp2(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+	return(BTM_BItRc_DecodeBufferPostRp2(obuf, ibuf, ibsz));
+}
+
+int PostRp2BitRc_DecodeBufferRp2Full(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+#ifdef HAS_RP2STF_DECODERP2
+	static byte *ts_buf;
+	byte *tbuf;
+	int tbsz, osz;
+	
+	if(ibsz<8192)
+	{
+		if(!ts_buf)
+			ts_buf=malloc(32768);
+		tbuf=ts_buf;
+	}else
+	{
+		tbuf=malloc(ibsz*4);
+	}
+	
+	tbsz=BTM_BItRc_DecodeBufferPostRp2(tbuf, ibuf, ibsz);
+	if(tbsz<=0)
+	{
+		if(tbuf!=ts_buf)
+			free(tbuf);
+		return(tbsz);
+	}
+	
+	osz=PostRp2Stf_DecodeRP2(obuf, tbuf, obsz, tbsz);
+	if(tbuf!=ts_buf)
+		free(tbuf);
+	return(osz);
+#else
+	return(-1);
+#endif
+}
+
+int PostRp2BitRc_EncodeBufferPostRp2(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+	return(BTM_BItRc_EncodeBufferPostRp2(obuf, ibuf, ibsz));
+}
+
+int PostRp2BitRc_EncodeBufferPostRp2Test(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+	return(BTM_BItRc_EncodeBufferPostRp2Test(obuf, ibuf, ibsz));
+}
+
+#endif

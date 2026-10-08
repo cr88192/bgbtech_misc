@@ -1,8 +1,17 @@
+#ifndef RP2POST_H12E_C
+#define RP2POST_H12E_C
+
+#ifndef RP2POST_H12D_C
+#error This assumes a Unity Build strategy following H12D and an RP2 impl
+#endif
+
 typedef struct PostRp2Huff_EncState_s PostRp2Huff_EncState;
 
 struct PostRp2Huff_EncState_s {
 	byte *cs;
 	byte *ct;
+	byte *cse;
+	byte *cte;
 	u32 win;
 	sbyte pos;
 
@@ -259,7 +268,8 @@ int PostRp2Huff_WritePackedLengths(PostRp2Huff_EncState *ctx, byte *cls)
 	return(0);
 }
 
-int PDZ2_BalanceTree_r(short *nodes, short *nlen, int root, int h, int ml)
+int PostRp2Huff_BalanceTree_r(
+	short *nodes, short *nlen, int root, int h, int ml)
 {
 	int h0, h1, h2, h3;
 	int l0, l1, l2;
@@ -272,8 +282,8 @@ int PDZ2_BalanceTree_r(short *nodes, short *nlen, int root, int h, int ml)
 
 //	printf("{");
 
-	h1=PDZ2_BalanceTree_r(nodes, nlen, nodes[root*2+0], h+1, ml);
-	h2=PDZ2_BalanceTree_r(nodes, nlen, nodes[root*2+1], h+1, ml);
+	h1=PostRp2Huff_BalanceTree_r(nodes, nlen, nodes[root*2+0], h+1, ml);
+	h2=PostRp2Huff_BalanceTree_r(nodes, nlen, nodes[root*2+1], h+1, ml);
 	h0=((h1>h2)?h1:h2)+1;
 	nlen[root]=h0;
 
@@ -335,7 +345,7 @@ int PDZ2_BalanceTree_r(short *nodes, short *nlen, int root, int h, int ml)
 	return(h0);
 }
 
-void PDZ2_CalcLengths_r(short *nodes, byte *cl, int root, int h)
+void PostRp2Huff_CalcLengths_r(short *nodes, byte *cl, int root, int h)
 {
 	if(root<0)
 	{
@@ -343,11 +353,11 @@ void PDZ2_CalcLengths_r(short *nodes, byte *cl, int root, int h)
 		return;
 	}
 
-	PDZ2_CalcLengths_r(nodes, cl, nodes[root*2+0], h+1);
-	PDZ2_CalcLengths_r(nodes, cl, nodes[root*2+1], h+1);
+	PostRp2Huff_CalcLengths_r(nodes, cl, nodes[root*2+0], h+1);
+	PostRp2Huff_CalcLengths_r(nodes, cl, nodes[root*2+1], h+1);
 }
 
-int PDZ2_BuildLengths(int *stat, int nc, byte *cl, int ml)
+int PostRp2Huff_BuildLengths(int *stat, int nc, byte *cl, int ml)
 {
 	static short nodes[1024], nlen[512];
 	static short roots[512], clen[512];
@@ -419,9 +429,9 @@ int PDZ2_BuildLengths(int *stat, int nc, byte *cl, int ml)
 	j=clen[0];
 	k=j;
 
-	i=4;
+	i=8;
 	while((i--) && (k>ml))
-		k=PDZ2_BalanceTree_r(nodes, nlen, l, 0, ml);
+		k=PostRp2Huff_BalanceTree_r(nodes, nlen, l, 0, ml);
 	if(k>ml)
 	{
 		printf("tree balance failure\n");
@@ -429,26 +439,26 @@ int PDZ2_BuildLengths(int *stat, int nc, byte *cl, int ml)
 		return(-2);
 	}
 
-	PDZ2_CalcLengths_r(nodes, cl, l, 0);
+	PostRp2Huff_CalcLengths_r(nodes, cl, l, 0);
 	return(0);
 }
 
-int PDZ2_BuildLengthsAdjust(int *stat, int nc, byte *cl, int ml)
+int PostRp2Huff_BuildLengthsAdjust(int *stat, int nc, byte *cl, int ml)
 {
 	int i, j;
 
 	while(1)
 	{
-		j=PDZ2_BuildLengths(stat, nc, cl, ml);
+		j=PostRp2Huff_BuildLengths(stat, nc, cl, ml);
 		if(j<0)
-			printf("PDZ2_BuildLengthsAdjust: Huff Fail %d\n", j);
+			printf("PostRp2Huff_BuildLengthsAdjust: Huff Fail %d\n", j);
 
 		for(i=0; i<nc; i++)
 			if(stat[i] && !cl[i])
 				break;
 		if(i>=nc)break;
 
-		printf("PDZ2_BuildLengthsAdjust: Fiddle Adjust\n");
+		printf("PostRp2Huff_BuildLengthsAdjust: Fiddle Adjust\n");
 		for(i=0; i<nc; i++)
 			stat[i]++;
 		continue;
@@ -456,11 +466,11 @@ int PDZ2_BuildLengthsAdjust(int *stat, int nc, byte *cl, int ml)
 	return(0);
 }
 
-int PostRp2Huff_BuildLengths(int *stat, byte *cls)
+int PostRp2Huff_BuildLengths2(int *stat, byte *cls)
 {
 	int i, j, k;
 
-	PDZ2_BuildLengthsAdjust(stat, 256, cls, POSTRP2HUFF_HTABNB);
+	PostRp2Huff_BuildLengthsAdjust(stat, 256, cls, POSTRP2HUFF_HTABNB);
 	return(0);
 }
 
@@ -510,6 +520,9 @@ int PostRp2Huff_StatBufferRp2(byte *ibuf, int ibsz,
 		if(tsz<1)
 			return(-1);
 		
+		if((cs+(tsz+nr))>cse)
+			break;
+		
 		if(nr>=3072)
 		{
 			stat_l[cs[0]]++;
@@ -522,9 +535,139 @@ int PostRp2Huff_StatBufferRp2(byte *ibuf, int ibsz,
 		for(i=0; i<nr; i++)
 			stat_l[*cs++]++;
 	}
-	return(0);
+	return(cs-ibuf);
 }
 
+int PostRp2Huff_EstimateBufferRp2HuffSize(byte *ibuf, int ibsz)
+{
+	int stat_t[256];
+	int stat_l[256];
+	int stat_d[256];
+	byte cl_t[256];
+	byte cl_l[256];
+	byte cl_d[256];
+	int psz_t, psz_l, psz_d, psz_al;
+	int bsz_t, bsz_l, bsz_d;
+	int tsz_t, tsz_l, tsz_d;
+	int pad_t, pad_l, pad_d;
+	int raw_t, raw_l, raw_d;
+	PostRp2Huff_EncState *ctx;
+	byte *cs, *cse, *cs0, *cslh;
+	int tti, needhuff;
+	int tot;
+	int i, j, k, l;
+
+	tot=0;
+	cs=ibuf;
+	cse=ibuf+ibsz;
+
+	while(cs<cse)
+	{
+		memset(stat_t, 0, 256*sizeof(int));
+		memset(stat_l, 0, 256*sizeof(int));
+		memset(stat_d, 0, 256*sizeof(int));
+		
+		k=cse-cs;
+		l=1<<20;
+		if(k<l)
+			l=k;
+		i=PostRp2Huff_StatBufferRp2(cs, l, stat_t, stat_l, stat_d);
+		if(i<=0)
+			return(-1);
+		cs+=i;
+		l=i;
+		
+		PostRp2Huff_BuildLengths2(stat_t, cl_t);
+		PostRp2Huff_BuildLengths2(stat_l, cl_l);
+		PostRp2Huff_BuildLengths2(stat_d, cl_d);
+		
+		psz_t=0;
+		psz_l=0;
+		psz_d=0;
+		for(i=0; i<256; i++)
+		{
+			psz_t+=cl_t[i]*stat_t[i];
+			psz_l+=cl_l[i]*stat_l[i];
+			psz_d+=cl_d[i]*stat_d[i];
+		}
+		
+		k=(l>>12)*(16*3+16*4*3+16);
+		k+=psz_t;
+		k+=psz_l;
+		k+=psz_d;
+		
+		k=((k+7)>>3);
+		tot+=k;
+	}
+	
+	return(tot);
+}
+
+/* Estimate a lower bound for what entropy coding could give. */
+int PostRp2Huff_EstimateBufferRp2MinEntropySize(byte *ibuf, int ibsz)
+{
+	int stat_t[256];
+	int stat_l[256];
+	int stat_d[256];
+	byte cl_t[256];
+	byte cl_l[256];
+	byte cl_d[256];
+	int psz_t, psz_l, psz_d, psz_al;
+	int bsz_t, bsz_l, bsz_d;
+	int tsz_t, tsz_l, tsz_d;
+	int pad_t, pad_l, pad_d;
+	int raw_t, raw_l, raw_d;
+	PostRp2Huff_EncState *ctx;
+	byte *cs, *cse, *cs0, *cslh;
+	int tti, needhuff;
+	int tot;
+	int i, j, k, l;
+
+	tot=0;
+	cs=ibuf;
+	cse=ibuf+ibsz;
+
+	while(cs<cse)
+	{
+		memset(stat_t, 0, 256*sizeof(int));
+		memset(stat_l, 0, 256*sizeof(int));
+		memset(stat_d, 0, 256*sizeof(int));
+		
+		k=cse-cs;
+		l=1<<18;
+		if(k<l)
+			l=k;
+		i=PostRp2Huff_StatBufferRp2(cs, l, stat_t, stat_l, stat_d);
+		if(i<=0)
+			return(-1);
+		cs+=i;
+		l=i;
+		
+		PostRp2Huff_BuildLengths2(stat_t, cl_t);
+		PostRp2Huff_BuildLengths2(stat_l, cl_l);
+		PostRp2Huff_BuildLengths2(stat_d, cl_d);
+		
+		psz_t=0;
+		psz_l=0;
+		psz_d=0;
+		for(i=0; i<256; i++)
+		{
+			psz_t+=cl_t[i]*stat_t[i];
+			psz_l+=cl_l[i]*stat_l[i];
+			psz_d+=cl_d[i]*stat_d[i];
+		}
+		
+		k=0;
+		k+=psz_t;
+		k+=psz_l;
+		k+=psz_d;
+		
+		k=((k+7)>>3);
+		tot+=k;
+	}
+	
+	return(tot);
+}
 
 int PostRp2Huff_SplitBuffersRp2(byte *ibuf, int ibsz, int obmax,
 	byte *buf_t, byte *buf_l, byte *buf_d,
@@ -602,9 +745,14 @@ int PostRp2Huff_SplitBuffersRp2(byte *ibuf, int ibsz, int obmax,
 	return(cs-ibuf);
 }
 
+// #define POSTRP2HUFF_RAWBIAS		1.06
 #define POSTRP2HUFF_RAWBIAS		1.05
+// #define POSTRP2HUFF_RAWBIAS		1.03
+// #define POSTRP2HUFF_RAWBIAS		1.00
+// #define POSTRP2HUFF_RAWBIAS		0.95
 
-int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
+int PostRp2Huff_EncodeBufferPostRp2B(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
 {
 	static byte blob_t[POSTRP2HUFF_MAXBLOB+16];
 	static byte blob_l[POSTRP2HUFF_MAXBLOB+16];
@@ -616,35 +764,43 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	byte cl_t[256];
 	byte cl_l[256];
 	byte cl_d[256];
-	int psz_t, psz_l, psz_d;
+	int psz_t, psz_l, psz_d, psz_al;
 	int bsz_t, bsz_l, bsz_d;
 	int tsz_t, tsz_l, tsz_d;
 	int pad_t, pad_l, pad_d;
 	int raw_t, raw_l, raw_d;
 	PostRp2Huff_EncState *ctx;
-	byte *cs, *cse, *cs0;
-	int tti;
+	byte *cs, *cse, *cs0, *cslh;
+	int tti, needhuff;
 	
 	int i, j, k, l;
 
 	ctx=&t_ctx;
 	
+	l=PostRp2Huff_EstimateBufferRp2HuffSize(ibuf, ibsz);
+	printf("  Est: %6d -> %6d %.2f%%\n", ibsz, l, (100.0*l)/ibsz);
+	
 	memset(stat_t, 0, 256*sizeof(int));
 	memset(stat_l, 0, 256*sizeof(int));
 	memset(stat_d, 0, 256*sizeof(int));
-	i=PostRp2Huff_StatBufferRp2(ibuf, ibsz, stat_t, stat_l, stat_d);
+	k=ibsz;
+//	l=(1<<20)+16384;
+	l=(1<<21);
+	if(k>l)
+		k=l;
+	i=PostRp2Huff_StatBufferRp2(ibuf, k, stat_t, stat_l, stat_d);
 	if(i<0)
 		return(-1);
 	
-	PostRp2Huff_BuildLengths(stat_t, cl_t);
-	PostRp2Huff_BuildLengths(stat_l, cl_l);
-	PostRp2Huff_BuildLengths(stat_d, cl_d);
+	PostRp2Huff_BuildLengths2(stat_t, cl_t);
+	PostRp2Huff_BuildLengths2(stat_l, cl_l);
+	PostRp2Huff_BuildLengths2(stat_d, cl_d);
 	
 	for(i=0; i<16; i++)
 	{
 		for(j=0; j<16; j++)
 		{
-			printf("%d ", cl_t[i*16+j]);
+			printf("%2d ", cl_t[i*16+j]);
 		}
 		printf("\n");
 	}
@@ -654,7 +810,7 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	{
 		for(j=0; j<16; j++)
 		{
-			printf("%d ", cl_l[i*16+j]);
+			printf("%2d ", cl_l[i*16+j]);
 		}
 		printf("\n");
 	}
@@ -664,7 +820,7 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	{
 		for(j=0; j<16; j++)
 		{
-			printf("%d ", cl_d[i*16+j]);
+			printf("%2d ", cl_d[i*16+j]);
 		}
 		printf("\n");
 	}
@@ -710,15 +866,59 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	obuf[1]=0x00;
 	
 	ctx->ct=obuf+2;
+	ctx->cte=obuf+obsz;
 	ctx->pos=0;
 	ctx->win=0;
 	
+	needhuff=1;
+	cslh=ibuf;
 	cs=ibuf; cse=ibuf+ibsz;
 	while(cs<cse)
 	{
 		cs0=cs;
+
+#if 1
+		if((cs-cslh)>(1<<20))
+		{
+			/* Rebuild Huffman tables once per MB for larger streams. */
+			memset(stat_t, 0, 256*sizeof(int));
+			memset(stat_l, 0, 256*sizeof(int));
+			memset(stat_d, 0, 256*sizeof(int));
+			cslh=cs;
+
+//			l=(1<<20)+16384;
+			l=(1<<21);
+			k=cse-cs;
+			if(l<k)		k=l;
+			i=PostRp2Huff_StatBufferRp2(cs, k, stat_t, stat_l, stat_d);
+			if(i<0)
+				return(-1);
+			
+			PostRp2Huff_BuildLengths2(stat_t, cl_t);
+			PostRp2Huff_BuildLengths2(stat_l, cl_l);
+			PostRp2Huff_BuildLengths2(stat_d, cl_d);
+			needhuff=1;
+
+			PostRp2Huff_SetupEncTableLengths(ctx->hfetab[0], cl_t);
+			PostRp2Huff_SetupEncTableLengths(ctx->hfetab[1], cl_l);
+			PostRp2Huff_SetupEncTableLengths(ctx->hfetab[2], cl_d);
+
+			pad_t=0;
+			pad_l=0;
+			pad_d=0;
+			for(i=0; i<256; i++)
+			{
+				if(!cl_t[pad_t] || (cl_t[i] && (cl_t[i]<cl_t[pad_t])))
+					pad_t=i;
+				if(!cl_l[pad_l] || (cl_l[i] && (cl_l[i]<cl_l[pad_l])))
+					pad_l=i;
+				if(!cl_d[pad_d] || (cl_d[i] && (cl_d[i]<cl_d[pad_d])))
+					pad_d=i;
+			}
+		}
+#endif
 		
-		if((cs0!=ibuf) && ((cs[0]&0x7F)==0x3F) && (cs[1]>=0xC0))
+		if(!needhuff && ((cs[0]&0x7F)==0x3F) && (cs[1]>=0xC0))
 		{
 			/* Large Raw-Bytes Blob, Encode Special */
 			k=(cs[1]<<1)|(cs[0]>>7);
@@ -827,11 +1027,21 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 		for(i=0; i<tsz_d; i++)
 			{ l+=cl_d[blob_d[i]]; }
 		psz_d=l;
+		
+		j=cs-cs0;
+		l=0;
+		for(i=0; i<j; i++)
+		{
+			k=cl_l[cs0[i]];
+			if(k<1) { l=-1; break; }
+			l+=k;
+		}
+		psz_al=l;
 #endif
 
 		j=cs-cs0;
 		k=(psz_t+psz_l+psz_d+10+48)>>3;
-		if((cs0!=ibuf) && ((k*POSTRP2HUFF_RAWBIAS)>j))
+		if(!needhuff && ((k*POSTRP2HUFF_RAWBIAS)>j))
 		{
 			/* If chunk compresses poorly, emit as raw blob. */
 			j=cs-cs0;
@@ -840,18 +1050,40 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 			PostRp2Huff_EncodeRawBlob(ctx, cs0, j);
 			continue;
 		}
-		
+
+#if 0
+		j=cs-cs0;
+		k=(psz_t+psz_l+psz_d+10+48);
+		if(!needhuff && (psz_al>0) &&
+			((psz_al*POSTRP2HUFF_RAWBIAS)<k))
+		{
+			/* Single-Table */
+			tti=1;
+			PostRp2Huff_WriteBits(ctx, 2, 4);
+			PostRp2Huff_WriteBits(ctx, tti, 2);	//TTi: Lit
+			PostRp2Huff_WriteBits(ctx, 2, 2);	//TTg: Reuse Table
+
+			PostRp2Huff_WritePackVLI(ctx, j, 4);
+			PostRp2Huff_EncodeHuffSymbolXBlob(ctx,
+				ctx->hfetab[tti], cs0, j);
+//			cs+=tsz_l;
+			continue;
+		}
+#endif
+
 		raw_t=((psz_t>>3)*POSTRP2HUFF_RAWBIAS)>tsz_t;
 		raw_l=((psz_l>>3)*POSTRP2HUFF_RAWBIAS)>tsz_l;
 		raw_d=((psz_d>>3)*POSTRP2HUFF_RAWBIAS)>tsz_d;
 
-		PostRp2Huff_WriteBits(ctx, 3, 4);	//Multi-Table Chunk
+		/* Multi-Table Chunk */
+		PostRp2Huff_WriteBits(ctx, 3, 4);
 		
-		if(cs0==ibuf)
+		if(needhuff)
 		{
 			raw_t=0;
 			raw_l=0;
 			raw_d=0;
+			needhuff=0;
 
 			PostRp2Huff_WriteBits(ctx, 1, 2);
 			PostRp2Huff_WritePackedLengths(ctx, cl_t);
@@ -903,6 +1135,11 @@ int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	return(ctx->ct-obuf);
 }
 
+int PostRp2Huff_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
+{
+	return(PostRp2Huff_EncodeBufferPostRp2B(obuf, ibuf, ibsz*1.5, ibsz));
+}
+
 int PostRp2Huff_EncodeBufferPostRp2Test(byte *obuf, byte *ibuf, int ibsz)
 {
 	static byte *st_tbuf;
@@ -947,3 +1184,11 @@ int PostRp2Huff_EncodeBufferPostRp2Test(byte *obuf, byte *ibuf, int ibsz)
 	
 	return(osz);
 }
+
+int PostRp2Huff_EncodeBufferPostRp2TestB(
+	byte *obuf, byte *ibuf, int obsz, int ibsz)
+{
+	return(PostRp2Huff_EncodeBufferPostRp2Test(obuf, ibuf, ibsz));
+}
+
+#endif

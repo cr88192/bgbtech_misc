@@ -50,6 +50,9 @@ This format will not attempt to deal with chunking or streaming.
 
 */
 
+#ifndef TGVLZ1_C
+#define TGVLZ1_C
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -280,6 +283,10 @@ int pred_l1, pred_d1;
 int pred_l2, pred_d2;
 };
 
+TgvLz_Context *TgvLz_CreateContextRP2C();
+
+#ifndef TGVLZ_LOADFILE
+#define TGVLZ_LOADFILE
 byte *TgvLz_LoadFile(char *name, int *rsz)
 {
 	byte *buf;
@@ -330,6 +337,7 @@ int TgvLz_StoreFile(char *name, void *buf, int sz)
 	fclose(fd);
 	return(0);
 }
+#endif
 
 int TgvLz_CalcHash(byte *cs)
 {
@@ -1165,21 +1173,31 @@ int TgvLz_EncodeBufferRP2C(TgvLz_Context *ctx,
 	return(TgvLz_EncodeBufferRP2I(ctx, ibuf, obuf, ibsz, obsz, 3));
 }
 
+int TgvLz_EncodeBufferRP2C_NoCtx(
+	byte *ibuf, byte *obuf, int ibsz, int obsz)
+{
+	static TgvLz_Context *st_ctx;
+	if(!st_ctx)
+		{ st_ctx=TgvLz_CreateContextRP2C(); }
+	return(TgvLz_EncodeBufferRP2I(st_ctx, ibuf, obuf, ibsz, obsz, 3));
+}
+
 int TgvLz_DecodeBufferRP2I(
 	byte *ibuf, byte *obuf, int ibsz, int obsz, int flag)
 {
 	u32 tag;
-	byte *cs, *ct, *cse;
+	byte *cs, *ct, *cse, *cte;
 //	int pl, pd;
 	int rl, l, d;
 	u64 t0;
 	int t1, t2;
 	
 	cs=ibuf; cse=ibuf+ibsz;
-	ct=obuf;
+	ct=obuf; cte=obuf+obsz;
 	rl=0; l=0; d=0;
 	
-	while(1)
+//	while(1)
+	while((cs<cse) && (ct<cte))
 	{
 //		t0=*(u32 *)cs;
 //		t0=*(u64 *)cs;
@@ -2071,4 +2089,6 @@ int main(int argc, char *argv[])
 
 	return(0);
 }
+#endif
+
 #endif
