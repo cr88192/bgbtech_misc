@@ -20,6 +20,11 @@
 #define RP2POST_FLAGS_FAVOR_SIZE	0x04	/* Aim for better ratio */
 #define RP2POST_FLAGS_FAVOR_SIZE2	0x08	/* Aim for best ratio */
 
+#define RP2POST_FLAGS_NO_ADRICE		0x10	/* Disable AdRice+STF */
+#define RP2POST_FLAGS_NO_HUFF		0x20	/* Disable Huffman */
+#define RP2POST_FLAGS_NO_RANGE		0x40	/* Disable Range Coder */
+
+
 #ifdef GFXEDIT_MINRP2_C
 #ifndef HAS_RP2STF_DECODERP2
 #define HAS_RP2STF_DECODERP2
@@ -178,34 +183,48 @@ static byte *postrp2_tc3buf;
 int PostRp2_EncodeBufferPostRp2(
 	byte *obuf, byte *ibuf, int obsz, int ibsz, int flags)
 {
-	double tune1, tune2;
+	double tune1, tune2, tune2h, tune2s, tune_hfs;
 	int osz1, osz2, osz3, osz, obi;
 
+	if(ibsz<640)
+	{
+		/* Don't bother... */
+		memcpy(obuf, ibuf, ibsz);
+		return(ibsz);
+	}
+
+	tune_hfs=sqrt(32768/ibsz)-1.0;
 	tune1=1.10;
 	tune2=1.06;
+	tune2h=1.00+(tune_hfs*0.01);
+	tune2s=1.00;
 
 	if(flags&RP2POST_FLAGS_FAVOR_SPEED)
 	{
 		tune1=1.15;
 		tune2=1.09;
+		tune2h=1.00+(tune_hfs*0.02);
 	}
 
 	if(flags&RP2POST_FLAGS_FAVOR_SPEED2)
 	{
 		tune1=1.25;
 		tune2=1.75;
+		tune2h=1.00+(tune_hfs*0.04);
 	}
 
 	if(flags&RP2POST_FLAGS_FAVOR_SIZE)
 	{
 		tune1=1.05;
 		tune2=1.03;
+		tune2h=1.00;
 	}
 
 	if(flags&RP2POST_FLAGS_FAVOR_SIZE2)
 	{
 		tune1=1.00;
 		tune2=1.00;
+		tune2h=1.00;
 	}
 
 #ifdef RP2POST_H12E_C
@@ -225,28 +244,32 @@ int PostRp2_EncodeBufferPostRp2(
 		/* AdRice+STF will invariably lose */
 		/* Range Coding is painfully slow. */
 
+		osz1=-1;
 #ifdef RP2POST_RP2BITRC_C
-		if(flags&RP2POST_FLAGS_FAVOR_SIZE2)
+		if(	(osz1<0) && 
+			(flags&RP2POST_FLAGS_FAVOR_SIZE2) &&
+			!(flags&RP2POST_FLAGS_NO_RANGE))
 		{
 			/* Priorizing best size, so use BitRC even if slow... */
 			osz1=PostRp2BitRc_EncodeBufferPostRp2(
 				obuf, ibuf, obsz, ibsz);
-		}else
-#else
-		if(1)
+		}
 #endif
-		{
-			osz1=-1;
 #ifdef RP2POST_H12E_C
+		if((osz1<0) && !(flags&RP2POST_FLAGS_NO_HUFF))
+		{
 			osz1=PostRp2Huff_EncodeBufferPostRp2B(
 				obuf, ibuf, obsz, ibsz);
-#else
+		}
+#endif
 #ifdef RP2POST_RP2STF_C
+		if((osz1<0) && !(flags&RP2POST_FLAGS_NO_ADRICE))
+		{
 			osz1=PostRp2Stf_EncodeBufferPostRp2(
 				obuf, ibuf, obsz, ibsz);
-#endif
-#endif
 		}
+#endif
+
 		if((osz1<=0) || (osz1*tune1)>=ibsz)
 		{
 			/* None would be effective here... */
@@ -279,17 +302,22 @@ int PostRp2_EncodeBufferPostRp2(
 	osz3=PostRp2BitRc_EncodeBufferPostRp2(postrp2_tc3buf, ibuf, 49152, ibsz);
 #endif
 
+	if(flags&RP2POST_FLAGS_NO_ADRICE)
+		osz2=-1;
+	if(flags&RP2POST_FLAGS_NO_HUFF)
+		osz1=-1;
+	if(flags&RP2POST_FLAGS_NO_RANGE)
+		osz3=-1;
+
 	/* Figure out which one did best... */
 
 	osz=ibsz; obi=0;
-	if((osz1>0) && (osz1<osz))
-		{ osz=osz1; obi=1; }
-	if((osz2>0) && (osz2<osz))
-		{ osz=osz2; obi=2; }
-
-	/* Impose an extra penalty for BitRc, becuase, slow... */
+	if((osz1>0) && ((osz1*tune2h)<osz))
+		{ osz=osz1*tune2h; obi=1; }
+	if((osz2>0) && ((osz2*tune2s)<osz))
+		{ osz=osz2*tune2s; obi=2; }
 	if((osz3>0) && ((osz3*tune2)<osz))
-		{ osz=osz3; obi=3; }
+		{ osz=osz3*tune2; obi=3; }
 
 	/* Failed to cross 15% threshold. */
 	if((osz*tune1)>=ibsz)
@@ -331,34 +359,48 @@ int PostRp2_EncodeBufferPostRp2(
 int PostRp2_EncodeBufferPostRp2Test(
 	byte *obuf, byte *ibuf, int obsz, int ibsz, int flags)
 {
-	double tune1, tune2;
+	double tune1, tune2, tune2h, tune2s, tune_hfs;
 	int osz1, osz2, osz3, osz, obi;
 
+	if(ibsz<640)
+	{
+		/* Don't bother... */
+		memcpy(obuf, ibuf, ibsz);
+		return(ibsz);
+	}
+
+	tune_hfs=sqrt(32768/ibsz)-1.0;
 	tune1=1.10;
 	tune2=1.06;
+	tune2h=1.00+(tune_hfs*0.01);
+	tune2s=1.00;
 
 	if(flags&RP2POST_FLAGS_FAVOR_SPEED)
 	{
 		tune1=1.15;
 		tune2=1.09;
+		tune2h=1.00+(tune_hfs*0.02);
 	}
 
 	if(flags&RP2POST_FLAGS_FAVOR_SPEED2)
 	{
 		tune1=1.25;
 		tune2=1.75;
+		tune2h=1.00+(tune_hfs*0.04);
 	}
 
 	if(flags&RP2POST_FLAGS_FAVOR_SIZE)
 	{
 		tune1=1.05;
 		tune2=1.03;
+		tune2h=1.00;
 	}
 
 	if(flags&RP2POST_FLAGS_FAVOR_SIZE2)
 	{
 		tune1=1.00;
 		tune2=1.00;
+		tune2h=1.00;
 	}
 
 #ifdef RP2POST_H12E_C
@@ -377,28 +419,31 @@ int PostRp2_EncodeBufferPostRp2Test(
 		/* AdRice+STF will invariably lose */
 		/* Range Coding is painfully slow. */
 
+		osz1=-1;
 #ifdef RP2POST_RP2BITRC_C
-		if(flags&RP2POST_FLAGS_FAVOR_SIZE2)
+		if(	(osz1<0) &&
+			(flags&RP2POST_FLAGS_FAVOR_SIZE2) &&
+			!(flags&RP2POST_FLAGS_NO_RANGE))
 		{
 			/* Priorizing best size, so use BitRC even if slow... */
 			osz1=PostRp2BitRc_EncodeBufferPostRp2Test(
 				obuf, ibuf, obsz, ibsz);
-		}else
-#else
-		if(1)
+		}
 #endif
-		{
-			osz1=-1;
 #ifdef RP2POST_H12E_C
+		if((osz1<0) && !(flags&RP2POST_FLAGS_NO_HUFF))
+		{
 			osz1=PostRp2Huff_EncodeBufferPostRp2TestB(
 				obuf, ibuf, obsz, ibsz);
-#else
+		}
+#endif
 #ifdef RP2POST_RP2STF_C
+		if((osz1<0) && !(flags&RP2POST_FLAGS_NO_ADRICE))
+		{
 			osz1=PostRp2Stf_EncodeBufferPostRp2Test(
 				obuf, ibuf, obsz, ibsz);
-#endif
-#endif
 		}
+#endif
 		if((osz1<=0) || (osz1*tune1)>=ibsz)
 		{
 			/* None would be effective here... */
@@ -431,17 +476,22 @@ int PostRp2_EncodeBufferPostRp2Test(
 	osz3=PostRp2BitRc_EncodeBufferPostRp2Test(postrp2_tc3buf, ibuf, 49152, ibsz);
 #endif
 
+	if(flags&RP2POST_FLAGS_NO_ADRICE)
+		osz2=-1;
+	if(flags&RP2POST_FLAGS_NO_HUFF)
+		osz1=-1;
+	if(flags&RP2POST_FLAGS_NO_RANGE)
+		osz3=-1;
+
 	/* Figure out which one did best... */
 
 	osz=ibsz; obi=0;
-	if((osz1>0) && (osz1<osz))
-		{ osz=osz1; obi=1; }
-	if((osz2>0) && (osz2<osz))
-		{ osz=osz2; obi=2; }
-
-	/* Impose an extra penalty for BitRc, becuase, slow... */
+	if((osz1>0) && ((osz1*tune2h)<osz))
+		{ osz=osz1*tune2h; obi=1; }
+	if((osz2>0) && ((osz2*tune2s)<osz))
+		{ osz=osz2*tune2s; obi=2; }
 	if((osz3>0) && ((osz3*tune2)<osz))
-		{ osz=osz3; obi=3; }
+		{ osz=osz3*tune2; obi=3; }
 
 	/* Failed to cross 15% threshold. */
 	if((osz*tune1)>=ibsz)

@@ -216,8 +216,12 @@ Will use 4-bits for lengths.
         Rest of table filled with zeroes.
     10/11: Reserved
 
-Note that Blobs may impose a size limit of a little over 4K in multi-table.
-A higher limit of 16K may be imposed for Single-Table.
+Each table will encode 256 lengths. Once 256 lengths have been decoded, or if an EOT is encoded, the table will end.
+
+Note that the initial state of the Huffman tables will be undefined, and it will be necessary to encode a valid Huffman table before this table may be used.
+
+Note that Blobs may impose a size limit of a little over 4K in Multi-Table chunks.
+A higher limit of 16K may be imposed for Single-Table or Raw-Bytes chunks.
 The encoder may not exceed these size limits.
 Input larger than these limits will need to be broken into multiple chunks.
 

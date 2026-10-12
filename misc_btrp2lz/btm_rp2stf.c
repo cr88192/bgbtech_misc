@@ -285,6 +285,9 @@ int BTM_StfRk_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 		
 		if(tsz<1)
 			return(-1);
+
+		if((cs+(tsz+nr))>cse)
+			return(-1);
 		
 		BTM_StfRk_WriteAdRiceSTF(ctx, *cs++, &rk_t, prbtab_t, prbidx_t);
 		for(i=1; i<tsz; i++)

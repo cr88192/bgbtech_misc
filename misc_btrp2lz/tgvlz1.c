@@ -810,6 +810,11 @@ force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 			}
 		}else
 		{
+			if(!d)
+			{
+				/* OK, this isn't ideal... */
+				return;
+			}
 //			v=*(u64 *)src;
 //			v=*(u64 *)(dst-d);
 			v=get_u64le(dst-d);
@@ -1228,6 +1233,11 @@ int TgvLz_DecodeBufferRP2I(
 			cs++;
 			t1=(t0>>4)&15;
 			rl=(t1+1)*8;
+			if(flag&4)
+			{
+				if((ct+rl)>cte)
+					return(-1);
+			}
 			TgvLz_RawCopyB(ct, cs, rl);
 			cs+=rl;
 			ct+=rl;
@@ -1235,8 +1245,9 @@ int TgvLz_DecodeBufferRP2I(
 		}else
 			if(!(t0&0x10))
 		{
-			if(flag&1)
+			if(flag&2)
 			{
+				/* RP2C */
 				if(t0&0x100)
 				{
 					rl=(t0>> 5)&7;
@@ -1251,19 +1262,38 @@ int TgvLz_DecodeBufferRP2I(
 					cs+=2;
 				}
 			}else
+				if(!(flag&1) || !(flag&4))
 			{
-				/* Long Match */
+				/* RP2 Original, Long Match */
 				cs++;
 				rl=(t0>>5)&7;
 				t1=t0>>8;
 				if(!(t1&1))
 					{ l=((t1>>1)&0x007F)+4; cs+=1; t2=t0>>16; }
-				else
+				else if(!(t1&2))
 					{ l=((t1>>2)&0x3FFF)+4; cs+=2; t2=t0>>24; }
+				else
+				{
+					if(flag&4)
+						return(-1);
+					debug_break
+				}
+
 				if(!(t2&1))
 					{ d=((t2>>1)&0x007FFF); cs+=2; }
-				else
+				else if(!(t2&2))
 					{ d=((t2>>2)&0x3FFFFF); cs+=3; }
+				else
+				{
+					if(flag&4)
+						return(-1);
+					debug_break
+				}
+			}else
+			{
+				if(flag&4)
+					return(-1);
+				debug_break
 			}
 		}else
 			if(!(t0&0x20))
@@ -1283,6 +1313,11 @@ int TgvLz_DecodeBufferRP2I(
 			cs+=2;
 			t1=(t0>>7)&511;
 			rl=(t1+1)*8;
+			if(flag&4)
+			{
+				if((ct+rl)>cte)
+					return(-1);
+			}
 			TgvLz_RawCopyB(ct, cs, rl);
 			cs+=rl;
 			ct+=rl;
@@ -1315,6 +1350,14 @@ int TgvLz_DecodeBufferRP2I(
 			debug_break
 		}
 
+		if(flag&4)
+		{
+			if(!d || ((ct+(rl-d))<obuf))
+				return(-1);
+			if(ct+(rl+l)>cte)
+				return(-1);
+		}
+
 //		*(u64 *)ct=*(u64 *)cs;
 		memcpy_8B(ct, cs);
 		cs+=rl;
@@ -1341,7 +1384,31 @@ int TgvLz_DecodeBufferRP2B(
 int TgvLz_DecodeBufferRP2C(
 	byte *ibuf, byte *obuf, int ibsz, int obsz)
 {
-	return(TgvLz_DecodeBufferRP2I(ibuf, obuf, ibsz, obsz, 1));
+	return(TgvLz_DecodeBufferRP2I(ibuf, obuf, ibsz, obsz, 3));
+}
+
+/* Decode RP2 Original
+ * Lint: Runs some sanity checks and errors out. */
+int TgvLz_DecodeBufferLintRP2(
+	byte *ibuf, byte *obuf, int ibsz, int obsz)
+{
+	return(TgvLz_DecodeBufferRP2I(ibuf, obuf, ibsz, obsz, 4));
+}
+
+/* Decode RP2B
+ * Lint: Runs some sanity checks and errors out. */
+int TgvLz_DecodeBufferLintRP2B(
+	byte *ibuf, byte *obuf, int ibsz, int obsz)
+{
+	return(TgvLz_DecodeBufferRP2I(ibuf, obuf, ibsz, obsz, 5));
+}
+
+/* Decode RP2C
+ * Lint: Runs some sanity checks and errors out. */
+int TgvLz_DecodeBufferLintRP2C(
+	byte *ibuf, byte *obuf, int ibsz, int obsz)
+{
+	return(TgvLz_DecodeBufferRP2I(ibuf, obuf, ibsz, obsz, 7));
 }
 
 int TgvLz_EncodeBufferLZ4(TgvLz_Context *ctx,

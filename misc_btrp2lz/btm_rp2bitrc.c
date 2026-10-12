@@ -355,6 +355,9 @@ int BTM_BItRc_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 		if(tsz<1)
 			return(-1);
 		
+		if((cs+(tsz+nr))>cse)
+			return(-1);
+		
 		BTM_BItRc_EncodeByteLeCtx8B(ctx, prbtab_t, &lc, *cs++);
 		for(i=1; i<tsz; i++)
 			BTM_BItRc_EncodeByteLeCtx8B(ctx, prbtab_d, &lc, *cs++);
