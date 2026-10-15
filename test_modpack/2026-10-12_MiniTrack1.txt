@@ -1,0 +1,164 @@
+Mini Tracker Format:
+* Goal: Reduce space and memory requirements vs what is needed for S3M.
+
+Audio Format:
+* 2b or 4b ADPCM, variable sample rate, nominally between 8 and 16 kHz.
+
+Patterns:
+* May organize each pattern into planes and then RP2 compress the planes.
+
+
+File Image:
+
+The concept in this case is that the file is an 'image' (or flat buffer of bytes) with various structures as locations within the image.
+
+Multi-byte values within this format will be understood as being in Little-Endian Order.
+
+Here, the terms RVA will refer to an offset relative to the start of the image. Effectively this can be seen as equivalent to a file offset in the simple case.
+
+
+
+ Main Header:
+  00 (4), magic ('TKMT')
+  04 (2), number of patches/samples
+  06 (2), number of patterns
+  08 (4), rva of patches/samples
+  0C (4), rva of pattern offsets
+  10 (4), channel mask
+  14 (1), speed / ticks per row
+  15 (1), tempo / ticks per second
+  16 (2), number of items in orders table.
+  18 (4), rva orders
+  1C (4), rva songname
+
+The channel mask will give a bitmask of which channels are represented in the file. Channels which do not have their bit set will not be encoded in the patterns, however the number of encoded patterns will be encoded to the next multiple of 4. The channels will be encoded in the same relative order as within the bitmask, however the identity of the final channels within the pattern will be undefined when the number of set bits is not a multiple of 4.
+
+
+Mixing will advance in terms of ticks, where time will advance at a nominal tick rate, and after a certain number of ticks it will advance to the next row.
+
+Note that RVA tables and other structure like elements are to use a 4 byte alignment. Strings and compressed data will not require alignment. If an RVA holds 0, this will be understood as equivalent to a NULL.
+
+
+Orders:
+
+Will give an array of which patterns to play for the song.
+If there are fewer than 254 patterns, these will be encoded as raw bytes;
+If there are more patterns, each element of the orders table will be encoded as a 16-bit value.
+
+
+ Patches / Samples:
+  00 (4): RVA Data
+  04 (4): Length
+  08 (4): Loop Start
+  0C (4): Loop End
+  10 (2): Sample Rate (Middle C)
+  12 (1): Volume
+  13 (1): Flags
+  14..1B: Reserved
+  1C (4): RVA Sample Name
+
+At the patches RVA, there will be an array of patch headers, which will describe the patches.
+
+Flags:
+* (0): Enable Loop
+* (1): Reserved
+* (2): Use 2-bit ADPCM, else 4-bit.
+
+Flags will use bit 2 to indicate the sample to select between 2-bit and 4-bit ADPCM. If 0, will use 4-bit IMA ADPCM, and if 1 will use 2-bit IMA ADPCM.
+
+The ADPCM here will use variants of IMA ADPCM with a 256 sample block size (with 132 or 68 bytes of memory per block).
+
+Likewise, sample rate should be limited to 16000 (with higher sample rates down-converted as needed).
+
+
+Patterns:
+
+The patterns will be given by an array of RVAs, with one extra RVA pointing to the end of the last pattern.
+
+In this case, the patterns will use RP2C compression, with the data layed out in a column planar order (grouped per channel).
+
+The patterns will be placed end to end, so that the difference between two RVAs will give the compressed size of the patterns.
+
+While arguably it would be more compact to store a list of sizes instead, this would have the drawback of the loader needing to build a separate list of offsets somewhere. Though, granted, this is debatable when one still needs to provide separate memory to hold patterns and decoded ADPCM blocks, but in this case the delta of spending an extra 2 bytes per pattern is fairly small.
+
+
+Within each compressed pattern:
+
+ First Channel:
+   64 bytes: Notes for rows 0 to 63.
+   64 bytes: Patch numbers for rows 0 to 63.
+   64 bytes: Command Tag for rows 0 to 63.
+   64 bytes: Command Info for rows 0 to 63.
+   64 bytes: Volume for rows 0 to 63.
+ Second channel:
+   Same pattern as above.
+ ...
+
+This order is used because it makes the RP2 compression more effective.
+Generally, unused parts of the pattern are to be filled with FF bytes.
+
+Note that here notes and commands will otherwise be basically the same as in the S3M format.
+
+Notes will consist of a note (0 through 11) in the low 4 bits, and an octave in the high 4 bits. Here, FF will mean that no note command is present at this position. Here, FE will also be a special stop-note note.
+
+Patch numbers will be 1 based, and will select which of the patches (or samples) is used for playing the note. Here, 0 will mean no instrument (stop channel) and FF will mean previous instrument. This may be ignored if the note is FF.
+
+Tag+Info will give a command.
+
+Volume will specify a volume value (between 0 and 64, with 64 meaning 100%). Here, FF will be a special value that means to reuse last volume.
+
+
+ADPCM:
+
+The ADPCM here will use variants of IMA ADPCM with a 256 sample block size (with 132 or 68 bytes of memory per block).
+
+Generally, blocks will consist of a 4 byte header:
+
+ 2 bytes: Initial Predictor Sample (16-bit signed PCM)
+ 1 byte: Initial Step Index (0 to 88)
+ 1 byte: Reserved / MBZ
+
+The header will then be followed by samples deltas encoded as 2 or 4 bits per sample (in LSB first order).
+
+ 4-bit:
+   0-7: Positive Step, 1/8 to 15/8 relative to step size
+   8-F: Negative Step, 1/8 to 15/8 relative to step size
+     0..3 | 8..B: Decrement Step Index
+     4 or C: Add 2 to Step Index
+     5 or D: Add 4 to Step Index
+     6 or E: Add 6 to Step Index
+     7 or F: Add 8 to Step Index
+   Step index is kept clamped to 0..88, and the sample to 16-bit range.
+ 2-bit:
+   0: Positive Step, 1/2 step size (index -= 1)
+   1: Positive Step, 3/2 step size (index += 2)
+   2: Negative Step, 1/2 step size (index -= 1)
+   3: Negative Step, 3/2 step size (index += 2)
+   Clamping is the same as above.
+
+Not going to list the IMA ADPCM step table here, but it can be found elsewhere.
+
+General idea is that the step table is used to give the basic step size for each index, which is then used to adjust the predictor.
+
+
+RP2 Compression:
+
+                        dddddddd-dlllrrr0	(l=3..10, d=0..511, r=0..7)
+               dddddddd-dddddlll-lllrrr01	(l=4..67, d=0..8191)
+      dddddddd-dddddddd-dlllllll-llrrr011	(l=4..515, d=0..131071)
+                                 rrrr0111	(Raw Bytes, r=(r+1)*8, 8..128)
+                        dddllll0-rrr01111  (RP2C, l=11..26, d=1..8, r=0..7)
+               dddddddl-lllllll1-rrr01111  (RP2C, l=68..323, d=1..128, r=0..7)
+                                 rr011111	(r=1..3 bytes, 0=EOB)
+                        rrrrrrrr-r0111111 	(Long Raw, r=(r+1)*8, 8..4096)
+                        lllllll0-01111111  (RP2B, l=4..131, d=1, r=0)
+ 2x D-ddddddll-llllllll-llllrrr1-01111111  (RP2B, l=4..16K, d=0..4M, r=0..7)
+   DD-dddddddd-ddddddll-llllrrr0-11111111  (RP2B?, l=4..67, d=0..4M, r=0..7)
+ * d: Distance
+ * l: Match Length
+ * r: Literal Length
+
+This will give the basic RP2 format, which as can be noted is a byte oriented LZ77 variant.
+
+Note that as a special restriction, the 5 and 6 byte match formats from RP2B should not be used; with in this case match-length a limit of 515 bytes and a distance limit of 16K imposed (though, a 32-channel pattern will only use around 10K anyways).
+
