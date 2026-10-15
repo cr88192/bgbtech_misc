@@ -32,6 +32,48 @@ Granted, there are some chips around which support misaligned access, sorta, but
 #ifndef GFXEDIT_MINRP2_C
 #define GFXEDIT_MINRP2_C
 
+/* portability cruft */
+
+#if defined(_MSC_VER) || defined(__BGBCC__)
+#define GFXEDIT_PREFER_VOLATILE
+#endif
+
+#ifdef _MSC_VER
+#define force_inline	__forceinline
+#define	debug_break		__debugbreak();
+#ifdef _M_IX86
+#define unaligned
+#else
+#define unaligned		__unaligned
+#endif
+#endif
+
+#ifdef __BGBCC__
+#define force_inline	
+#define	debug_break		__debugbreak();
+#define unaligned		__unaligned
+#define HAVE_MISAL
+#endif
+
+#ifdef __GNUC__
+#define force_inline	inline
+#define	debug_break		__builtin_breakpoint();
+#define unaligned
+#endif
+
+#ifndef force_inline
+#define force_inline
+#endif
+
+#ifndef debug_break
+#define	debug_break	
+#endif
+
+#ifndef unaligned
+#define unaligned
+#endif
+
+
 #if 1
 #include <stdint.h>
 
@@ -53,20 +95,43 @@ typedef int64_t	s64;
 typedef volatile uint16_t	vol_u16;
 typedef volatile uint32_t	vol_u32;
 typedef volatile uint64_t	vol_u64;
-typedef volatile uint16_t	*vol_u16p;
-typedef volatile uint32_t	*vol_u32p;
-typedef volatile uint64_t	*vol_u64p;
+typedef unaligned volatile uint16_t	*vol_u16p;
+typedef unaligned volatile uint32_t	*vol_u32p;
+typedef unaligned volatile uint64_t	*vol_u64p;
 #endif
 
+
 #ifndef GFXEDIT_MISAL
+
 #define GFXEDIT_MISAL
+
 /* portability boilerplate goes here... */
+#ifdef GFXEDIT_PREFER_VOLATILE
 #define gfxedit_getu16(ptr)			(*(vol_u16p)(ptr))
 #define gfxedit_getu32(ptr)			(*(vol_u32p)(ptr))
 #define gfxedit_getu64(ptr)			(*(vol_u64p)(ptr))
 #define gfxedit_setu16(ptr,val)		(*(vol_u16p)(ptr)=(val))
 #define gfxedit_setu32(ptr,val)		(*(vol_u32p)(ptr)=(val))
 #define gfxedit_setu64(ptr,val)		(*(vol_u64p)(ptr)=(val))
+
+#else
+
+/* GCC or Clang or similar. */
+static force_inline u16 gfxedit_getu16(void *ptr)
+	{ u16 vi; memcpy(&vi, ptr, 2); return(vi); }
+static force_inline u32 gfxedit_getu32(void *ptr)
+	{ u32 vi; memcpy(&vi, ptr, 4); return(vi); }
+static force_inline u64 gfxedit_getu64(void *ptr)
+	{ u64 vi; memcpy(&vi, ptr, 8); return(vi); }
+static force_inline void gfxedit_setu16(void *ptr, u16 v)
+	{ u16 vi; vi=v; memcpy(ptr, &vi, 2); }
+static force_inline void gfxedit_setu32(void *ptr, u32 v)
+	{ u32 vi; vi=v; memcpy(ptr, &vi, 4); }
+static force_inline void gfxedit_setu64(void *ptr, u64 v)
+	{ u64 vi; vi=v; memcpy(ptr, &vi, 8); }
+
+#endif
+
 #endif
 
 #endif
@@ -408,7 +473,8 @@ int GfxEdit_DecodeRP2(byte *dst, byte *src, int dsz, int ssz)
 			cs+=5;
 		}else
 		{
-			__debugbreak();
+			debug_break
+//			__debugbreak();
 			break;
 		}
 
@@ -906,7 +972,8 @@ int GfxEdit_EncodeRP2(byte *dst, byte *src, int dsz, int ssz)
 				}
 			}else
 			{
-				__debugbreak();
+//				__debugbreak();
+				debug_break
 			}
 			
 			for(i=0; i<ml; i++)
@@ -985,7 +1052,8 @@ int GfxEdit_EncodeRP2Test(byte *dst, byte *src, int dsz, int ssz)
 	
 	if(tsz!=ssz)
 	{
-		__debugbreak();
+//		__debugbreak();
+		debug_break
 	}
 	
 	for(i=0; i<ssz; i++)
@@ -994,7 +1062,8 @@ int GfxEdit_EncodeRP2Test(byte *dst, byte *src, int dsz, int ssz)
 	
 	if(i<ssz)
 	{
-		__debugbreak();
+//		__debugbreak();
+		debug_break
 	}
 	
 	free(tptr);
