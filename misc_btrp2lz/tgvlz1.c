@@ -57,6 +57,7 @@ This format will not attempt to deal with chunking or streaming.
 #include <stdlib.h>
 #include <string.h>
 
+#include <math.h>
 #include <time.h>
 
 #ifndef TKELZ_MISAL_H
@@ -144,9 +145,24 @@ typedef signed long long		s64;
 #define	debug_break		__debugbreak();
 #define unaligned		__unaligned
 #define HAVE_MISAL
-#else
+#endif
+
+#if defined(__GNUC__)
+#define force_inline	inline
+#define	debug_break		__builtin_trap();
+#define unaligned		
+#define HAVE_MISAL
+#endif
+
+#ifndef force_inline
 #define force_inline
-#define	debug_break	
+#endif
+
+#ifndef debug_break
+#define	debug_break
+#endif
+	
+#ifndef unaligned
 #define unaligned
 #endif
 
@@ -177,10 +193,10 @@ typedef signed long long		s64;
 
 #define	memcpy_4B(dst, src)		memcpy(dst, src, 4)
 #define	memcpy_8B(dst, src)		memcpy(dst, src, 8)
-// #define	memcpy_16B(dst, src)	memcpy(dst, src, 16)
-#define	memcpy_16B(dst, src)	\
-	memcpy(((byte *)(dst))+0, ((byte *)(src))+0, 8);		\
-	memcpy(((byte *)(dst))+8, ((byte *)(src))+8, 8);
+#define	memcpy_16B(dst, src)	memcpy(dst, src, 16)
+//#define	memcpy_16B(dst, src)	\
+//	memcpy(((byte *)(dst))+0, ((byte *)(src))+0, 8);		\
+//	memcpy(((byte *)(dst))+8, ((byte *)(src))+8, 8);
 
 #ifdef HAVE_MISAL_MEMCPY
 
@@ -242,17 +258,39 @@ force_inline void set_u64le(byte *ptr, u64 val)
 typedef struct TgvLz_Context_s TgvLz_Context;
 
 //#define TKELZ_HASH_SZ	1024
-#define TKELZ_HASH_SZ	4096
-#define TKELZ_HASH_DN	64
-#define TKELZ_HASH_DN1	63
+// #define TKELZ_HASH_SZ	4096
+// #define TKELZ_HASH_DN	64
+
+#define TKELZ_HASH_SZ	1024
+#define TKELZ_HASH_DN	128
+
+// #define TKELZ_HASH_DN1	63
+
+#define TKELZ_HASHB_SZ	32768
+// #define TKELZ_HASHB_DN	4
+#define TKELZ_HASHB_DN	8
+
+// #define TKELZ_HASHB_SZ	16384
+// #define TKELZ_HASHB_DN	16
+// #define TKELZ_HASHB_DN1	15
+
+#define TKELZ_HASH_DN1	(TKELZ_HASH_DN-1)
+#define TKELZ_HASHB_DN1	(TKELZ_HASHB_DN-1)
 
 #define TKELZ_CHHASH_SZ	16384
-#define TKELZ_CHAIN_SZ	65536
+// #define TKELZ_CHAIN_SZ	65536
+#define TKELZ_CHAIN_SZ	131072
 
 
 struct TgvLz_Context_s {
 byte *hash[TKELZ_HASH_SZ*TKELZ_HASH_DN];
 byte hrov[TKELZ_HASH_SZ];
+
+#ifdef TKELZ_HASHB_SZ
+byte *hashb[TKELZ_HASHB_SZ*TKELZ_HASHB_DN];
+byte hrovb[TKELZ_HASHB_SZ];
+#endif
+
 byte *cs;
 byte *ct;
 int maxlen;
@@ -261,6 +299,9 @@ int maxdepth;
 u32	csum;
 byte cmp;
 byte cmpver;
+
+byte *css;
+byte *cse;
 
 byte	*chn_base;
 byte	*chn_ptrs[TKELZ_CHAIN_SZ];
@@ -279,8 +320,12 @@ int stat_rlen[24];
 
 byte *pred_cs1;
 byte *pred_cs2;
+byte *pred_cs3;
+byte *pred_cs4;
 int pred_l1, pred_d1;
 int pred_l2, pred_d2;
+int pred_l3, pred_d3;
+int pred_l4, pred_d4;
 };
 
 TgvLz_Context *TgvLz_CreateContextRP2C();
@@ -345,18 +390,32 @@ int TgvLz_CalcHash(byte *cs)
 	
 //	h=*(u32 *)cs;
 	h=get_u32le(cs);
-	h=((h*4093)>>12)&(TKELZ_HASH_SZ-1);
+	h&=0x00FFFFFF;
+	h=((h*4093LL)>>12)&(TKELZ_HASH_SZ-1);
 	return(h);
 }
 
+#ifdef TKELZ_HASHB_SZ
 int TgvLz_CalcHashB(byte *cs)
 {
 	int h;
 	
 //	h=*(u32 *)cs;
 	h=get_u32le(cs);
+	h=((h*65521LL)>>16)&(TKELZ_HASHB_SZ-1);
+	return(h);
+}
+#endif
+
+int TgvLz_CalcHashC(byte *cs)
+{
+	int h;
+	
+//	h=*(u32 *)cs;
+	h=get_u32le(cs);
 	h^=h>>16;
-	h=((h*4093)>>12)&(TKELZ_CHHASH_SZ-1);
+//	h=((h*4093LL)>>12)&(TKELZ_CHHASH_SZ-1);
+	h=((h*65521LL)>>16)&(TKELZ_CHHASH_SZ-1);
 	return(h);
 }
 
@@ -382,6 +441,16 @@ int TgvLz_CheckMatch(byte *s0, byte *s1, byte *cse)
 	return(cs-s0);
 }
 
+int TgvLz_CalcMatchGain(TgvLz_Context *ctx, int ml, int md)
+{
+	int mg;
+	mg=ml;
+	if(md>=512)			mg--;
+	if(md>=8192)		mg--;
+	if(md>=131072)		mg--;
+	return(mg);
+}
+
 int TgvLz_HashByte(TgvLz_Context *ctx, byte *cs)
 {
 	int h, hr, rv;
@@ -396,7 +465,15 @@ int TgvLz_HashByte(TgvLz_Context *ctx, byte *cs)
 	ctx->hrov[h]=hr;
 	ctx->hash[(h*TKELZ_HASH_DN)+hr]=cs;
 
+#ifdef TKELZ_HASHB_SZ
 	h=TgvLz_CalcHashB(cs);
+	hr=ctx->hrovb[h];
+	hr=(hr-1)&TKELZ_HASHB_DN1;
+	ctx->hrovb[h]=hr;
+	ctx->hashb[(h*TKELZ_HASHB_DN)+hr]=cs;
+#endif
+
+	h=TgvLz_CalcHashC(cs);
 
 	ctx->chn_ptrs[rv]=cs;
 	ctx->chn_next[rv]=ctx->chn_hash[h];
@@ -423,28 +500,35 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 	int *rl, int *rd)
 {
 	byte *cs1, *cse;
-	int h, hr, bl, bd;
+	int h, hr, bl, bd, bmc, tmc;
 	int i, j, k, l, d, n, ml, md, ld;
 
+#if 1
+	if(str==ctx->pred_cs4)
+	{
+		bl=ctx->pred_l4;	bd=ctx->pred_d4;
+		*rl=bl;				*rd=bd;
+		return((bl>=4) || ((bl>=3) && (bd<512) && (ctx->cmp==3)));
+	}
+	if(str==ctx->pred_cs3)
+	{
+		bl=ctx->pred_l3;	bd=ctx->pred_d3;
+		*rl=bl;				*rd=bd;
+		return((bl>=4) || ((bl>=3) && (bd<512) && (ctx->cmp==3)));
+	}
 	if(str==ctx->pred_cs2)
 	{
-		bl=ctx->pred_l2;
-		bd=ctx->pred_d2;
-
-		*rl=bl;
-		*rd=bd;
-		return((bl>=4) || ((bl>=3) && (bd<512)));
+		bl=ctx->pred_l2;	bd=ctx->pred_d2;
+		*rl=bl;				*rd=bd;
+		return((bl>=4) || ((bl>=3) && (bd<512) && (ctx->cmp==3)));
 	}
-
 	if(str==ctx->pred_cs1)
 	{
-		bl=ctx->pred_l1;
-		bd=ctx->pred_d1;
-
-		*rl=bl;
-		*rd=bd;
-		return((bl>=4) || ((bl>=3) && (bd<512)));
+		bl=ctx->pred_l1;	bd=ctx->pred_d1;
+		*rl=bl;				*rd=bd;
+		return((bl>=4) || ((bl>=3) && (bd<512) && (ctx->cmp==3)));
 	}
+#endif
 
 	ml=ctx->maxlen;
 	md=ctx->maxdist;
@@ -457,27 +541,80 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 	h=TgvLz_CalcHash(str);
 	hr=ctx->hrov[h];
 	
-	bl=0; bd=0;
+	bl=0; bd=0; bmc=0;
+	tmc=0;
+
+	for(i=1; i<16; i++)
+	{
+		cs1=str-i;
+
+		if(!cs1 || (cs1<(ctx->css)) || (cs1>=ctx->cse))
+			continue;
+		l=TgvLz_CheckMatch(str, cs1, cse);
+		d=str-cs1;
+		if(d<=0)
+			continue;
+		tmc=TgvLz_CalcMatchGain(ctx, l, d);
+		tmc=l;
+//		if((l>bl) && (d<md))
+//		if(((l>bl) && (d<md)) || ((l==bl) && (d<bd)))
+//		if((tmc>bmc) && (d<md))
+		if((tmc>bmc) && (d<md) || ((l==bl) && (d<bd)))
+			{ bl=l; bd=d; bmc=tmc; }
+	}
 	
 	for(i=0; i<TKELZ_HASH_DN; i++)
 	{
 		cs1=ctx->hash[(h*TKELZ_HASH_DN)+((hr+i)&TKELZ_HASH_DN1)];
-		if(!cs1)continue;
+//		if(!cs1)continue;
+		if(!cs1 || (cs1<(ctx->css)) || (cs1>=ctx->cse))
+			continue;
 		l=TgvLz_CheckMatch(str, cs1, cse);
 		d=str-cs1;
 		if(d<=0)
 			continue;
 //		if((l>bl) && (d<65536))
 //		if((l>bl) && (d<131072))
-		if((l>bl) && (d<md))
-			{ bl=l; bd=d; }
+		tmc=TgvLz_CalcMatchGain(ctx, l, d);
+//		tmc=l;
+//		if((l>bl) && (d<md))
+//		if(((l>bl) && (d<md)) || ((l==bl) && (d<bd)))
+//		if((tmc>bmc) && (d<md))
+		if((tmc>bmc) && (d<md) || ((l==bl) && (d<bd)))
+			{ bl=l; bd=d; bmc=tmc; }
 	}
+
+#ifdef TKELZ_HASHB_SZ
+	h=TgvLz_CalcHashB(str);
+	hr=ctx->hrovb[h];
+	
+//	bl=0; bd=0;
+	
+	for(i=0; i<TKELZ_HASHB_DN; i++)
+	{
+		cs1=ctx->hashb[(h*TKELZ_HASHB_DN)+((hr+i)&TKELZ_HASHB_DN1)];
+//		if(!cs1)continue;
+		if(!cs1 || (cs1<(ctx->css)) || (cs1>=ctx->cse))
+			continue;
+		l=TgvLz_CheckMatch(str, cs1, cse);
+		d=str-cs1;
+		if(d<=0)
+			continue;
+		tmc=TgvLz_CalcMatchGain(ctx, l, d);
+//		tmc=l;
+//		if((l>bl) && (d<md))
+//		if(((l>bl) && (d<md)) || ((l==bl) && (d<bd)))
+//		if((tmc>bmc) && (d<md))
+		if((tmc>bmc) && (d<md) || ((l==bl) && (d<bd)))
+			{ bl=l; bd=d; bmc=tmc; }
+	}
+#endif
 
 //	ctx->chn_ptrs[rv]=cs;
 //	ctx->chn_next[rv]=ctx->chn_hash[h];
 //	ctx->chn_hash[h]=rv;
 
-	h=TgvLz_CalcHashB(str);
+	h=TgvLz_CalcHashC(str);
 
 	n=ctx->maxdepth;
 	i=ctx->chn_hash[h];
@@ -486,7 +623,9 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 	while(n--)
 	{
 		cs1=ctx->chn_ptrs[i];
-		if(!cs1)continue;
+//		if(!cs1)continue;
+		if(!cs1 || (cs1<(ctx->css)) || (cs1>=ctx->cse))
+			break;
 
 		d=str-cs1;
 		if(d<=ld)
@@ -496,14 +635,32 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 			break;
 
 		l=TgvLz_CheckMatch(str, cs1, cse);		
-		if((l>bl) && (d<md))
-			{ bl=l; bd=d; }
+//		if((l>bl) && (d<md))
+//			{ bl=l; bd=d; }
+
+		tmc=TgvLz_CalcMatchGain(ctx, l, d);
+//		tmc=l;
+//		if((l>bl) && (d<md))
+//		if(((l>bl) && (d<md)) || ((l==bl) && (d<bd)))
+//		if((tmc>bmc) && (d<md))
+		if((tmc>bmc) && (d<md) || ((l==bl) && (d<bd)))
+			{ bl=l; bd=d; bmc=tmc; }
+
 		i=ctx->chn_next[i];
 	}
+
+	ctx->pred_cs4=ctx->pred_cs3;
+	ctx->pred_l4=ctx->pred_l3;
+	ctx->pred_d4=ctx->pred_d3;
+
+	ctx->pred_cs3=ctx->pred_cs2;
+	ctx->pred_l3=ctx->pred_l2;
+	ctx->pred_d3=ctx->pred_d2;
 
 	ctx->pred_cs2=ctx->pred_cs1;
 	ctx->pred_l2=ctx->pred_l1;
 	ctx->pred_d2=ctx->pred_d1;
+
 	ctx->pred_cs1=str;
 	ctx->pred_l1=bl;
 	ctx->pred_d1=bd;
@@ -562,7 +719,8 @@ int TgvLz_EstMatchCost(TgvLz_Context *ctx, int rl, int bl, int bd)
 
 	if(ctx->cmp==4)
 	{
-		c=rl+1;
+//		c=rl+1;
+		c=rl+3;
 		if(rl>=15)
 		{
 			i=rl-15;
@@ -615,13 +773,23 @@ int TgvLz_LookupMatchB(TgvLz_Context *ctx,
 	int *rl, int *rd)
 {
 	int l, d, l1, d1;
-	int rl0, rl1, rl2;
+	int rl0, rl1, rl2, rl3;
 	int mc0, mc1;
 	int i, j, k;
 
 	i=TgvLz_LookupMatch(ctx, cs, cse, &l, &d);
+	
+	if(i<=0)
+	{
+		*rl=0;
+		*rd=0;
+		return(0);
+	}
+	
 	rl0=cs-lcs;
-	rl1=rl0+1;	rl2=rl0+2;
+	rl1=rl0+1;
+	rl2=rl0+2;
+	rl3=rl0+3;
 	
 	mc0=TgvLz_EstMatchCost(ctx, rl0, l, d);
 	mc1=TgvLz_EstRawCost(ctx, rl0+l);
@@ -632,8 +800,10 @@ int TgvLz_LookupMatchB(TgvLz_Context *ctx,
 		i=0;
 	}
 	
-//	if(i && (d>=131072) && (l<14))
-//		i=0;
+	if(i && (d>=8192) && (l<6))
+		i=0;
+	if(i && (d>=131072) && (l<12))
+		i=0;
 	
 	if(i)
 	{
@@ -653,6 +823,7 @@ int TgvLz_LookupMatchB(TgvLz_Context *ctx,
 //		if(j && (l1>(l+2)))
 //			i=0;
 
+#if 1
 		if(i)
 		{
 			j=TgvLz_LookupMatch(ctx, cs+2, cse, &l1, &d1);
@@ -663,6 +834,18 @@ int TgvLz_LookupMatchB(TgvLz_Context *ctx,
 //			if(j && ((mc1-l1)<=(mc0-l)))
 				i=0;
 		}
+#endif
+
+#if 1
+		if(i)
+		{
+			j=TgvLz_LookupMatch(ctx, cs+3, cse, &l1, &d1);
+
+			mc1=TgvLz_EstMatchCost(ctx, rl3, l1, d1);
+			if(j && ((mc1-l1)<(mc0-l)))
+				i=0;
+		}
+#endif
 	}
 	
 	*rl=l;
@@ -775,7 +958,8 @@ force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 			{
 //				*(u64 *)ct=v;
 				set_u64le(ct, v);
-				ct+=8;
+				set_u64le(ct+8, v);
+				ct+=16;
 			}
 		}else
 			if(d==2)
@@ -791,7 +975,8 @@ force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 			{
 //				*(u64 *)ct=v;
 				set_u64le(ct, v);
-				ct+=8;
+				set_u64le(ct+8, v);
+				ct+=16;
 			}
 		}else
 			if(d==4)
@@ -806,7 +991,25 @@ force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 			{
 //				*(u64 *)ct=v;
 				set_u64le(ct, v);
-				ct+=8;
+				set_u64le(ct+8, v);
+				ct+=16;
+			}
+		}else
+			if(d==3)
+		{
+//			v=*(u32 *)src;
+//			v=*(u32 *)(dst-d);
+			v=get_u32le(dst-d);
+			v&=0x00FFFFFF;
+			v=v|(v<<24);
+
+			ct=dst; cte=dst+sz;
+			while(ct<cte)
+			{
+//				*(u64 *)ct=v;
+				set_u64le(ct, v);
+				set_u64le(ct+6, v);
+				ct+=12;
 			}
 		}else
 		{
@@ -832,19 +1035,30 @@ force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 		cs=dst-d;
 //		((u64 *)dst)[0]=((u64 *)cs)[0];
 //		((u64 *)dst)[1]=((u64 *)cs)[1];
-		memcpy_16B(dst, cs);
+//		memcpy_16B(dst, cs);
+		ct=dst;
+		memcpy_8B(ct+0, cs+0);
+		memcpy_8B(ct+8, cs+8);
 	}else
+		if(d<16)
+	{
+		cs=dst-d;
+		ct=dst; cte=dst+sz;
+		while(ct<cte)
+		{
+			memcpy_8B(ct+0, cs+0);
+			memcpy_8B(ct+8, cs+8);
+			ct+=16; cs+=16;
+		}
+	}else
+//		if((d<sz) || (sz<256))
+		if(1)
 	{
 //		cs=src;
 		cs=dst-d;
 		ct=dst; cte=dst+sz;
 		while(ct<cte)
 		{
-#if 0
-//			*(u64 *)ct=*(u64 *)cs;
-			memcpy_8B(ct, cs);
-			ct+=8; cs+=8;
-#endif
 #if 1
 //			((u64 *)ct)[0]=((u64 *)cs)[0];
 //			((u64 *)ct)[1]=((u64 *)cs)[1];
@@ -852,6 +1066,9 @@ force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 			ct+=16; cs+=16;
 #endif
 		}
+	}else
+	{
+		memcpy(dst, dst-d, sz);
 	}
 }
 #endif
@@ -922,6 +1139,9 @@ int TgvLz_EncodeBufferRP2I(TgvLz_Context *ctx,
 	cs=ibuf; cse=ibuf+ibsz;
 	ct=obuf;
 	
+	ctx->css=ibuf;
+	ctx->cse=cse;
+
 	pd=0; pl=0;
 	
 	lcs=cs;
@@ -999,7 +1219,8 @@ int TgvLz_EncodeBufferRP2I(TgvLz_Context *ctx,
 		else
 #endif
 #if 1
-		if((flag&1) && (rl==0) && (l>=4) && (l<=131) && (d==1))
+//		if((flag&1) && (rl==0) && (l>=4) && (l<=131) && (d==1))
+		if((flag&1) && (rl==0) && (l>=16) && (l<=131) && (d==1))
 		{
 			l1=l-4;
 			v=(l1<<9)|0x007F;
@@ -1350,6 +1571,7 @@ int TgvLz_DecodeBufferRP2I(
 			debug_break
 		}
 
+#if 1
 		if(flag&4)
 		{
 			if(!d || ((ct+(rl-d))<obuf))
@@ -1357,8 +1579,172 @@ int TgvLz_DecodeBufferRP2I(
 			if(ct+(rl+l)>cte)
 				return(-1);
 		}
+#endif
 
 //		*(u64 *)ct=*(u64 *)cs;
+		memcpy_8B(ct, cs);
+		cs+=rl;
+		ct+=rl;
+		TgvLz_MatchCopy2(ct, l, d);
+		ct+=l;
+	}
+	
+	return(ct-obuf);
+}
+
+#if !defined(__BJX2__) && !defined(__XG3__) && !defined(__riscv__)
+/* Use branch-free handling for top 3 cases.
+ * Don't use on XG3 or RISC-V as it will probably be slower...
+ */
+#define TGVLZ_DECRP2C_TOP3ALU
+#endif
+
+/* Faster case for RP2B/C, assumes well-formed input. */
+int TgvLz_DecodeBufferRP2CI(
+	byte *ibuf, byte *obuf, int ibsz, int obsz, int flag)
+{
+	u32 tag;
+	byte *cs, *ct, *cse, *cte;
+#ifdef TGVLZ_DECRP2C_TOP3ALU
+	int teo, eo, te_x0, te_x1, te_x2;
+	int sml, smd, smt, omr, oml, omt;
+	int mml, mmd, bml;
+	int mr, ml, md;
+#endif
+	int rl, l, d;
+	u64 t0;
+	int t1, t2;
+	
+	cs=ibuf; cse=ibuf+ibsz;
+	ct=obuf; cte=obuf+obsz;
+	rl=0; l=0; d=0;
+	
+//	while(1)
+//	while((cs<cse) && (ct<cte))
+	while(cs<cse)
+	{
+		t0=get_u64le(cs);
+
+#ifdef TGVLZ_DECRP2C_TOP3ALU
+		teo=(t0&7);
+		if(teo!=7)
+		{
+			/* tortured branch-free arithmetic... */
+			te_x0=(teo&1);			te_x1=(teo>>1)&1;
+			te_x2=te_x0&te_x1;
+			eo=te_x0+te_x2;
+			omr=eo+1;
+			oml=omr+3;				smt=(eo<<3)+(12-eo);
+			mr=(t0>>omr)&7;			ml=t0>>oml;
+			bml=(3+te_x0);			sml=((5*smt)>>4)+te_x0;
+			smd=smt-sml;			md=ml>>sml;
+			mml=((1<<sml)-1);		mmd=((1<<smd)-1);
+			ml=(ml&mml)+bml;		md=(md&mmd);
+
+			cs+=eo+2;
+			memcpy_8B(ct, cs);
+			cs+=mr;	ct+=mr;
+			TgvLz_MatchCopy2(ct, ml, md);
+			ct+=ml;
+			continue;
+		}else
+#else
+		if(!(t0&0x01))
+		{
+			cs+=2;
+			rl=(t0>>1)&7;
+			l=((t0>>4)&7)+3;
+			d=(t0>>7)&511;
+		}else
+			if(!(t0&0x02))
+		{
+			cs+=3;
+			rl=(t0>>2)&7;
+			l=((t0>>5)&63)+4;
+			d=(t0>>11)&8191;
+		}else
+			if(!(t0&0x04))
+		{
+			cs+=4;
+			rl=(t0>>3)&7;
+			l=((t0>>6)&511)+4;
+			d=(t0>>15)&131071;
+		}else
+#endif
+			if(!(t0&0x08))
+		{
+			cs++;
+			t1=(t0>>4)&15;
+			rl=(t1+1)*8;
+			TgvLz_RawCopyB(ct, cs, rl);
+			cs+=rl;
+			ct+=rl;
+			continue;
+		}else
+			if(!(t0&0x10))
+		{
+			if(t0&0x100)
+			{
+				rl=(t0>> 5)&7;
+				l=((t0>> 9)&255)+68;
+				d=((t0>>17)&127)+1;
+				cs+=3;
+			}else
+			{
+				rl=(t0>> 5)&7;
+				l=((t0>> 9)&15)+11;
+				d=((t0>>13)& 7)+1;
+				cs+=2;
+			}
+		}else
+			if(!(t0&0x20))
+		{
+			cs++;
+			rl=(t0>>6)&3;
+			if(!rl)break;
+			memcpy_4B(ct, cs);
+			cs+=rl;
+			ct+=rl;
+			continue;
+		}else
+			if(!(t0&0x40))
+		{
+			/* Long Raw */
+			cs+=2;
+			t1=(t0>>7)&511;
+			rl=(t1+1)*8;
+			TgvLz_RawCopyB(ct, cs, rl);
+			cs+=rl;
+			ct+=rl;
+			continue;
+		}else
+			if(!(t0&0x80))
+		{
+			if(t0&0x100)
+			{
+				rl=(t0>>9)&7;
+				l=((t0>>12)&16383)+4;
+				d=(t0>>26)&0x3FFFFF;
+				cs+=6;
+			}else
+			{
+				rl=0;
+				l=((t0>> 9)&127)+4;
+				d=1;
+				cs+=2;
+			}
+		}else
+			if(!(t0&0x0100))
+		{
+			rl=(t0>>9)&7;
+			l=((t0>>12)&63)+4;
+			d=(t0>>18)&0x3FFFFF;
+			cs+=5;
+		}else
+		{
+			debug_break
+		}
+
 		memcpy_8B(ct, cs);
 		cs+=rl;
 		ct+=rl;
@@ -1378,13 +1764,15 @@ int TgvLz_DecodeBufferRP2(
 int TgvLz_DecodeBufferRP2B(
 	byte *ibuf, byte *obuf, int ibsz, int obsz)
 {
-	return(TgvLz_DecodeBufferRP2I(ibuf, obuf, ibsz, obsz, 1));
+//	return(TgvLz_DecodeBufferRP2I(ibuf, obuf, ibsz, obsz, 1));
+	return(TgvLz_DecodeBufferRP2CI(ibuf, obuf, ibsz, obsz, 1));
 }
 
 int TgvLz_DecodeBufferRP2C(
 	byte *ibuf, byte *obuf, int ibsz, int obsz)
 {
-	return(TgvLz_DecodeBufferRP2I(ibuf, obuf, ibsz, obsz, 3));
+//	return(TgvLz_DecodeBufferRP2I(ibuf, obuf, ibsz, obsz, 3));
+	return(TgvLz_DecodeBufferRP2CI(ibuf, obuf, ibsz, obsz, 3));
 }
 
 /* Decode RP2 Original
@@ -1424,6 +1812,9 @@ int TgvLz_EncodeBufferLZ4(TgvLz_Context *ctx,
 	cs=ibuf; cse=ibuf+ibsz;
 	ct=obuf;
 	
+	ctx->css=ibuf;
+	ctx->cse=cse;
+
 	pd=0; pl=0;
 	
 	lcs=cs;
@@ -1560,6 +1951,221 @@ int TgvLz_DecodeBufferLZ4(byte *ibuf, byte *obuf, int isz, int osz)
 	
 	return(ct-obuf);
 }
+
+int TgvLz_DecodeBufferLR3C(byte *ibuf, byte *obuf, int isz, int osz)
+{
+	byte *cs, *ct, *cse, *cte;
+	u64 tg;
+	int eo, mr, ml, md, smt, smd, sml;
+	
+	cs=ibuf; cse=ibuf+isz;
+	ct=obuf; cte=obuf+osz;
+	
+	while(cs<cse)
+	{
+		tg=get_u64le(cs);
+		eo=tg&3;
+		if(eo!=3)
+		{
+			cs+=eo+2;
+			mr=(tg>>2)&7;
+			ml=tg>>5;
+			smt=(eo<<3)+11;
+			sml=(11*smt)>>5;
+			smd=smt-sml;
+			md=ml>>sml;
+			ml=(ml&((1<<sml)-1))+4;
+			md=(md&((1<<smd)-1))+1;
+
+			memcpy_8B(ct, cs);
+			cs+=mr;	ct+=mr;
+			TgvLz_MatchCopy2(ct, ml, md);
+			ct+=ml;
+			continue;
+		}
+
+		eo=(tg>>2)&3;
+		if(eo!=3)
+		{
+			if(!(tg&0x08))
+			{
+				cs+=eo+1;
+				smt=(eo<<3)+4;
+				mr=(tg>>4)&((1<<smt)-1);
+				mr=(mr+1)<<3;
+				TgvLz_RawCopy(ct, cs, mr);
+				cs+=mr;	ct+=mr;
+				continue;
+			}
+			
+			cs++;
+			mr=(tg>>4)&15;
+			if(!mr)
+				break;
+//			memcpy_16B(ct, cs);
+			memcpy(ct, cs, mr);
+			cs+=mr;	ct+=mr;
+			continue;
+		}
+	}
+	return(ct-obuf);
+}
+
+int TgvLz_EncodeBufferLR3C(TgvLz_Context *ctx,
+	byte *ibuf, byte *obuf, int ibsz, int obsz)
+{
+	byte *cs, *cse, *lcs;
+	byte *ct;
+	int pl, pd, tg;
+	int ml, md, mr, l1, d1;
+	int i, j, k;
+	
+	ctx->chn_base=ibuf;
+	cs=ibuf; cse=ibuf+ibsz;
+	ct=obuf;
+	
+	ctx->css=ibuf;
+	ctx->cse=cse;
+
+	pd=0; pl=0;
+	
+	lcs=cs;
+	while(cs<cse)
+	{
+		i=TgvLz_LookupMatchB(ctx, cs, cse, lcs, &ml, &md);
+
+		if(i)
+		{
+			if(ml<4)
+				i=0;
+			if((ml>515) || (md>262144))
+			{
+				i=0;
+			}
+		}
+
+		if(!i)
+		{
+			TgvLz_HashByte(ctx, cs);
+			cs++;
+			continue;
+		}
+			
+		mr=cs-lcs;
+
+		ctx->stat_rlen[tgvlz_log2u(mr)]++;
+		ctx->stat_len[tgvlz_log2u(ml)]++;
+		ctx->stat_dist[tgvlz_log2u(md)]++;
+
+		while(mr>=128)
+		{
+			k=(mr>>3)-1;
+			if(k>4095)
+				k=4095;
+			tg=0x07|(k<<4);
+			*ct++=tg>>0;
+			*ct++=tg>>8;
+			memcpy(ct, lcs, (k+1)*8);
+			ct+=(k+1)*8;
+			lcs+=(k+1)*8;
+			mr=cs-lcs;
+		}
+
+		while(mr>=8)
+		{
+			k=(mr>>3)-1;
+			if(k>15)
+				k=15;
+			tg=0x03|(k<<4);
+			*ct++=tg;
+			memcpy(ct, lcs, (k+1)*8);
+			ct+=(k+1)*8;
+			lcs+=(k+1)*8;
+			mr=cs-lcs;
+		}
+
+		if((ml<=11) && (md<=256))
+		{
+			tg=0x00|(mr<<2)|((ml-4)<<5)|((md-1)<<8);
+			*ct++=tg>>0;
+			*ct++=tg>>8;
+		}else
+			if((ml<=67) && (md<=8192))
+		{
+			tg=0x01|(mr<<2)|((ml-4)<<5)|((md-1)<<11);
+			*ct++=tg>>0;
+			*ct++=tg>>8;
+			*ct++=tg>>16;
+		}else
+			if((ml<=515) && (md<=262144))
+		{
+			tg=0x02|(mr<<2)|((ml-4)<<5)|((md-1)<<14);
+			*ct++=tg>>0;
+			*ct++=tg>>8;
+			*ct++=tg>>16;
+			*ct++=tg>>24;
+		}else
+		{
+			debug_break
+		}
+
+		memcpy(ct, lcs, mr);
+		ct+=mr;
+		lcs+=mr;
+
+		TgvLz_HashStr(ctx, cs, ml);
+		cs+=ml;
+		lcs=cs;
+	}
+
+	mr=cs-lcs;
+
+	while(mr>=128)
+	{
+		k=(mr>>3)-1;
+		if(k>4095)
+			k=4095;
+		tg=0x07|(k<<4);
+		*ct++=tg>>0;
+		*ct++=tg>>8;
+		memcpy(ct, lcs, (k+1)*8);
+		ct+=(k+1)*8;
+		lcs+=(k+1)*8;
+		mr=cs-lcs;
+	}
+
+	while(mr>=48)
+	{
+		k=(mr>>3)-1;
+		if(k>15)
+			k=15;
+		tg=0x03|(k<<4);
+		*ct++=tg;
+		memcpy(ct, lcs, (k+1)*8);
+		ct+=(k+1)*8;
+		lcs+=(k+1)*8;
+		mr=cs-lcs;
+	}
+
+	while(mr>0)
+	{
+		k=mr;
+		if(k>15)
+			k=15;
+		tg=0x0B|(k<<4);
+		*ct++=tg;
+		memcpy(ct, lcs, k);
+		ct+=k;
+		lcs+=k;
+		mr=cs-lcs;
+	}
+
+	tg=0x0B;
+	*ct++=tg;
+
+	return(ct-obuf);
+}
+
 
 u32 TgvLz_CalculateImagePel4BChecksum(byte *buf, int size)
 {
@@ -1719,6 +2325,8 @@ int TgvLz_DoEncodeSafe(TgvLz_Context *ctx,
 	return(osz);
 }
 
+static int tgvlz_benchsecs;
+
 int TgvLz_DoTest(TgvLz_Context *ctx,
 	byte *ibuf, byte *obuf, int isz)
 {
@@ -1806,7 +2414,8 @@ int TgvLz_DoTest(TgvLz_Context *ctx,
 	ctx->csum=csum2;
 	
 	t0=clock();
-	te=t0+(10*CLOCKS_PER_SEC);
+//	te=t0+(10*CLOCKS_PER_SEC);
+	te=t0+(tgvlz_benchsecs*CLOCKS_PER_SEC);
 	t1=t0;
 	ttsz=0;
 	while(t1<te)
@@ -1936,6 +2545,16 @@ int TgvLz_DestroyContext(TgvLz_Context *ctx)
 }
 
 #ifndef TGVLZ_NOMAIN
+
+#ifdef TGVLZ_ENA_POST
+#define TGVLZ_ENA_POST_BENCH
+#include "btm_rp2stf.c"
+#include "btm_rp2bitrc.c"
+#include "rp2post_h12d.c"
+#include "rp2post_h12e.c"
+#include "rp2post_auto.c"
+#endif
+
 int main(int argc, char *argv[])
 {
 	TgvLz_Context *ctx;
@@ -1947,10 +2566,14 @@ int main(int argc, char *argv[])
 	double f, g;
 	int t0, t1, te;
 	int isz, csz, osz, osz2, dsz, dsum, csum, mode, ver;
+	int wsz;
 	int i, j, k;
 	
 	ifn=NULL;
 	ofn=NULL;
+
+	wsz=(1<<22)-1;
+	tgvlz_benchsecs=10;
 	
 	ver=0;
 	mode=0;
@@ -1964,7 +2587,8 @@ int main(int argc, char *argv[])
 				{ mode=1; ver=1; }
 			if(!strcmp(argv[i], "-zc"))
 				{ mode=1; ver=2; }
-
+			if(!strcmp(argv[i], "-zp"))
+				{ mode=1; ver=3; }
 
 			if(!strcmp(argv[i], "-d"))
 				mode=2;
@@ -1973,10 +2597,29 @@ int main(int argc, char *argv[])
 			if(!strcmp(argv[i], "-t"))
 				mode=4;
 
+//			if(!strcmp(argv[i], "-w16"))
+//				{ wsz=(1<<16)-1; }
+//			if(!strcmp(argv[i], "-w17"))
+//				{ wsz=(1<<17)-1; }
+
 			if(!strcmp(argv[i], "-bb"))
 				{ mode=3; ver=1; }
 			if(!strcmp(argv[i], "-bc"))
 				{ mode=3; ver=2; }
+			if(!strcmp(argv[i], "-bp"))
+				{ mode=3; ver=3; }
+
+			if(!strcmp(argv[i], "-b4"))
+				{ mode=3; ver=4; }
+
+			if(!strcmp(argv[i], "-b3c"))
+				{ mode=3; ver=5; }
+			
+			if((argv[i][1]=='w') && (argv[i][2]>='0') && (argv[i][2]<='9'))
+				{ wsz=(1<<atoi(argv[i]+2))-1; continue; }
+			if((argv[i][1]=='i') && (argv[i][2]>='0') && (argv[i][2]<='9'))
+				{ tgvlz_benchsecs=atoi(argv[i]+2); continue; }
+			
 			continue;
 		}
 		
@@ -2003,6 +2646,10 @@ int main(int argc, char *argv[])
 		printf("\t-b\t\tBenchmark\n");
 		printf("\t-bb\t\tBenchmark (RP2B)\n");
 		printf("\t-bc\t\tBenchmark (RP2C)\n");
+#ifdef TGVLZ_ENA_POST
+		printf("\t-zp\t\tEncode (RP2C+Post)\n");
+		printf("\t-bp\t\tBenchmark (RP2C+Post)\n");
+#endif
 	}
 	
 	ibuf=NULL;
@@ -2018,7 +2665,11 @@ int main(int argc, char *argv[])
 
 	if((mode==2) && ibuf[3]=='B')	ver=1;
 	if((mode==2) && ibuf[3]=='C')	ver=2;
-	
+	if((mode==2) && ibuf[3]=='P')	ver=3;
+
+	if((mode==2) && ibuf[2]=='L' && ibuf[3]=='4')
+		ver=4;
+
 //	ctx1=malloc(sizeof(TgvLz_Context));
 //	ctx2=malloc(sizeof(TgvLz_Context));
 	ctx=malloc(sizeof(TgvLz_Context));
@@ -2030,7 +2681,9 @@ int main(int argc, char *argv[])
 	memset(ctx, 0, sizeof(TgvLz_Context));
 //	ctx->ct=obuf;	
 	ctx->maxlen=16383;
-	ctx->maxdist=(1<<22)-1;
+//	ctx->maxdist=(1<<22)-1;
+	ctx->maxdist=wsz;
+	ctx->maxdepth=4096;
 
 	ctx->EncodeBuffer=TgvLz_EncodeBufferRP2;
 	ctx->DecodeBuffer=TgvLz_DecodeBufferRP2;
@@ -2051,10 +2704,42 @@ int main(int argc, char *argv[])
 		ctx->tstName="RP2C";
 	}
 
+	if(ver==4)
+	{
+		ctx->EncodeBuffer=TgvLz_EncodeBufferLZ4;
+		ctx->DecodeBuffer=TgvLz_DecodeBufferLZ4;
+		ctx->tstName="LZ4";
+
+		ctx->maxlen=4095;
+		ctx->maxdist=65535;
+	}
+
+	if(ver==5)
+	{
+		ctx->EncodeBuffer=TgvLz_EncodeBufferLR3C;
+		ctx->DecodeBuffer=TgvLz_DecodeBufferLR3C;
+		ctx->tstName="LR3C";
+
+		ctx->maxlen=515;
+		ctx->maxdist=262144;
+	}
+
 	if((mode==3) || ((mode==0) && !ofn))
 	{
 		obuf=malloc(isz*2);
-		osz=TgvLz_DoTest(ctx, ibuf, obuf+16, isz);
+
+		if(ver==3)
+		{
+#ifdef TGVLZ_ENA_POST
+			osz2=PostRp2_EncodeRP2BenchAuto(obuf+16, ibuf, isz*2, isz, 
+				RP2POST_FLAGS_FAVOR_SPEED);
+#else
+			osz2=-1;
+#endif
+		}else
+		{
+			osz=TgvLz_DoTest(ctx, ibuf, obuf+16, isz);
+		}
 		
 	//	csum=TgvLz_CalculateImagePel4BChecksum(ibuf, isz);
 		
@@ -2067,6 +2752,13 @@ int main(int argc, char *argv[])
 			obuf[3]='B';
 		if(ver==2)
 			obuf[3]='C';
+		if(ver==3)
+			obuf[3]='P';
+
+		if(ver==4)
+		{
+			memcpy(obuf, "RL4A", 4);
+		}
 
 //		*(u32 *)(obuf+4)=osz;
 //		*(u32 *)(obuf+8)=isz;
@@ -2082,7 +2774,19 @@ int main(int argc, char *argv[])
 	if((mode==1) || ((mode==0) && ofn))
 	{
 		obuf=malloc(isz*2);
-		osz=TgvLz_DoEncode(ctx, ibuf, obuf+16, isz);
+
+		if(ver==3)
+		{
+#ifdef TGVLZ_ENA_POST
+			osz2=PostRp2_EncodeRP2Auto(obuf+16, ibuf, isz*2, isz, 
+				RP2POST_FLAGS_FAVOR_SPEED);
+#else
+			osz2=-1;
+#endif
+		}else
+		{
+			osz=TgvLz_DoEncode(ctx, ibuf, obuf+16, isz);
+		}
 		
 		memcpy(obuf, "RP2A", 4);
 //		*(u32 *)(obuf+4)=osz;
@@ -2096,6 +2800,13 @@ int main(int argc, char *argv[])
 			obuf[3]='B';
 		if(ver==2)
 			obuf[3]='C';
+		if(ver==3)
+			obuf[3]='P';
+
+		if(ver==4)
+		{
+			memcpy(obuf, "RL4A", 4);
+		}
 
 		if(ofn)
 		{
@@ -2108,7 +2819,9 @@ int main(int argc, char *argv[])
 	{
 		if(	memcmp(ibuf, "RP2A", 4) &&
 			memcmp(ibuf, "RP2B", 4) &&
-			memcmp(ibuf, "RP2C", 4))
+			memcmp(ibuf, "RP2C", 4) &&
+			memcmp(ibuf, "RP2P", 4) &&
+			memcmp(ibuf, "RL4A", 4))
 		{
 			printf("Magic Fail\n");
 			return(0);
@@ -2123,7 +2836,17 @@ int main(int argc, char *argv[])
 		dsum=get_u32le(ibuf+12);
 
 		obuf=malloc(dsz*2);
-		osz2=ctx->DecodeBuffer(ibuf+16, obuf, osz, dsz*2);
+		if(ver==3)
+		{
+#ifdef TGVLZ_ENA_POST
+			osz2=PostRp2_DecodeBufferRp2Full(obuf, ibuf+16, dsz*2, osz);
+#else
+			osz2=-1;
+#endif
+		}else
+		{
+			osz2=ctx->DecodeBuffer(ibuf+16, obuf, osz, dsz*2);
+		}
 //		*(u64 *)(obuf+osz2+0)=0;
 //		*(u64 *)(obuf+osz2+8)=0;
 		memset(obuf+osz2, 0, 16);

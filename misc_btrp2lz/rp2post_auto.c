@@ -531,7 +531,7 @@ int PostRp2_EncodeRP2Auto(
 {
 	static byte *st_buf;
 	byte *tbuf;
-	int tbsz, osz;
+	int tbsz, osz, tsz;
 	
 	if(ibsz<64000)
 	{
@@ -545,8 +545,8 @@ int PostRp2_EncodeRP2Auto(
 		tbuf=malloc(tbsz);
 	}
 	
-	PostRp2Stf_EncodeRP2(tbuf, ibuf, tbsz, ibsz);
-	osz=PostRp2_EncodeBufferPostRp2(obuf, tbuf, obsz, tbsz, flags);
+	tsz=PostRp2Stf_EncodeRP2(tbuf, ibuf, tbsz, ibsz);
+	osz=PostRp2_EncodeBufferPostRp2(obuf, tbuf, obsz, tsz, flags);
 	if(tbuf!=st_buf)
 		free(tbuf);
 	return(osz);
@@ -557,7 +557,7 @@ int PostRp2_EncodeRP2TestAuto(
 {
 	static byte *st_buf;
 	byte *tbuf;
-	int tbsz, osz;
+	int tbsz, osz, tsz;
 	
 	if(ibsz<64000)
 	{
@@ -571,11 +571,46 @@ int PostRp2_EncodeRP2TestAuto(
 		tbuf=malloc(tbsz);
 	}
 	
-	PostRp2Stf_EncodeRP2Test(tbuf, ibuf, tbsz, ibsz);
-	osz=PostRp2_EncodeBufferPostRp2Test(obuf, tbuf, obsz, tbsz, flags);
+	tsz=PostRp2Stf_EncodeRP2Test(tbuf, ibuf, tbsz, ibsz);
+	osz=PostRp2_EncodeBufferPostRp2Test(obuf, tbuf, obsz, tsz, flags);
 	if(tbuf!=st_buf)
 		free(tbuf);
 	return(osz);
 }
+
+#ifdef TGVLZ_ENA_POST_BENCH
+int PostRp2_EncodeRP2BenchAuto(
+	byte *obuf, byte *ibuf, int obsz, int ibsz, int flags)
+{
+	byte *tbuf;
+	s64 tot;
+	double fs;
+	int t0, t1, t2, te;
+	int osz, i2sz;
+
+	osz=PostRp2_EncodeRP2TestAuto(obuf, ibuf, obsz, ibsz, flags);
+	if(osz<=0)
+		return(osz);
+	
+	tbuf=malloc(ibsz*2);
+	
+	t0=clock();
+	te=t0+(5*CLOCKS_PER_SEC);
+	t1=t0;
+	tot=0;
+	while(t1<te)
+	{
+		i2sz=PostRp2_DecodeBufferRp2Full(tbuf, obuf, ibsz*2, osz);
+		tot+=i2sz;
+		t1=clock();
+	}
+	fs=(t1-t0)*(1.0/CLOCKS_PER_SEC);
+	if(fs<=0)
+		return(osz);
+	printf(" %.2f MB/s\n", tot*(1.0/(fs*1024*1024)));
+
+	return(osz);
+}
+#endif
 
 #endif

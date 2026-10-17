@@ -57,7 +57,7 @@ Granted, there are some chips around which support misaligned access, sorta, but
 
 #ifdef __GNUC__
 #define force_inline	inline
-#define	debug_break		__builtin_breakpoint();
+#define	debug_break		__builtin_trap();
 #define unaligned
 #endif
 
