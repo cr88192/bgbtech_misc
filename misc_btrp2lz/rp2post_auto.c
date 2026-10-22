@@ -23,6 +23,14 @@
 #define RP2POST_FLAGS_NO_ADRICE		0x10	/* Disable AdRice+STF */
 #define RP2POST_FLAGS_NO_HUFF		0x20	/* Disable Huffman */
 #define RP2POST_FLAGS_NO_RANGE		0x40	/* Disable Range Coder */
+#define RP2POST_FLAGS_VERBOSE		0x80	/* Print Extra Messages */
+
+#define RP2POST_FLAGS_USE_ADRICE	\
+	(RP2POST_FLAGS_FAVOR_SIZE2|RP2POST_FLAGS_NO_HUFF|RP2POST_FLAGS_NO_RANGE)
+#define RP2POST_FLAGS_USE_HUFF	\
+	(RP2POST_FLAGS_FAVOR_SIZE2|RP2POST_FLAGS_NO_ADRICE|RP2POST_FLAGS_NO_RANGE)
+#define RP2POST_FLAGS_USE_RANGE	\
+	(RP2POST_FLAGS_FAVOR_SIZE2|RP2POST_FLAGS_NO_ADRICE|RP2POST_FLAGS_NO_HUFF)
 
 
 #ifdef GFXEDIT_MINRP2_C
@@ -90,7 +98,7 @@ int PostRp2_DecodeBufferPostRp2(
 #endif
 		}
 
-		if(ibuf[0]==0x10)
+		if((ibuf[0]==0x10) || (ibuf[0]==0x50))
 		{
 #ifdef RP2POST_RP2STF_C
 			return(PostRp2Stf_DecodeBufferPostRp2(obuf, ibuf, obsz, ibsz));
@@ -144,7 +152,7 @@ int PostRp2_DecodeBufferRp2Full(
 #endif
 		}
 
-		if(ibuf[0]==0x10)
+		if((ibuf[0]==0x10) || (ibuf[0]==0x50))
 		{
 #ifdef RP2POST_RP2STF_C
 			return(PostRp2Stf_DecodeBufferRp2Full(obuf, ibuf, obsz, ibsz));
@@ -405,9 +413,15 @@ int PostRp2_EncodeBufferPostRp2Test(
 
 #ifdef RP2POST_H12E_C
 	osz1=PostRp2Huff_EstimateBufferRp2MinEntropySize(ibuf, ibsz);
-	if((osz1*tune1)>=ibsz)
+//	if((osz1*tune1)>=ibsz)
+	if(((osz1*tune1)>=ibsz) && !(flags&RP2POST_FLAGS_FAVOR_SIZE2))
 	{
 		/* None would likely be effective here... */
+		if(flags&RP2POST_FLAGS_VERBOSE)
+		{
+			printf(" Use Raw: Failed Early (%d -> %d, lim %d)\n",
+				ibsz, osz1, (int)(ibsz/tune1));
+		}
 		memcpy(obuf, ibuf, ibsz);
 		return(ibsz);
 	}
@@ -447,8 +461,16 @@ int PostRp2_EncodeBufferPostRp2Test(
 		if((osz1<=0) || (osz1*tune1)>=ibsz)
 		{
 			/* None would be effective here... */
+			if(flags&RP2POST_FLAGS_VERBOSE)
+			{
+				printf(" Use Raw: Failed Threshold (%d -> %d)\n", ibsz, osz1);
+			}
 			memcpy(obuf, ibuf, ibsz);
 			return(ibsz);
+		}
+		if(flags&RP2POST_FLAGS_VERBOSE)
+		{
+			printf(" Use Post: Passed Threshold (%d -> %d)\n", ibsz, osz1);
 		}
 		return(osz1);
 	}
@@ -586,13 +608,27 @@ int PostRp2_EncodeRP2BenchAuto(
 	s64 tot;
 	double fs;
 	int t0, t1, t2, te;
-	int osz, i2sz;
+	int osz, i2sz, cm;
 
 	osz=PostRp2_EncodeRP2TestAuto(obuf, ibuf, obsz, ibsz, flags);
 	if(osz<=0)
 		return(osz);
+
+	cm=0;
+	if(((obuf[0]&0x0F)==0x00) && (obuf[1]==0x00))
+		cm=(obuf[0]>>4)&15;
+
+	printf(" %d -> %d (cm=%d)\n", ibsz, osz, cm);
 	
 	tbuf=malloc(ibsz*2);
+
+	i2sz=PostRp2_DecodeBufferRp2Full(tbuf, obuf, ibsz*2, osz);
+	if(i2sz<=0)
+	{
+		printf("Failed Decode\n");
+		i2sz=PostRp2_DecodeBufferRp2Full(tbuf, obuf, ibsz*2, osz);
+		return(-1);
+	}
 	
 	t0=clock();
 	te=t0+(5*CLOCKS_PER_SEC);

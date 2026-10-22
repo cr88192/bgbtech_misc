@@ -990,6 +990,11 @@ int PostRp2Huff_UnpackRp2BlobCtx(
 	
 	if(ctx->status)
 		return(-1);
+
+	if(mode&1)
+	{
+		return(ctx->c2t-obuf);
+	}
 	
 	return(ctx->ct-obuf);
 }

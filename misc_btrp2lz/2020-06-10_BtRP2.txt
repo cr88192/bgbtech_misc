@@ -123,6 +123,53 @@ Initial state will be to fill each context with all symbols in order.
 For each encoded symbol, it will be swapped with the symbol at (I*15)/16 of the current position.
 
 
+=== Post Compressor: RP2+STF+AdSkew ===
+
+Escape Magic: 50 00
+
+This is nearly identical to the STF+AdRice post compressor, but uses a different entropy scheme (hereby called AdSkew, lacking a better name).
+
+The STF scheme and context structure will be otherwise the same as in the AdRice case.
+
+In this case, the initial Skew value will be 0, and it will take 8 steps to move each Skew Level.
+
+
+
+Skew=0: (All symbols 8-bit)
+  xxxxxxx0  00..7F (8, FrSkew++)
+  xxxxxxx1  80..FF (8, FrSkew--)
+
+Skew=1:
+    xxxxxx0  00..3F (7, FrSkew++)
+   xxxxxx01  40..7F (8, FrSkew--)
+  xxxxxxx11  80..FF (9, FrSkew--)
+
+Skew=2:
+      xxxxx0  00..1F ( 6, FrSkew++)
+     xxxxx01  20..3F ( 7, FrSkew--)
+   xxxxxx011  40..7F ( 9, FrSkew--)
+  xxxxxxx111  80..FF (10, FrSkew--)
+
+Skew=3:
+        xxxx0  00..0F ( 5, FrSkew++)
+       xxxx01  10..1F ( 6, FrSkew--)
+     xxxxx011  20..3F ( 8, FrSkew--)
+   xxxxxx0111  40..7F (10, FrSkew--)
+  xxxxxxx1111  80..FF (11, FrSkew--)
+
+Skew=4:
+         xxx0  00..07 ( 4, FrSkew++)
+        xxx01  08..0F ( 5, FrSkew--)
+      xxxx011  10..1F ( 7, FrSkew--)
+    xxxxx0111  20..3F ( 9, FrSkew--)
+  xxxxxx01111  40..7F (11, FrSkew--)
+ xxxxxxx11111  80..FF (12, FrSkew--)
+
+FrSkew will be clamped to the range 0 to 39; where Skew=FrSkew/8.
+
+The bits within each range will appear in their nominal ordering, such that shift and mask will give the location within the value range.
+
+
 === Post Compressor: RP2+Huffman ===
 
 RP2 Post Encoder: Huffman

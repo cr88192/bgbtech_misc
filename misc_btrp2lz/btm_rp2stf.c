@@ -17,6 +17,13 @@
  * STF: Swap Towards Front
  * As each symbol is encoded, it is swapped towards the front of the list.
  * This will typically swap symbols towards an approximation of an optimal order.
+ *
+ *
+ * AdSkew+STF:
+ *
+ * Escape Magic: 50 00
+ * Modified version of the scheme which uses a "Skew Coding" scheme rather
+ * than AdRice.
  */
 
 #ifndef RP2POST_RP2STF_C
@@ -41,8 +48,16 @@
 #define BTM_STFRK_ADBSHL	5
 #define BTM_STFRK_ADBINIT	6
 
+// #define BTM_STFRK_ADSKSHL	5
+// #define BTM_STFRK_ADSKSHL	4
+#define BTM_STFRK_ADSKSHL	3
+// #define BTM_STFRK_ADSKSHL	2
+#define BTM_STFRK_ADSKINIT	0
+
 typedef struct BTM_StfRkCtx_s BTM_StfRkCtx;
 struct BTM_StfRkCtx_s {
+int (*ReadAdRice)(BTM_StfRkCtx *ctx, byte *rkf);
+void (*WriteAdRice)(BTM_StfRkCtx *ctx, int val, byte *rkf);
 byte *cst;
 u32 win;
 byte pos;
@@ -125,14 +140,95 @@ int BTM_StfRk_ReadAdRiceSTF(BTM_StfRkCtx *ctx, byte *rkf, byte *stftab)
 {
 	int i0, i1, v0, v1;
 	
-	i0=BTM_StfRk_ReadAdRiceB(ctx, rkf);
+//	i0=BTM_StfRk_ReadAdRiceB(ctx, rkf);
+	i0=ctx->ReadAdRice(ctx, rkf);
 	i1=(i0*15)>>4;
 	v0=stftab[i0];	v1=stftab[i1];
 	stftab[i0]=v1;	stftab[i1]=v0;
 	return(v0);
 }
 
+/*
+   (15:12)=Sym Len
+   (11: 8)=Prefix Len
+   ( 7: 0)=Base
+ */
+u16 btm_stfrk_skewtab[4*16]={
+/* Skew 0 */
+	0x8900, 0x8180, 0x8900, 0x8180,
+	0x8900, 0x8180, 0x8900, 0x8180,
+	0x8900, 0x8180, 0x8900, 0x8180,
+	0x8900, 0x8180, 0x8900, 0x8180,
+/* Skew 1 */
+	0x7900, 0x8240, 0x7900, 0x9280,
+	0x7900, 0x8240, 0x7900, 0x9280,
+	0x7900, 0x8240, 0x7900, 0x9280,
+	0x7900, 0x8240, 0x7900, 0x9280,
+/* Skew 2 */
+	0x6900, 0x7220, 0x6900, 0x9340,
+	0x6900, 0x7220, 0x6900, 0xA380,
+	0x6900, 0x7220, 0x6900, 0x9340,
+	0x6900, 0x7220, 0x6900, 0xA380,
+/* Skew 3 */
+	0x5900, 0x6210, 0x5900, 0x8320,
+	0x5900, 0x6210, 0x5900, 0xA440,
+	0x5900, 0x6210, 0x5900, 0x8320,
+	0x5900, 0x6210, 0x5900, 0xB480,
+};
 
+u16 btm_stfrk_skewtab2[5*32]={
+/* Skew 0 */
+	0x8900, 0x8180, 0x8900, 0x8180,	0x8900, 0x8180, 0x8900, 0x8180,
+	0x8900, 0x8180, 0x8900, 0x8180,	0x8900, 0x8180, 0x8900, 0x8180,
+	0x8900, 0x8180, 0x8900, 0x8180,	0x8900, 0x8180, 0x8900, 0x8180,
+	0x8900, 0x8180, 0x8900, 0x8180,	0x8900, 0x8180, 0x8900, 0x8180,
+/* Skew 1 */
+	0x7900, 0x8240, 0x7900, 0x9280,	0x7900, 0x8240, 0x7900, 0x9280,
+	0x7900, 0x8240, 0x7900, 0x9280,	0x7900, 0x8240, 0x7900, 0x9280,
+	0x7900, 0x8240, 0x7900, 0x9280,	0x7900, 0x8240, 0x7900, 0x9280,
+	0x7900, 0x8240, 0x7900, 0x9280,	0x7900, 0x8240, 0x7900, 0x9280,
+/* Skew 2 */
+	0x6900, 0x7220, 0x6900, 0x9340,	0x6900, 0x7220, 0x6900, 0xA380,
+	0x6900, 0x7220, 0x6900, 0x9340,	0x6900, 0x7220, 0x6900, 0xA380,
+	0x6900, 0x7220, 0x6900, 0x9340,	0x6900, 0x7220, 0x6900, 0xA380,
+	0x6900, 0x7220, 0x6900, 0x9340,	0x6900, 0x7220, 0x6900, 0xA380,
+/* Skew 3 */
+	0x5900, 0x6210, 0x5900, 0x8320,	0x5900, 0x6210, 0x5900, 0xA440,
+	0x5900, 0x6210, 0x5900, 0x8320,	0x5900, 0x6210, 0x5900, 0xB480,
+	0x5900, 0x6210, 0x5900, 0x8320,	0x5900, 0x6210, 0x5900, 0xA440,
+	0x5900, 0x6210, 0x5900, 0x8320,	0x5900, 0x6210, 0x5900, 0xB480,
+/* Skew 4 */
+	0x4900, 0x5208, 0x4900, 0x7310,	0x4900, 0x5208, 0x4900, 0x9420,
+	0x4900, 0x5208, 0x4900, 0x7310,	0x4900, 0x5208, 0x4900, 0xB540,
+	0x4900, 0x5208, 0x4900, 0x7310,	0x4900, 0x5208, 0x4900, 0x9420,
+	0x4900, 0x5208, 0x4900, 0x7310,	0x4900, 0x5208, 0x4900, 0xC580,
+};
+
+int BTM_StfRk_ReadAdSkew(BTM_StfRkCtx *ctx, byte *rkf)
+{
+	int b, q, r, v, kf, kfb, skb;
+	int p;
+
+	kfb=*rkf;
+	kf=kfb>>BTM_STFRK_ADSKSHL;
+	b=BTM_StfRk_PeekBits(ctx, 16);
+//	q=btm_stfrk_skewtab[(b&0xF)|(kf<<4)];
+	q=btm_stfrk_skewtab2[(b&0x1F)|(kf<<5)];
+	skb=(q>>12)&15;
+
+	p=(q>>8)&7;
+	r=(1<<(skb-p))-1;
+	v=(q&0xFF)+((b>>p)&r);
+
+	BTM_StfRk_SkipBits(ctx, skb);
+
+	if(q&0x0800)
+		{ if((kfb+1)<(5<<BTM_STFRK_ADSKSHL)) kfb++; }
+	else
+		{ if(kfb>0) kfb--; }
+	*rkf=kfb;
+	return(v);
+}
 
 void BTM_StfRk_WriteBits(BTM_StfRkCtx *ctx, int val, int bits)
 {
@@ -195,7 +291,83 @@ void BTM_StfRk_WriteAdRiceSTF(BTM_StfRkCtx *ctx, int val,
 	stfvtab[i0]=v1;	stfvtab[i1]=v0;
 	stfitab[v1]=i0;	stfitab[v0]=i1;
 	
-	BTM_StfRk_WriteAdRiceB(ctx, i0, rkf);
+//	BTM_StfRk_WriteAdRiceB(ctx, i0, rkf);
+	ctx->WriteAdRice(ctx, i0, rkf);
+}
+
+void BTM_StfRk_WriteAdSkew(BTM_StfRkCtx *ctx, int val, byte *rkf)
+{
+	int q, kf, kfb, kd, b, n;
+	
+	kfb=*rkf;
+	kf=kfb>>BTM_STFRK_ADSKSHL;
+
+//	q=val>>kf;
+	b=0;
+	n=0;
+
+	if(kf==0)
+	{
+		kd=val<0x80;
+		b=((val&0x7F)<<1)|(!kd);
+		n=8;
+	}else
+		if(kf==1)
+	{
+		if(val<0x40)
+			{ b=(val<<1)|0; n=7; kd=1; }
+		else if(val<0x80)
+			{ b=(val<<2)|1; n=8; kd=0; }
+		else
+			{ b=(val<<2)|3; n=9; kd=0; }
+	}else
+		if(kf==2)
+	{
+		if(val<0x20)
+			{ b=(val<<1)|0; n=6; kd=1; }
+		else if(val<0x40)
+			{ b=(val<<2)|1; n=7; kd=0; }
+		else if(val<0x80)
+			{ b=(val<<3)|3; n=9; kd=0; }
+		else
+			{ b=(val<<3)|7; n=10; kd=0; }
+	}else
+		if(kf==3)
+	{
+		if(val<0x10)
+			{ b=(val<<1)|0; n=5; kd=1; }
+		else if(val<0x20)
+			{ b=(val<<2)|1; n=6; kd=0; }
+		else if(val<0x40)
+			{ b=(val<<3)|3; n=8; kd=0; }
+		else if(val<0x80)
+			{ b=(val<<4)|7; n=10; kd=0; }
+		else
+			{ b=(val<<4)|15; n=11; kd=0; }
+	}else
+		if(kf==4)
+	{
+		if(val<0x08)
+			{ b=(val<<1)|0; n=4; kd=1; }
+		else if(val<0x10)
+			{ b=(val<<2)|1; n=5; kd=0; }
+		else if(val<0x20)
+			{ b=(val<<3)|3; n=7; kd=0; }
+		else if(val<0x40)
+			{ b=(val<<4)|7; n=9; kd=0; }
+		else if(val<0x80)
+			{ b=(val<<5)|15; n=11; kd=0; }
+		else
+			{ b=(val<<5)|31; n=12; kd=0; }
+	}
+
+	BTM_StfRk_WriteBits(ctx, b, n);
+
+	if(kd)
+		{ if((kfb+1)<(5<<BTM_STFRK_ADSKSHL)) kfb++; }
+	else
+		{ if(kfb>0) kfb--; }
+	*rkf=kfb;
 }
 
 void BTM_StfRk_EncodeInit(BTM_StfRkCtx *ctx, byte *buf)
@@ -216,10 +388,13 @@ int BTM_StfRk_CheckPostRp2Blob(byte *ibuf)
 {
 	if((ibuf[0]==0x10) && (ibuf[1]==0x00))
 		return(1);
+	if((ibuf[0]==0x50) && (ibuf[1]==0x00))
+		return(1);
 	return(0);
 }
 
-int BTM_StfRk_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
+int BTM_StfRk_EncodeBufferPostRp2I(
+	byte *obuf, byte *ibuf, int ibsz, int flag)
 {
 	byte prbtab_t[256], prbidx_t[256];
 	byte prbtab_d[256], prbidx_d[256];
@@ -239,6 +414,7 @@ int BTM_StfRk_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	*ct++=0x00;
 	
 	BTM_StfRk_EncodeInit(ctx, ct);
+	ctx->WriteAdRice=BTM_StfRk_WriteAdRiceB;
 
 	for(i=0; i<256; i++)
 	{
@@ -250,6 +426,15 @@ int BTM_StfRk_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	rk_t=BTM_STFRK_ADBINIT<<BTM_STFRK_ADBSHL;
 	rk_d=BTM_STFRK_ADBINIT<<BTM_STFRK_ADBSHL;
 	rk_l=BTM_STFRK_ADBINIT<<BTM_STFRK_ADBSHL;
+
+	if(flag&1)
+	{
+		obuf[0]=0x50;
+		ctx->WriteAdRice=BTM_StfRk_WriteAdSkew;
+		rk_t=BTM_STFRK_ADSKINIT<<BTM_STFRK_ADSKSHL;
+		rk_d=BTM_STFRK_ADSKINIT<<BTM_STFRK_ADSKSHL;
+		rk_l=BTM_STFRK_ADSKINIT<<BTM_STFRK_ADSKSHL;
+	}
 
 	cs=ibuf;
 	cse=ibuf+ibsz;
@@ -302,6 +487,24 @@ int BTM_StfRk_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	return(ctx->cst-obuf);
 }
 
+int BTM_StfRk_EncodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
+{
+//	return(BTM_StfRk_EncodeBufferPostRp2I(obuf, ibuf, ibsz, 0));
+	return(BTM_StfRk_EncodeBufferPostRp2I(obuf, ibuf, ibsz, 1));
+}
+
+int BTM_StfRk_EncodeBufferPostRp2Rice(byte *obuf, byte *ibuf, int ibsz)
+{
+	return(BTM_StfRk_EncodeBufferPostRp2I(obuf, ibuf, ibsz, 0));
+//	return(BTM_StfRk_EncodeBufferPostRp2I(obuf, ibuf, ibsz, 1));
+}
+
+int BTM_StfRk_EncodeBufferPostRp2Skew(byte *obuf, byte *ibuf, int ibsz)
+{
+//	return(BTM_StfRk_EncodeBufferPostRp2I(obuf, ibuf, ibsz, 0));
+	return(BTM_StfRk_EncodeBufferPostRp2I(obuf, ibuf, ibsz, 1));
+}
+
 int BTM_StfRk_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 {
 	byte prbtab_t[256];
@@ -315,11 +518,12 @@ int BTM_StfRk_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	int lc, tsz, tsi, nr, tg;
 	int i, j, k;
 
-	if((ibuf[0]!=0x10) || (ibuf[1]!=0x00))
+	if(((ibuf[0]!=0x10) && (ibuf[0]!=0x50)) || (ibuf[1]!=0x00))
 		return(-1);
 
 	ctx=&t_ctx;
 	BTM_StfRk_DecodeInit(ctx, ibuf+2);
+	ctx->ReadAdRice=BTM_StfRk_ReadAdRiceB;
 	
 	ct=obuf;
 
@@ -335,6 +539,14 @@ int BTM_StfRk_DecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	rk_t=BTM_STFRK_ADBINIT<<BTM_STFRK_ADBSHL;
 	rk_d=BTM_STFRK_ADBINIT<<BTM_STFRK_ADBSHL;
 	rk_l=BTM_STFRK_ADBINIT<<BTM_STFRK_ADBSHL;
+
+	if(ibuf[0]==0x50)
+	{
+		ctx->ReadAdRice=BTM_StfRk_ReadAdSkew;
+		rk_t=BTM_STFRK_ADSKINIT<<BTM_STFRK_ADSKSHL;
+		rk_d=BTM_STFRK_ADSKINIT<<BTM_STFRK_ADSKSHL;
+		rk_l=BTM_STFRK_ADSKINIT<<BTM_STFRK_ADSKSHL;
+	}
 
 	while(1)
 	{
@@ -433,11 +645,12 @@ int BTM_StfRk_DummyDecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	int lc, tsz, tsi, nr, tg;
 	int i, j, k;
 
-	if((ibuf[0]!=0x10) || (ibuf[1]!=0x00))
+	if(((ibuf[0]!=0x10) && (ibuf[0]!=0x50)) || (ibuf[1]!=0x00))
 		return(-1);
 
 	ctx=&t_ctx;
 	BTM_StfRk_DecodeInit(ctx, ibuf+2);
+	ctx->ReadAdRice=BTM_StfRk_ReadAdRiceB;
 	
 	ct=obuf;
 
@@ -453,6 +666,14 @@ int BTM_StfRk_DummyDecodeBufferPostRp2(byte *obuf, byte *ibuf, int ibsz)
 	rk_t=BTM_STFRK_ADBINIT<<BTM_STFRK_ADBSHL;
 	rk_d=BTM_STFRK_ADBINIT<<BTM_STFRK_ADBSHL;
 	rk_l=BTM_STFRK_ADBINIT<<BTM_STFRK_ADBSHL;
+
+	if(ibuf[0]==0x50)
+	{
+		ctx->ReadAdRice=BTM_StfRk_ReadAdSkew;
+		rk_t=0<<BTM_STFRK_ADBSHL;
+		rk_d=0<<BTM_STFRK_ADBSHL;
+		rk_l=0<<BTM_STFRK_ADBSHL;
+	}
 
 	while(1)
 	{

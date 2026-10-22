@@ -630,16 +630,18 @@ int PostRp2Huff_EstimateBufferRp2MinEntropySize(byte *ibuf, int ibsz)
 
 	while(cs<cse)
 	{
-//		memset(stat_t, 0, 256*sizeof(int));
-//		memset(stat_l, 0, 256*sizeof(int));
-//		memset(stat_d, 0, 256*sizeof(int));
-		
+		memset(stat_t, 0, 256*sizeof(int));
+		memset(stat_l, 0, 256*sizeof(int));
+		memset(stat_d, 0, 256*sizeof(int));
+
+#if 0		
 		for(i=0; i<256; i++)
 		{
 			stat_t[i]=1;
 			stat_l[i]=1;
 			stat_d[i]=1;
 		}
+#endif
 		
 		k=cse-cs;
 		l=1<<18;
@@ -893,17 +895,19 @@ int PostRp2Huff_EncodeBufferPostRp2B(
 		if((cs-cslh)>(1<<20))
 		{
 			/* Rebuild Huffman tables once per MB for larger streams. */
-//			memset(stat_t, 0, 256*sizeof(int));
-//			memset(stat_l, 0, 256*sizeof(int));
-//			memset(stat_d, 0, 256*sizeof(int));
+			memset(stat_t, 0, 256*sizeof(int));
+			memset(stat_l, 0, 256*sizeof(int));
+			memset(stat_d, 0, 256*sizeof(int));
 			cslh=cs;
 
+#if 0
 			for(i=0; i<256; i++)
 			{
 				stat_t[i]=1;
 				stat_l[i]=1;
 				stat_d[i]=1;
 			}
+#endif
 			
 //			l=(1<<20)+16384;
 			l=(1<<21);

@@ -268,7 +268,14 @@ typedef struct TgvLz_Context_s TgvLz_Context;
 
 #define TKELZ_HASHB_SZ	32768
 // #define TKELZ_HASHB_DN	4
-#define TKELZ_HASHB_DN	8
+// #define TKELZ_HASHB_DN	8
+#define TKELZ_HASHB_DN	16
+
+// #define TKELZ_HASHB_SZ	8192
+// #define TKELZ_HASHB_DN	16
+
+//#define TKELZ_HASHB_SZ	16384
+//#define TKELZ_HASHB_DN	8
 
 // #define TKELZ_HASHB_SZ	16384
 // #define TKELZ_HASHB_DN	16
@@ -322,10 +329,10 @@ byte *pred_cs1;
 byte *pred_cs2;
 byte *pred_cs3;
 byte *pred_cs4;
-int pred_l1, pred_d1;
-int pred_l2, pred_d2;
-int pred_l3, pred_d3;
-int pred_l4, pred_d4;
+int pred_l1, pred_d1, pred_h1;
+int pred_l2, pred_d2, pred_h2;
+int pred_l3, pred_d3, pred_h3;
+int pred_l4, pred_d4, pred_h4;
 };
 
 TgvLz_Context *TgvLz_CreateContextRP2C();
@@ -398,11 +405,28 @@ int TgvLz_CalcHash(byte *cs)
 #ifdef TKELZ_HASHB_SZ
 int TgvLz_CalcHashB(byte *cs)
 {
+#if 0
 	int h;
 	
 //	h=*(u32 *)cs;
 	h=get_u32le(cs);
 	h=((h*65521LL)>>16)&(TKELZ_HASHB_SZ-1);
+#endif
+
+#if 1
+	u64 h;
+	/* for wide/shallow */
+	h=gfxedit_getu64(cs);
+	
+	h&=0x0000FFFFFFFFFFFFULL;
+	
+	h^=(h>>29);
+	h^=(h<<7)^(h>>13);
+	h^=(h>>17);
+	
+	h&=(TKELZ_HASHB_SZ-1);
+#endif
+
 	return(h);
 }
 #endif
@@ -413,7 +437,10 @@ int TgvLz_CalcHashC(byte *cs)
 	
 //	h=*(u32 *)cs;
 	h=get_u32le(cs);
-	h^=h>>16;
+//	h^=h>>16;
+	h^=h>>19;
+	h^=h<<11;
+	h^=h>>17;
 //	h=((h*4093LL)>>12)&(TKELZ_CHHASH_SZ-1);
 	h=((h*65521LL)>>16)&(TKELZ_CHHASH_SZ-1);
 	return(h);
@@ -422,8 +449,34 @@ int TgvLz_CalcHashC(byte *cs)
 int TgvLz_CheckMatch(byte *s0, byte *s1, byte *cse)
 {
 	byte *cs, *ct;
+	u32 v0, v1, m;
+	int d;
+
+	v0=get_u32le(s0);
+	v1=get_u32le(s1);
+	if(v0!=v1)
+	{
+		d=s0-s1;
+		if(d>=512)
+			return(0);
+		m=0x00FFFFFF;
+		if((v0&m)==(v1&m))
+			return(3);
+		return(0);
+	}
 	
 	cs=s0; ct=s1;
+	cs+=4; ct+=4;
+
+#if 1
+	while((cs+8)<=cse)
+	{
+		if(get_u64le(cs)!=get_u64le(ct))
+			break;
+		cs+=8; ct+=8;
+	}
+#endif
+
 	while((cs+4)<=cse)
 	{
 //		if(*(u32 *)cs!=*(u32 *)ct)
@@ -447,7 +500,9 @@ int TgvLz_CalcMatchGain(TgvLz_Context *ctx, int ml, int md)
 	mg=ml;
 	if(md>=512)			mg--;
 	if(md>=8192)		mg--;
-	if(md>=131072)		mg--;
+//	if(md>=8192)		mg-=2;
+//	if(md>=131072)		mg--;
+	if(md>=131072)		mg-=5;
 	return(mg);
 }
 
@@ -479,6 +534,17 @@ int TgvLz_HashByte(TgvLz_Context *ctx, byte *cs)
 	ctx->chn_next[rv]=ctx->chn_hash[h];
 	ctx->chn_hash[h]=rv;
 
+#if 1
+	if((h==ctx->pred_h1) && (ctx->pred_l1<8))
+		ctx->pred_cs1=NULL;
+	if((h==ctx->pred_h2) && (ctx->pred_l2<8))
+		ctx->pred_cs2=NULL;
+	if((h==ctx->pred_h3) && (ctx->pred_l3<8))
+		ctx->pred_cs3=NULL;
+	if((h==ctx->pred_h4) && (ctx->pred_l4<8))
+		ctx->pred_cs4=NULL;
+#endif
+
 	return(0);
 }
 
@@ -499,7 +565,7 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 	byte *str, byte *stre,
 	int *rl, int *rd)
 {
-	byte *cs1, *cse;
+	byte *cs1, *cs2, *cse;
 	int h, hr, bl, bd, bmc, tmc;
 	int i, j, k, l, d, n, ml, md, ld;
 
@@ -538,6 +604,13 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 	if(cse>stre)
 		cse=stre;
 	
+	if((cse-str)<48)
+	{
+		*rl=0;
+		*rd=0;
+		return(0);
+	}
+	
 	h=TgvLz_CalcHash(str);
 	hr=ctx->hrov[h];
 	
@@ -549,7 +622,7 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 		cs1=str-i;
 
 		if(!cs1 || (cs1<(ctx->css)) || (cs1>=ctx->cse))
-			continue;
+			break;
 		l=TgvLz_CheckMatch(str, cs1, cse);
 		d=str-cs1;
 		if(d<=0)
@@ -568,11 +641,11 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 		cs1=ctx->hash[(h*TKELZ_HASH_DN)+((hr+i)&TKELZ_HASH_DN1)];
 //		if(!cs1)continue;
 		if(!cs1 || (cs1<(ctx->css)) || (cs1>=ctx->cse))
-			continue;
+			break;
 		l=TgvLz_CheckMatch(str, cs1, cse);
 		d=str-cs1;
 		if(d<=0)
-			continue;
+			break;
 //		if((l>bl) && (d<65536))
 //		if((l>bl) && (d<131072))
 		tmc=TgvLz_CalcMatchGain(ctx, l, d);
@@ -595,11 +668,11 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 		cs1=ctx->hashb[(h*TKELZ_HASHB_DN)+((hr+i)&TKELZ_HASHB_DN1)];
 //		if(!cs1)continue;
 		if(!cs1 || (cs1<(ctx->css)) || (cs1>=ctx->cse))
-			continue;
+			break;
 		l=TgvLz_CheckMatch(str, cs1, cse);
 		d=str-cs1;
 		if(d<=0)
-			continue;
+			break;
 		tmc=TgvLz_CalcMatchGain(ctx, l, d);
 //		tmc=l;
 //		if((l>bl) && (d<md))
@@ -618,6 +691,7 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 
 	n=ctx->maxdepth;
 	i=ctx->chn_hash[h];
+	cs2=str;
 //	n=1024;
 	ld=0;
 	while(n--)
@@ -634,6 +708,10 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 		if(d>md)
 			break;
 
+		if(cs1>=cs2)
+			break;
+		cs2=cs1;
+
 		l=TgvLz_CheckMatch(str, cs1, cse);		
 //		if((l>bl) && (d<md))
 //			{ bl=l; bd=d; }
@@ -646,24 +724,34 @@ int TgvLz_LookupMatch(TgvLz_Context *ctx,
 		if((tmc>bmc) && (d<md) || ((l==bl) && (d<bd)))
 			{ bl=l; bd=d; bmc=tmc; }
 
+		j=i;
 		i=ctx->chn_next[i];
+		if(i==j)
+			break;
+//		cs2=ctx->chn_ptrs[i];
+//		if(cs2>=cs1)
+//			break;
 	}
 
 	ctx->pred_cs4=ctx->pred_cs3;
 	ctx->pred_l4=ctx->pred_l3;
 	ctx->pred_d4=ctx->pred_d3;
+	ctx->pred_h4=ctx->pred_h3;
 
 	ctx->pred_cs3=ctx->pred_cs2;
 	ctx->pred_l3=ctx->pred_l2;
 	ctx->pred_d3=ctx->pred_d2;
+	ctx->pred_h3=ctx->pred_h2;
 
 	ctx->pred_cs2=ctx->pred_cs1;
 	ctx->pred_l2=ctx->pred_l1;
 	ctx->pred_d2=ctx->pred_d1;
+	ctx->pred_h2=ctx->pred_h1;
 
 	ctx->pred_cs1=str;
 	ctx->pred_l1=bl;
 	ctx->pred_d1=bd;
+	ctx->pred_h1=h;
 
 	*rl=bl;
 	*rd=bd;
@@ -938,7 +1026,8 @@ void TgvLz_MatchCopy(byte *dst, byte *src, int sz)
 }
 
 #if 1
-force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
+// force_inline
+void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 {
 	byte *cs, *ct, *cte;
 	u64 v, v1;
@@ -952,6 +1041,13 @@ force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 			v=v|(v<<8);
 			v=v|(v<<16);
 			v=v|(v<<32);
+
+			if(sz<=16)
+			{
+				set_u64le(dst, v);
+				set_u64le(dst+8, v);
+				return;
+			}
 
 			ct=dst; cte=dst+sz;
 			while(ct<cte)
@@ -1040,6 +1136,15 @@ force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 		memcpy_8B(ct+0, cs+0);
 		memcpy_8B(ct+8, cs+8);
 	}else
+		if(sz<=32)
+	{
+		cs=dst-d;
+		ct=dst;
+		memcpy_8B(ct+ 0, cs+ 0);
+		memcpy_8B(ct+ 8, cs+ 8);
+		memcpy_8B(ct+16, cs+16);
+		memcpy_8B(ct+24, cs+24);
+	}else
 		if(d<16)
 	{
 		cs=dst-d;
@@ -1073,7 +1178,78 @@ force_inline void TgvLz_MatchCopy2(byte *dst, int sz, int d)
 }
 #endif
 
-force_inline void TgvLz_RawCopy(byte *dst, byte *src, int sz)
+/* Match Copy, but only for lengths under 16 bytes. */
+// force_inline
+void TgvLz_MatchCopyShort(byte *dst, int sz, int d)
+{
+	byte *src, *ct;
+	u64 v0, v1;
+	
+	src=dst-d;
+
+#if 0
+	if(d>=16)
+	{
+		memcpy_16B(dst, src);
+		return;
+	}
+#endif
+
+	if(d>=8)
+	{
+		memcpy_8B(dst, src);
+		memcpy_8B(dst+8, src+8);
+		return;
+	}
+	
+	v0=get_u64le(src);
+
+	if(d>=4)
+	{
+		if(d>4)
+		{
+			ct=dst;
+			set_u64le(ct, v0); ct+=d;
+			set_u64le(ct, v0); ct+=d;
+			set_u64le(ct, v0); ct+=d;
+			set_u64le(ct, v0);
+			return;
+		}
+		v1=((u32)v0)|(v0<<32);
+		set_u64le(dst, v1);
+		set_u64le(dst+8, v1);
+		return;
+	}
+	if(d>=2)
+	{
+		if(d==3)
+		{
+			v1=v0&0x00FFFFFF;
+			v1|=v1<<24;
+			set_u64le(dst, v1);
+			set_u64le(dst+ 6, v1);
+			set_u64le(dst+12, v1);
+			return;
+		}
+		v1=(u16)v0;
+		v1|=v1<<16;
+		v1|=v1<<32;
+		set_u64le(dst, v1);
+		set_u64le(dst+8, v1);
+		return;
+	}
+
+	v1=(byte)v0;
+	v1|=v1<< 8;
+	v1|=v1<<16;
+	v1|=v1<<32;
+	set_u64le(dst, v1);
+	set_u64le(dst+8, v1);
+	return;
+}
+
+// force_inline
+void TgvLz_RawCopy(byte *dst, byte *src, int sz)
 {
 	byte *cs, *ct, *cte;
 
@@ -1103,26 +1279,90 @@ force_inline void TgvLz_RawCopy(byte *dst, byte *src, int sz)
 	}
 }
 
-force_inline void TgvLz_RawCopyB(byte *dst, byte *src, int sz)
+// force_inline
+void TgvLz_RawCopyC(byte *dst, byte *src, int sz)
 {
-	byte *cs, *ct, *cte;
+	byte *cs, *ct, *cte, *cte_m16;
+
+	cs=src;
+	ct=dst; cte=dst+sz;
+
+#if 0
+	if(sz<=32)
+	{
+		if(ct<cte)
+		{
+			memcpy_8B(ct, cs);
+			ct+=8; cs+=8;
+			if(ct<cte)
+			{
+				memcpy_8B(ct, cs);
+				ct+=8; cs+=8;
+				if(ct<cte)
+				{
+					memcpy_8B(ct, cs);
+					ct+=8; cs+=8;
+					if(ct<cte)
+						memcpy_8B(ct, cs);
+				}
+			}
+		}
+		return;
+	}
+#endif
+
+//	if(sz>=40)
+//	if(1)
+	if(sz&15)
+	{
+		cte_m16=cte-16;
+//		cte_m16=cte-((~((sz&15)-1))&16);
+//		while(ct<cte)
+		while(ct<=cte_m16)
+		{
+#if 0
+			memcpy_8B(ct, cs);
+			ct+=8; cs+=8;
+#endif
+#if 1
+			memcpy_16B(ct, cs);
+			ct+=16; cs+=16;
+#endif
+		}
+		if(ct<cte)
+		{
+			memcpy_8B(ct, cs);
+			ct+=8; cs+=8;
+			if(ct<cte)
+				memcpy_8B(ct, cs);
+		}
+	}else
+	{
+#if 1
+		while(ct<cte)
+		{
+//			memcpy_8B(ct, cs);
+//			ct+=8; cs+=8;
+			memcpy_16B(ct, cs);
+			ct+=16; cs+=16;
+		}
+#endif
+	}
+}
+
+void TgvLz_RawCopyB(byte *dst, byte *src, int sz)
+{
+	byte *cs, *ct, *cte, *cte_m16;
 
 	cs=src;
 	ct=dst; cte=dst+sz;
 	while(ct<cte)
 	{
-#if 0
-//		*(u64 *)ct=*(u64 *)cs;
-		memcpy_8B(ct, cs);
-		ct+=8; cs+=8;
-#endif
-#if 1
-//		((u64 *)ct)[0]=((u64 *)cs)[0];
-//		((u64 *)ct)[1]=((u64 *)cs)[1];
+//		memcpy_8B(ct, cs);
+//		ct+=8; cs+=8;
 		memcpy_16B(ct, cs);
 		ct+=16; cs+=16;
-#endif
-	}
+	}	
 }
 
 int TgvLz_EncodeBufferRP2I(TgvLz_Context *ctx,
@@ -1220,7 +1460,8 @@ int TgvLz_EncodeBufferRP2I(TgvLz_Context *ctx,
 #endif
 #if 1
 //		if((flag&1) && (rl==0) && (l>=4) && (l<=131) && (d==1))
-		if((flag&1) && (rl==0) && (l>=16) && (l<=131) && (d==1))
+//		if((flag&1) && (rl==0) && (l>=16) && (l<=131) && (d==1))
+		if((flag&1) && (rl==0) && (l>=32) && (l<=131) && (d==1))
 		{
 			l1=l-4;
 			v=(l1<<9)|0x007F;
@@ -1353,6 +1594,24 @@ int TgvLz_EncodeBufferRP2I(TgvLz_Context *ctx,
 		lcs=cs;
 	}
 
+	l1=(cs-48)-lcs;
+	while(l1>=128)
+	{
+		j=(l1>>3)-1;
+		if(j>511)j=511;
+		
+		k=(j+1)*8;
+
+		v=0x3F+(j<<7);
+		*ct++=v;
+		*ct++=v>>8;
+
+		memcpy(ct, lcs, k);
+		ct+=k;	lcs+=k;	rl-=k;
+
+		l1=(cs-48)-lcs;
+	}
+
 	rl=cs-lcs;
 	
 	while(rl>8)
@@ -1459,7 +1718,8 @@ int TgvLz_DecodeBufferRP2I(
 				if((ct+rl)>cte)
 					return(-1);
 			}
-			TgvLz_RawCopyB(ct, cs, rl);
+//			TgvLz_RawCopyB(ct, cs, rl);
+			TgvLz_RawCopyC(ct, cs, rl);
 			cs+=rl;
 			ct+=rl;
 			continue;
@@ -1523,9 +1783,13 @@ int TgvLz_DecodeBufferRP2I(
 			rl=(t0>>6)&3;
 			if(!rl)break;
 //			*(u32 *)ct=*(u32 *)cs;
-			memcpy_4B(ct, cs);
-			cs+=rl;
-			ct+=rl;
+//			memcpy_4B(ct, cs);
+//			cs+=rl;
+//			ct+=rl;
+
+			/* Slower, but exact */
+			while(rl--)
+				*ct++=*cs++;
 			continue;
 		}else
 			if(!(t0&0x40))
@@ -1596,7 +1860,7 @@ int TgvLz_DecodeBufferRP2I(
 /* Use branch-free handling for top 3 cases.
  * Don't use on XG3 or RISC-V as it will probably be slower...
  */
-#define TGVLZ_DECRP2C_TOP3ALU
+// #define TGVLZ_DECRP2C_TOP3ALU
 #endif
 
 /* Faster case for RP2B/C, assumes well-formed input. */
@@ -1649,36 +1913,53 @@ int TgvLz_DecodeBufferRP2CI(
 			continue;
 		}else
 #else
-		if(!(t0&0x01))
+		if((t0&7)!=7)
 		{
-			cs+=2;
-			rl=(t0>>1)&7;
-			l=((t0>>4)&7)+3;
-			d=(t0>>7)&511;
-		}else
-			if(!(t0&0x02))
-		{
-			cs+=3;
-			rl=(t0>>2)&7;
-			l=((t0>>5)&63)+4;
-			d=(t0>>11)&8191;
-		}else
-			if(!(t0&0x04))
-		{
-			cs+=4;
-			rl=(t0>>3)&7;
-			l=((t0>>6)&511)+4;
-			d=(t0>>15)&131071;
+			if(!(t0&0x01))
+			{
+				cs+=2;
+				rl=(t0>>1)&7;
+				l=((t0>>4)&7)+3;
+				d=(t0>>7)&511;
+			}else
+				if(!(t0&0x02))
+			{
+				cs+=3;
+				rl=(t0>>2)&7;
+				l=((t0>>5)&63)+4;
+				d=(t0>>11)&8191;
+			}else
+			{
+				cs+=4;
+				rl=(t0>>3)&7;
+				l=((t0>>6)&511)+4;
+				d=(t0>>15)&131071;
+			}
 		}else
 #endif
 			if(!(t0&0x08))
 		{
 			cs++;
 			t1=(t0>>4)&15;
-			rl=(t1+1)*8;
-			TgvLz_RawCopyB(ct, cs, rl);
-			cs+=rl;
-			ct+=rl;
+			if(t1)
+			{
+				if(t1>=2)
+				{
+					rl=(t1+1)*8;
+		//			TgvLz_RawCopyB(ct, cs, rl);
+					TgvLz_RawCopyC(ct, cs, rl);
+					cs+=rl;
+					ct+=rl;
+				}else
+				{
+					memcpy_16B(ct, cs);
+					cs+=16;	ct+=16;
+				}
+			}else
+			{
+				memcpy_8B(ct, cs);
+				cs+=8;	ct+=8;
+			}
 			continue;
 		}else
 			if(!(t0&0x10))
@@ -2566,7 +2847,7 @@ int main(int argc, char *argv[])
 	double f, g;
 	int t0, t1, te;
 	int isz, csz, osz, osz2, dsz, dsum, csum, mode, ver;
-	int wsz;
+	int wsz, pflag;
 	int i, j, k;
 	
 	ifn=NULL;
@@ -2574,6 +2855,9 @@ int main(int argc, char *argv[])
 
 	wsz=(1<<22)-1;
 	tgvlz_benchsecs=10;
+#ifdef TGVLZ_ENA_POST
+	pflag=RP2POST_FLAGS_FAVOR_SPEED;
+#endif
 	
 	ver=0;
 	mode=0;
@@ -2587,8 +2871,27 @@ int main(int argc, char *argv[])
 				{ mode=1; ver=1; }
 			if(!strcmp(argv[i], "-zc"))
 				{ mode=1; ver=2; }
+
+#ifdef TGVLZ_ENA_POST
 			if(!strcmp(argv[i], "-zp"))
 				{ mode=1; ver=3; }
+
+			if(!strcmp(argv[i], "-zp_sz"))
+				{ mode=1; ver=3; pflag=RP2POST_FLAGS_FAVOR_SIZE; }
+			if(!strcmp(argv[i], "-zp_sz2"))
+				{ mode=1; ver=3; pflag=RP2POST_FLAGS_FAVOR_SIZE2; }
+			if(!strcmp(argv[i], "-zp_sp"))
+				{ mode=1; ver=3; pflag=RP2POST_FLAGS_FAVOR_SPEED; }
+			if(!strcmp(argv[i], "-zp_sp2"))
+				{ mode=1; ver=3; pflag=RP2POST_FLAGS_FAVOR_SPEED2; }
+
+			if(!strcmp(argv[i], "-zp_stf"))
+				{ mode=1; ver=3; pflag=RP2POST_FLAGS_USE_ADRICE; }
+			if(!strcmp(argv[i], "-zp_huff"))
+				{ mode=1; ver=3; pflag=RP2POST_FLAGS_USE_HUFF; }
+			if(!strcmp(argv[i], "-zp_range"))
+				{ mode=1; ver=3; pflag=RP2POST_FLAGS_USE_RANGE; }
+#endif
 
 			if(!strcmp(argv[i], "-d"))
 				mode=2;
@@ -2608,6 +2911,24 @@ int main(int argc, char *argv[])
 				{ mode=3; ver=2; }
 			if(!strcmp(argv[i], "-bp"))
 				{ mode=3; ver=3; }
+
+#ifdef TGVLZ_ENA_POST
+			if(!strcmp(argv[i], "-bp_sz"))
+				{ mode=3; ver=3; pflag=RP2POST_FLAGS_FAVOR_SIZE; }
+			if(!strcmp(argv[i], "-bp_sz2"))
+				{ mode=3; ver=3; pflag=RP2POST_FLAGS_FAVOR_SIZE2; }
+			if(!strcmp(argv[i], "-bp_sp"))
+				{ mode=3; ver=3; pflag=RP2POST_FLAGS_FAVOR_SPEED; }
+			if(!strcmp(argv[i], "-bp_sp2"))
+				{ mode=3; ver=3; pflag=RP2POST_FLAGS_FAVOR_SPEED2; }
+
+			if(!strcmp(argv[i], "-bp_stf"))
+				{ mode=3; ver=3; pflag=RP2POST_FLAGS_USE_ADRICE; }
+			if(!strcmp(argv[i], "-bp_huff"))
+				{ mode=3; ver=3; pflag=RP2POST_FLAGS_USE_HUFF; }
+			if(!strcmp(argv[i], "-bp_range"))
+				{ mode=3; ver=3; pflag=RP2POST_FLAGS_USE_RANGE; }
+#endif
 
 			if(!strcmp(argv[i], "-b4"))
 				{ mode=3; ver=4; }
@@ -2646,9 +2967,19 @@ int main(int argc, char *argv[])
 		printf("\t-b\t\tBenchmark\n");
 		printf("\t-bb\t\tBenchmark (RP2B)\n");
 		printf("\t-bc\t\tBenchmark (RP2C)\n");
+		printf("\t-w<bits>\tSet Window Size in Bits\n");
+		printf("\t-i<secs>\tSet Benchmark Seconds\n");
 #ifdef TGVLZ_ENA_POST
 		printf("\t-zp\t\tEncode (RP2C+Post)\n");
 		printf("\t-bp\t\tBenchmark (RP2C+Post)\n");
+
+		printf("\t-zp_<md>\tEncode (RP2C+Post) with Sub-Mode\n");
+		printf("\t-bp_<md>\tBenchmark (RP2C+Post) with Sub-Mode\n");
+		printf("\t  sp / sp2\tDecode Speed, More Speed\n");
+		printf("\t  sz / sz2\tEncoded Size, More Size\n");
+		printf("\t  stf\t\tUse STF Post Compressor\n");
+		printf("\t  huff\t\tUse Huffman Post Compressor\n");
+		printf("\t  range\t\tUse Range Post Compressor\n");
 #endif
 	}
 	
@@ -2683,7 +3014,9 @@ int main(int argc, char *argv[])
 	ctx->maxlen=16383;
 //	ctx->maxdist=(1<<22)-1;
 	ctx->maxdist=wsz;
-	ctx->maxdepth=4096;
+//	ctx->maxdepth=4096;
+	ctx->maxdepth=1024;
+	ctx->cmp=3;
 
 	ctx->EncodeBuffer=TgvLz_EncodeBufferRP2;
 	ctx->DecodeBuffer=TgvLz_DecodeBufferRP2;
@@ -2732,7 +3065,7 @@ int main(int argc, char *argv[])
 		{
 #ifdef TGVLZ_ENA_POST
 			osz2=PostRp2_EncodeRP2BenchAuto(obuf+16, ibuf, isz*2, isz, 
-				RP2POST_FLAGS_FAVOR_SPEED);
+				pflag|RP2POST_FLAGS_VERBOSE);
 #else
 			osz2=-1;
 #endif
@@ -2779,7 +3112,7 @@ int main(int argc, char *argv[])
 		{
 #ifdef TGVLZ_ENA_POST
 			osz2=PostRp2_EncodeRP2Auto(obuf+16, ibuf, isz*2, isz, 
-				RP2POST_FLAGS_FAVOR_SPEED);
+				pflag);
 #else
 			osz2=-1;
 #endif
