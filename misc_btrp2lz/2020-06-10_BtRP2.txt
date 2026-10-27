@@ -125,7 +125,8 @@ For each encoded symbol, it will be swapped with the symbol at (I*15)/16 of the 
 
 === Post Compressor: RP2+STF+AdSkew ===
 
-Escape Magic: 50 00
+Escape Magic: 50 00 (SkewA)
+Escape Magic: 40 00 (SkewB)
 
 This is nearly identical to the STF+AdRice post compressor, but uses a different entropy scheme (hereby called AdSkew, lacking a better name).
 
@@ -165,7 +166,28 @@ Skew=4:
   xxxxxx01111  40..7F (11, FrSkew--)
  xxxxxxx11111  80..FF (12, FrSkew--)
 
-FrSkew will be clamped to the range 0 to 39; where Skew=FrSkew/8.
+Skew=5: (SkewB)
+           xx0  00..03 ( 3, FrSkew++)
+          xx01  04..07 ( 4, FrSkew--)
+        xxx011  08..0F ( 6, FrSkew--)
+      xxxx0111  10..1F ( 8, FrSkew--)
+    xxxxx01111  20..3F (10, FrSkew--)
+  xxxxxx011111  40..7F (12, FrSkew--)
+ xxxxxxx111111  80..FF (13, FrSkew--)
+
+SkewA:
+* FrSkew will be clamped to the range 0 to 39; where Skew=FrSkew/8.
+
+SkewB:
+* FrSkew will be in the range of 0 to 47 nominally.
+** However, SkewB will not clamp.
+* 48 and -1 will exist as special cases.
+** 48 will be the same as Skew=5, but always FrSkew--
+** -1 will be the same as Skew=0, but always FrSkew++
+** These special states will always be transient.
+
+SkewB can be faster at the expense of requiring a slightly larger lookup table to support.
+
 
 The bits within each range will appear in their nominal ordering, such that shift and mask will give the location within the value range.
 
