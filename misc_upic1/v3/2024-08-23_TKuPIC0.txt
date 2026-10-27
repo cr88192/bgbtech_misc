@@ -57,13 +57,13 @@ If fractional stepping is used (ectrl&0x10), the K adaptation will be modified.
 * Default initial Kb will be 0x40.
 
 
-AdSkew:
+AdSkew-B:
 * Will use a scheme with an adjustable 'skew' parameter.
 ** The fractional skew starts at 0, with 8 fractions per skew level.
 * The skew will work by successively subdividing the short half of the range.
 ** This pushes the long half to be 1 bit longer for each level.
-* Skew=0: All symbols are 8 bits, with a 7-bit range in LSB (0=00..7F, 1=80..FF)
-** The remaining bits are in nominal order.
+* Skew=0: All symbols are 8 bits, with a 7-bit range in LSB
+** (0=00..7F, 1=80..FF)
 * Skew=1: Lengths are 7/8/9 bits (00..3F=7b, 40..7F=8b, 80..FF=9b).
 * Skew=2: Lengths are 6/7/9/10 bits
 ** (00..1F=6b, 20..3F=7b, 40..7F=9b, 80..FF=10b).
@@ -71,8 +71,17 @@ AdSkew:
 ** (00..0F=5b, 10..1F=6b, 20..3F=8b, 40..7F=10b, 80..FF=11b).
 * Skew=4: Lengths are 4/5/7/9/11/12 bits
 ** (00..07=4b, 08..0F=5b, 10..1F=7b, 20..3F=9b, 40..7F=11b, 80..FF=12b).
+* Skew=5: Lengths are 3/4/6/8/10/12/13 bits
+** (00..03=3b, 04..07=4b, 08..0F=6b, 10..1F=8b, 20..3F=10b, 40..7F=12b, 80..FF=13b).
 
-Encoding a symbol in the shortest range will push skew higher, whereas all symbols outside of this range will push skew lower (flattening the space).
+This will effectively consist of a unary-coded prefix (Q, as 0 or more 1 bits nominally terminated by a 0 bit) with a variable number of suffix bits, as dependent on the current skew, with the lonest case dropping the terminator bit for the unary code. Any remaining bits (beyond the prefix) will be encoded in nominal order (the bitstream will be LSB first, with the remaining bits of the symbol also encoded LSB first).
+
+Encoding a symbol in the shortest range (Q=0) will push skew higher, whereas all symbols outside of this range will push skew lower (causing the space to flatten).
+
+There will be a few special skew levels:
+* Skew=6 (5+): Same as Skew=5, except all symbols will push skew lower.
+* Skew=7 (-1): Same as Skew=0, except all symbols will push skew higher.
+** Skew 7 will wrap back to 0, and 0 will underflow to 7.
 
 If AdSkew is used (ectrl&0x20) && !(ectrl&0x10), will use AdSkew as the entropy coder rather than AdRice.
 

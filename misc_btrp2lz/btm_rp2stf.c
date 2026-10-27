@@ -153,7 +153,7 @@ int BTM_StfRk_ReadAdRiceSTF(BTM_StfRkCtx *ctx, byte *rkf, byte *stftab)
    (11: 8)=Prefix Len
    ( 7: 0)=Base
  */
-u16 btm_stfrk_skewtab[4*16]={
+const u16 btm_stfrk_skewtab[4*16]={
 /* Skew 0 */
 	0x8900, 0x8180, 0x8900, 0x8180,
 	0x8900, 0x8180, 0x8900, 0x8180,
@@ -176,7 +176,7 @@ u16 btm_stfrk_skewtab[4*16]={
 	0x5900, 0x6210, 0x5900, 0xB480,
 };
 
-u16 btm_stfrk_skewtab2[5*32]={
+const u16 btm_stfrk_skewtab2[5*32]={
 /* Skew 0 */
 	0x8900, 0x8180, 0x8900, 0x8180,	0x8900, 0x8180, 0x8900, 0x8180,
 	0x8900, 0x8180, 0x8900, 0x8180,	0x8900, 0x8180, 0x8900, 0x8180,
