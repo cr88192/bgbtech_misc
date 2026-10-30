@@ -97,7 +97,7 @@ static BTIC1H_VidCodecCTX *bt5c_begin_decompress(int fcc,
 	info->ihead->biSizeImage	=
 		out->biWidth*out->biHeight*out->biBitCount/8;
 
-	info->buffer=malloc(out->biWidth*out->biHeight*out->biBitCount/8);
+	info->buffer=malloc((out->biWidth+15)*(out->biHeight+15)*out->biBitCount/8);
 
 	info->pxsz=out->biBitCount/8;
 

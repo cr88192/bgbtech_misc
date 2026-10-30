@@ -94,6 +94,7 @@ struct BTIC5C_DecodeContext_s {
 	u32 blkhist[16];	//block history
 	
 	byte *zfbuf;		//LZ Frame temporary buffer
+	byte *z2fbuf;		//LZ Frame temporary buffer
 	int zfbsz;			//LZ Frame buffer size
 };
 
@@ -1460,6 +1461,7 @@ int BTIC5C_UnpackCellImageP_RGB24(
 	int xstr, bxstr, ystrb, flip, fulldec;
 	int bx, by, bz, bxs0, bys0;
 	
+	fulldec=0;
 	flip=0;
 	CopyFull=BTIC5C_RGB32_BlockCopyH4;
 
@@ -1646,6 +1648,7 @@ int BTIC5C_DecodeFrame(BTIC5C_DecodeContext *ctx,
 				sz=sz+(sz>>1);
 			ctx->zfbsz=sz;
 			ctx->zfbuf=malloc(sz);
+			ctx->z2fbuf=malloc(sz);
 		}
 
 		if((dsz+64)>ctx->zfbsz)
@@ -1655,9 +1658,18 @@ int BTIC5C_DecodeFrame(BTIC5C_DecodeContext *ctx,
 				sz=sz+(sz>>1);
 			ctx->zfbsz=sz;
 			ctx->zfbuf=realloc(ctx->zfbuf, sz);
+			ctx->z2fbuf=realloc(ctx->z2fbuf, sz);
 		}
-	
-		BTIC5C_DecodeBufferRP2(cs0+4, ctx->zfbuf, len, ctx->zfbsz);
+
+		if(((cs0[4]&0x0F)==0x00) && (cs0[5]==0x00))
+		{
+			PostRp2_DecodeBufferPostRp2(ctx->z2fbuf, cs0+4, ctx->zfbsz, len-4);
+			BTIC5C_DecodeBufferRP2(ctx->z2fbuf, ctx->zfbuf,
+				ctx->zfbsz, ctx->zfbsz);
+		}else
+		{
+			BTIC5C_DecodeBufferRP2(cs0+4, ctx->zfbuf, len, ctx->zfbsz);
+		}
 		
 		cdat=ctx->zfbuf;
 		csz=dsz;

@@ -53,6 +53,7 @@ struct BTIC5C_EncodeContext_s {
 	
 	byte *zfbuf;		//LZ Frame temporary buffer
 	int zfbsz;			//LZ Frame buffer size
+	byte *z2fbuf;		//LZ Frame temporary buffer
 };
 
 BTIC5C_EncodeContext *BTIC5C_AllocEncodeContext()
@@ -2113,7 +2114,7 @@ int BTIC5C_EncodeFrameImage(BTIC5C_EncodeContext *ctx,
 	byte thdb[64];
 	u64 *blka;
 	byte *ct;
-	int tfsz, osz, osz2, tot_clr;
+	int tfsz, osz, osz2, osz3, tot_clr;
 	int i, j, k;
 
 	if(!ctx)
@@ -2251,6 +2252,7 @@ int BTIC5C_EncodeFrameImage(BTIC5C_EncodeContext *ctx,
 		while(j<k)
 			j=j+(j>>1);
 		ctx->zfbuf=malloc(j);
+		ctx->z2fbuf=malloc(j);
 		ctx->zfbsz=j;
 	}
 
@@ -2261,10 +2263,23 @@ int BTIC5C_EncodeFrameImage(BTIC5C_EncodeContext *ctx,
 		while(j<k)
 			j=j+(j>>1);
 		ctx->zfbuf=realloc(ctx->zfbuf, j);
+		ctx->z2fbuf=realloc(ctx->z2fbuf, j);
 		ctx->zfbsz=j;
 	}
 
 	osz2=GfxEdit_EncodeRP2(ctx->zfbuf+12, obuf, ctx->zfbsz, osz);
+
+	osz3=PostRp2_EncodeBufferPostRp2Test(
+		ctx->z2fbuf+12, ctx->zfbuf+12,
+		ctx->zfbsz, osz2,
+		RP2POST_FLAGS_FAVOR_SPEED);
+
+	if((osz3>0) && ((osz3*1.10)<osz2))
+	{
+		memcpy(ctx->zfbuf, ctx->z2fbuf, osz3+16);
+		osz2=osz3;
+	}
+
 	k=osz2+12;
 	j=~k;
 	ctx->zfbuf[ 0]='Z';
@@ -2280,6 +2295,24 @@ int BTIC5C_EncodeFrameImage(BTIC5C_EncodeContext *ctx,
 	ctx->zfbuf[10]=osz>>16;
 	ctx->zfbuf[11]=osz>>24;
 	osz2+=12;
+
+#if 0
+	k=osz3+12;
+	j=~k;
+	ctx->z2fbuf[ 0]='Z';
+	ctx->z2fbuf[ 1]='3';
+	ctx->z2fbuf[ 2]=0;
+	ctx->z2fbuf[ 3]=0;
+	ctx->z2fbuf[ 4]=j  >> 0;
+	ctx->z2fbuf[ 5]=j  >> 8;
+	ctx->z2fbuf[ 6]=j  >>16;
+	ctx->z2fbuf[ 7]=j  >>24;
+	ctx->z2fbuf[ 8]=osz>> 0;
+	ctx->z2fbuf[ 9]=osz>> 8;
+	ctx->z2fbuf[10]=osz>>16;
+	ctx->z2fbuf[11]=osz>>24;
+	osz3+=12;
+#endif
 
 //	if((osz2*1.20)<osz)
 	if((osz2*1.12)<osz)

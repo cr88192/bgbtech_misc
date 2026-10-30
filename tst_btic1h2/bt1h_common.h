@@ -109,6 +109,9 @@ typedef signed long long s64;
 #define BTIC1H_FCC_bt5b	RIFF_MAKETAG('b','t','5','b')
 #define BTIC1H_FCC_bt5c	RIFF_MAKETAG('b','t','5','c')
 
+#define BTIC1H_FCC_upic	RIFF_MAKETAG('u','p','i','c')
+#define BTIC1H_FCC_upv1	RIFF_MAKETAG('u','p','v','1')
+
 #define BTIC1H_FCC_YUY2	RIFF_MAKETAG('Y','U','Y','2')
 #define BTIC1H_FCC_UYVY	RIFF_MAKETAG('U','Y','V','Y')
 

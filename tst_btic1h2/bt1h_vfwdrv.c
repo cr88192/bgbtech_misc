@@ -82,8 +82,19 @@ void btjpg_printf(char *str, ...);
 #include "bt5b_encode.c"
 
 #include "gfxedit_minrp2.c"
+
+#include "btm_rp2stf.c"
+#include "btm_rp2bitrc.c"
+#include "rp2post_h12d.c"
+#include "rp2post_h12e.c"
+#include "rp2post_auto.c"
+
 #include "bt5c_decode.c"
 #include "bt5c_encode.c"
+
+#include "tkupic_bcn.c"
+#include "tkupic_dec.c"
+#include "tkupic_enc.c"
 
 #include "snd_btac1c.c"
 
@@ -95,4 +106,5 @@ void btjpg_printf(char *str, ...);
 #include "btjdrv_codec_bt5a.c"
 #include "btjdrv_codec_bt5b.c"
 #include "btjdrv_codec_bt5c.c"
+#include "btjdrv_codec_upv1.c"
 #include "btjvfw_driverproc.c"
