@@ -229,7 +229,7 @@ int upv1_decompress_query(int fcc,
 int upv1_compress_frame(BTIC1H_VidCodecCTX *ctx,
 	void *src, void *dst, int dsz, int qfl, int clrs, int *rfl)
 {
-	static int leqfl;
+	static int leqfl, leinh;
 //	BTIC4B_Context *info;
 	btic5a_ctxinfo *info;
 	byte *ibuf1, *ibuf2, *ibuf;
@@ -267,14 +267,26 @@ int upv1_compress_frame(BTIC1H_VidCodecCTX *ctx,
 
 	if(qfl&BTIC1H_QFL_PFRAME)
 	{
-		qfl1|=leqfl&
-			(	TKUPI_ENCFL_USETNS_MSK |
-				TKUPI_ENCFL_USECLR_MSK |
-				TKUPI_ENCFL_USERK_MSK  );
+		if((qfl1<101) && (qfl1>82))
+			qfl1=82;
+	
+		if(leinh)
+		{
+			qfl1|=leqfl&
+				(	TKUPI_ENCFL_USETNS_MSK |
+					TKUPI_ENCFL_USECLR_MSK |
+					TKUPI_ENCFL_USERK_MSK  );
+			leinh--;
+		}else
+		{
+			qfl1|=TKUPI_ENCFL_ENCAUTO;
+			leinh=15;
+		}
 		qfl1|=TKUPI_ENCFL_PFRAME;
 	}else
 	{
 		qfl1|=TKUPI_ENCFL_ENCAUTO;
+		leinh=0;
 	}
 
 	if(info->flip)qfl1|=BTIC4B_QFL_FLIP;

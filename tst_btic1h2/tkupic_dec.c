@@ -52,6 +52,7 @@ struct TKuPI_DecState_s {
 	byte mbform;	//macroblock format
 	byte pixclrs;	//pixel format+colorspace
 	byte ectrl;		//entropy control
+	byte vctrl;		//video control
 	byte qtsc;		//quantizer space
 	byte ishdr;		//Is HDR/H variant
 	
@@ -1307,6 +1308,54 @@ void TKuPI_CopyTranslateMacroBlock(TKuPI_DecState *ctx,
 	}
 }
 
+int TKuPI_DecBoxBlurBlockNp(
+	u16 *dimg, int np)
+{
+//	u16 tblk[16*16*4];
+	int x, y, z, w, p;
+
+	for(p=0; p<np; p++)
+	{
+		for(y=0; y<16; y++)
+			for(x=0; x<16; x++)
+				for(z=0; z<4; z++)
+		{
+			w=(y*16+x)*4+z;
+			dimg[w]=
+				(  dimg[(w+ 0)&1023] +
+				   dimg[(w+ 4)&1023] +
+				   dimg[(w+64)&1023] +
+				   dimg[(w+68)&1023] ) >> 2;
+		}
+	}
+}
+
+int TKuPI_DecGaussBlurBlockNp(
+	u16 *dimg, int np)
+{
+	int x, y, z, w, p;
+
+	for(p=0; p<np; p++)
+	{
+		for(y=0; y<16; y++)
+			for(x=0; x<16; x++)
+				for(z=0; z<4; z++)
+		{
+			w=(y*16+x)*4+z;
+			dimg[w]=
+				(	16*dimg[(w+ 0)&1023] +
+					 3*dimg[(w+ 4)&1023] +
+					 3*dimg[(w+64)&1023] +
+					 3*dimg[(w- 4)&1023] +
+					 3*dimg[(w-64)&1023] +
+					 1*dimg[(w+68)&1023] +
+					 1*dimg[(w+60)&1023] +
+					 1*dimg[(w-68)&1023] +
+					 1*dimg[(w-60)&1023] ) >> 5;
+		}
+	}
+}
+
 void TKuPI_DecodeMacroBlockI(TKuPI_DecState *ctx,
 	u16 *oimg, int ostr,
 	byte *pimg, int pixs, int piys, int pixfmt)
@@ -1469,6 +1518,8 @@ void TKuPI_DecodeMacroBlockI(TKuPI_DecState *ctx,
 			TKuPI_CopyTranslateMacroBlock(ctx,
 				pmvblk, 16, pimg, pixs, piys, pixfmt,
 				mvx, mvy);
+			if(ctx->vctrl&7)
+				{ TKuPI_DecBoxBlurBlockNp(pmvblk, ctx->vctrl&3); }
 		}else
 		{
 			y=0x80;
@@ -1762,6 +1813,7 @@ int TKuPI_DecodeImageBufferI(TKuPI_DecState *ctx,
 			ctx->mbform=cs0[4];
 			ctx->pixclrs=cs0[5];
 			ctx->ectrl=cs0[6];
+			ctx->vctrl=cs0[7];
 			cs=ncs;
 			continue;
 		}

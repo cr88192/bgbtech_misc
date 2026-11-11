@@ -31,12 +31,15 @@ struct TKuPI_EncState_s {
 	byte mbform;
 	byte pixclrs;	//pixel format+colorspace
 	byte ectrl;
+	byte vctrl;
 	byte ishdr;
 	byte ispframe;	//video is P-Frame
 	
 	int enc_qfl;
 	int img_xs;
 	int img_ys;
+	int img_cxs;
+	int img_cys;
 	int img_mbcx;
 	int img_mbcy;
 	int img_mvx;
@@ -58,6 +61,12 @@ struct TKuPI_EncState_s {
 	u16 qtab_y[64];
 	u16 qtab_uv[64];
 	void (*WriteAdRice)(TKuPI_EncState *ctx, int val, byte *rkf);
+	
+	/* Motion Vector Predictors */
+	byte *mvxtab1;
+	byte *mvytab1;
+	byte *mvxtab2;
+	byte *mvytab2;
 };
 
 void TKuPI_WriteBits(TKuPI_EncState *ctx, int val, int bits)
@@ -376,7 +385,7 @@ int TKuPI_CalcQuantTrel(int dv, int q)
 void TKuPI_WriteBlockCoeffs(TKuPI_EncState *ctx,
 	s32 *blk, u16 *qtab, s32 *rpdc)
 {
-	int pdc, v, z;
+	int pdc, v, z, dz;
 	int i, j, k;
 	
 	pdc=*rpdc;
@@ -385,6 +394,24 @@ void TKuPI_WriteBlockCoeffs(TKuPI_EncState *ctx,
 	v=TKuPI_CalcQuantTrel(v-pdc, qtab[0]);
 	TKuPI_WriteCoeffDc(ctx, v);
 	*rpdc=pdc+(v*qtab[0]);
+	
+	if(qtab[63]>=10)
+	{
+		dz=qtab[63]/5;
+		for(i=1; i<64; i++)
+		{
+			j=tkupi_izigzag[i];
+			v=TKuPI_CalcQuantTrel(blk[j], qtab[j]);
+			if((v>dz) || v<(-dz))
+				break;
+		}
+		
+		if(i>=64)
+		{
+			TKuPI_WriteCoeffAc(ctx, 0, 0);
+			return;
+		}
+	}
 	
 //	printf("TKuPI_WriteBlockCoeffs: pdc=%d v=%d\n", pdc, v);
 	
@@ -1124,7 +1151,7 @@ void TKuPI_EncodeMacroBlockPI(TKuPI_EncState *ctx,
 	u16 tdblk[16*16*4];
 	u16 tablk[16*16*4];
 	int pvi, pvp, pvd, pva, dcbi;
-	int tea, ted, qtsc, mvx, mvy;
+	int tea, ted, qtsc, mvx, mvy, qtd;
 	int i, j, k;
 
 	if(!(ctx->ispframe&2))
@@ -1167,12 +1194,18 @@ void TKuPI_EncodeMacroBlockPI(TKuPI_EncState *ctx,
 
 	tea=0;
 	ted=0;
+	
+	qtd=ctx->qtab_y[63];
+	qtd=(qtd+1)>>1;
 
 	for(i=0; i<(256*4); i++)
 	{
 		pvi=img[i];
 		pvp=pimg[i];
 		pvd=pvi-pvp;
+//		pvd=((pvd+(qtd>>1))/qtd)*qtd;
+//		pvd=(pvd/qtd)*qtd;
+		
 		tdblk[i]=0x8000+pvd;
 		tablk[i]=0x8000+(pvi-dcbi);
 		
@@ -1182,7 +1215,13 @@ void TKuPI_EncodeMacroBlockPI(TKuPI_EncState *ctx,
 		ted+=j;
 	}
 
-	ted=ted*1.414;
+//	TKuPI_DecBoxBlurBlockNp(tdblk, 1);
+	TKuPI_DecGaussBlurBlockNp(tdblk, 1);
+
+//	ted=ted*1.414;
+//	ted=ted*1.67;
+	ted=ted*2.38;
+//	ted=ted*2.75;
 
 	/* Hack: The final row of blocks is buggy if partial... */
 	if(ctx->img_mbcy==(ctx->img_ys>>4))
@@ -1193,7 +1232,8 @@ void TKuPI_EncodeMacroBlockPI(TKuPI_EncState *ctx,
 //	if(0)
 	{
 		/* Is P-Frame, so check for Skip or Delta */
-		if(ted<(3*3*256))
+//		if(ted<(5*3*256))
+		if(ted<((qtd>>2)*3*256))
 			{ qtsc|= 1; }
 		else
 			{ qtsc&=~1; }
@@ -1368,6 +1408,40 @@ int TKuPI_EncCompareBlockError(TKuPI_EncState *ctx,
 	return(ted);
 }
 
+int TKuPI_EncBoxBlurBlockNp(TKuPI_EncState *ctx,
+	u16 *dimg, u16 *simg, int np)
+{
+//	u16 tblk[16*16*4];
+	int x, y, z, p;
+
+	if(dimg!=simg)
+	{
+		for(z=0; z<256*4; z++)
+			dimg[z]=simg[z];
+	}
+
+	for(p=0; p<np; p++)
+	{
+		for(y=0; y<16; y++)
+			for(x=0; x<15; x++)
+				for(z=0; z<4; z++)
+		{
+			dimg[(y*16+x)*4+z]=
+				(dimg[(y*16+(x+0))*4+z] +
+				 dimg[(y*16+(x+1))*4+z] ) >> 1;
+		}
+
+		for(x=0; x<16; x++)
+			for(y=0; y<15; y++)
+				for(z=0; z<4; z++)
+		{
+			dimg[(y*16+x)*4+z]=
+				(dimg[((y+0)*16+x)*4+z] +
+				 dimg[((y+1)*16+x)*4+z] ) >> 1;
+		}
+	}
+}
+
 void TKuPI_EncodeMacroBlockEdge(TKuPI_EncState *ctx,
 	byte *img, byte *pimg, int str, int frxs, int frys, int pixfmt)
 {
@@ -1379,7 +1453,7 @@ void TKuPI_EncodeMacroBlockEdge(TKuPI_EncState *ctx,
 	u16 *pct, *pcs2;
 	int pixsz, pixcn;
 	int bx0, by0;
-	int y, x, y1, x0, x1, x1l;
+	int y, x, z, y1, x0, x1, x1l;
 	int bmvx, bmvy, bted, imvx, imvy, ited, ted;
 
 	ctx->WriteAdRice=TKuPI_WriteAdRiceA;
@@ -1488,138 +1562,88 @@ void TKuPI_EncodeMacroBlockEdge(TKuPI_EncState *ctx,
 		imvx=ctx->img_mvx;
 		imvy=ctx->img_mvy;
 
-		if((imvx+bx0)<0)			imvx=0;
-		if((imvy+by0)<0)			imvy=0;
-		if((imvx+bx0)>=ctx->img_xs)	imvx=0;
-		if((imvx+by0)>=ctx->img_ys)	imvy=0;		
-
-		TKuPI_EncCopyTranslateMacroBlock(ctx, tpblk, 16,
-			pimg, ctx->img_xs, ctx->img_ys, pixfmt,
-			imvx, imvy);
-
-		ited=TKuPI_EncCompareBlockError(ctx, tblk, tpblk);
-		bmvx=imvx;	bmvy=imvy;	bted=ited;
-		
-		for(x=0; x<11; x++)
-			for(y=0; y<11; y++)
+		if(ctx->ispframe&1)
 		{
-			x1=ofstab[x];	y1=ofstab[y];
-			x1+=imvx;		y1+=imvy;
-			if((x1<(-32)) || (x1>=32))		continue;
-			if((y1<(-32)) || (y1>=32))		continue;
-			if((x1+bx0)<0)					continue;
-			if((y1+by0)<0)					continue;
-			if((x1+bx0)>=ctx->img_xs)		continue;
-			if((y1+by0)>=ctx->img_ys)		continue;
-			
-			TKuPI_EncCopyTranslateMacroBlock(ctx, tqblk, 16,
-				pimg, ctx->img_xs, ctx->img_ys, pixfmt,
-				x1, y1);
-			ted=TKuPI_EncCompareBlockError(ctx, tblk, tqblk);
-			if(ted<bted)
-				{ bmvx=x1; bmvy=y1; bted=ted; }
-		}
-		
-		if((bted<(ited*1.25)) ||
-			(imvx!=ctx->img_mvx) ||
-			(imvy!=ctx->img_mvy) )
-		{
-			ctx->img_mvx=bmvx;
-			ctx->img_mvy=bmvy;
+			if(bx0 && by0)
+			{
+				z=(ctx->img_mbcy*ctx->img_cxs)+ctx->img_mbcx;
+				imvx=((2*ctx->mvxtab2[z])+
+					ctx->mvxtab1[z-1]+ctx->mvxtab1[z-ctx->img_cxs])/4;
+				imvy=((2*ctx->mvytab2[z])+
+					ctx->mvytab1[z-1]+ctx->mvxtab1[z-ctx->img_cxs])/4;
+				imvx-=128;
+				imvy-=128;
+			}
+
+
+			if((imvx+bx0)<0)			imvx=0;
+			if((imvy+by0)<0)			imvy=0;
+			if((imvx+bx0)>=ctx->img_xs)	imvx=0;
+			if((imvx+by0)>=ctx->img_ys)	imvy=0;		
+
 			TKuPI_EncCopyTranslateMacroBlock(ctx, tpblk, 16,
 				pimg, ctx->img_xs, ctx->img_ys, pixfmt,
-				bmvx, bmvy);
-		}
+				imvx, imvy);
 
-#if 0
-		if(pixsz==1)
-		{
-			for(y=0; y<16; y++)
+			ited=TKuPI_EncCompareBlockError(ctx, tblk, tpblk);
+
+			z=(imvx*imvx)+(imvy*imvy);
+			z=(z/2)+1;
+			ited*=z;
+
+
+			bmvx=imvx;	bmvy=imvy;	bted=ited;
+			
+	//		for(x=0; x<11; x++)
+	//			for(y=0; y<11; y++)
+			for(x=0; x<7; x++)
+				for(y=0; y<7; y++)
 			{
-				y1=y+by0;
-				if(y1>=ctx->img_ys)
-					y1=ctx->img_ys-1;
-				if((y1<0) || ((y1<=0) && (bx0<0)))
-					{ y1=(bx0<0)?1:0; }
-				if((y1==(ctx->img_ys-1)) && ((bx0+15)>=ctx->img_xs))
-					y1=ctx->img_ys-2;
+				x1=ofstab[x];	y1=ofstab[y];
+				if(!x1 && !y1)					continue;
+				x1+=imvx;		y1+=imvy;
+				if((x1<(-32)) || (x1>=32))		continue;
+				if((y1<(-32)) || (y1>=32))		continue;
+				if((x1+bx0)<0)					continue;
+				if((y1+by0)<0)					continue;
+				if((x1+bx0)>=ctx->img_xs)		continue;
+				if((y1+by0)>=ctx->img_ys)		continue;
 				
-//				if(y1>=frys)
-//					y1=frys-1;
-			
-				pcs1=pimg+(y1*str*pixcn)+(bx0*pixcn);
-				pct=tpblk+y*16*4;
-				if(pixcn==4)
-				{
-					for(x0=0, x1=0; x0<64; x0+=4, x1+=4)
-					{
-//						if(x1>=x1l)
-//							x1-=4;
-						pct[x0+0]=pcs1[x1+0];
-						pct[x0+1]=pcs1[x1+1];
-						pct[x0+2]=pcs1[x1+2];
-						pct[x0+3]=pcs1[x1+3];
-					}
-				}else
-					if(pixcn==3)
-				{
-					for(x0=0, x1=0; x0<64; x0+=4, x1+=3)
-					{
-//						if(x1>=x1l)
-//							x1-=3;
-						pct[x0+0]=pcs1[x1+0];
-						pct[x0+1]=pcs1[x1+1];
-						pct[x0+2]=pcs1[x1+2];
-						pct[x0+3]=255;
-					}
-				}
-			}
-		}else
-			if(pixsz==2)
-		{
-			for(y=0; y<16; y++)
-			{
-//				y1=y;
-//				if(y1>=frys)
-//					y1=frys-1;
+				TKuPI_EncCopyTranslateMacroBlock(ctx, tqblk, 16,
+					pimg, ctx->img_xs, ctx->img_ys, pixfmt,
+					x1, y1);
+				
+				ted=TKuPI_EncCompareBlockError(ctx, tblk, tqblk);
 
-				y1=y+by0;
-				if(y1>=ctx->img_ys)
-					y1=ctx->img_ys-1;
-				if((y1<0) || ((y1<=0) && (bx0<0)))
-					{ y1=(bx0<0)?1:0; }
-				if((y1==(ctx->img_ys-1)) && ((bx0+15)>=ctx->img_xs))
-					y1=ctx->img_ys-2;
-			
-				pcs2=((u16 *)pimg)+(y1*str*pixcn)+(bx0*pixcn);
-				pct=tpblk+y*16*4;
-				if(pixcn==4)
-				{
-					for(x0=0, x1=0; x0<64; x0+=4, x1+=4)
-					{
-//						if(x1>=x1l)
-//							x1-=4;
-						pct[x0+0]=pcs2[x1+0];
-						pct[x0+1]=pcs2[x1+1];
-						pct[x0+2]=pcs2[x1+2];
-						pct[x0+3]=pcs2[x1+3];
-					}
-				}else
-					if(pixcn==3)
-				{
-					for(x0=0, x1=0; x0<64; x0+=4, x1+=3)
-					{
-//						if(x1>=x1l)
-//							x1-=3;
-						pct[x0+0]=pcs2[x1+0];
-						pct[x0+1]=pcs2[x1+1];
-						pct[x0+2]=pcs2[x1+2];
-						pct[x0+3]=0x3C00;
-					}
-				}
+				z=(x1*x1)+(y1*y1);
+				z=(z/2)+1;
+				ted*=z;
+
+				if(ted<bted)
+					{ bmvx=x1; bmvy=y1; bted=ted; }
 			}
+			
+			if((bted<(ited*1.25)) ||
+				(imvx!=ctx->img_mvx) ||
+				(imvy!=ctx->img_mvy) )
+			{
+				ctx->img_mvx=bmvx;
+				ctx->img_mvy=bmvy;
+				TKuPI_EncCopyTranslateMacroBlock(ctx, tpblk, 16,
+					pimg, ctx->img_xs, ctx->img_ys, pixfmt,
+					bmvx, bmvy);
+			}
+
+			z=(ctx->img_mbcy*ctx->img_cxs)+ctx->img_mbcx;
+			ctx->mvxtab1[z]=ctx->img_mvx+128;
+			ctx->mvytab1[z]=ctx->img_mvy+128;
 		}
-#endif
+		
+//		z=ctx->qtab_y[63]/8;
+//		TKuPI_EncBoxBlurBlockNp(ctx, tpblk, tpblk, z);
+
+		if(ctx->vctrl&7)
+			{ TKuPI_DecBoxBlurBlockNp(tpblk, ctx->vctrl&3); }
 
 		TKuPI_EncodeMacroBlockPI(ctx, tblk, tpblk, 16);
 		return;
@@ -1667,6 +1691,7 @@ int TKuPI_EncodeImageBuffer1I(TKuPI_EncState *ctx,
 	}
 	
 	ctx->ectrl=0;
+	ctx->vctrl=0;
 
 	ctx->pixclrs=0;
 	if((qfl&0x3000)==0x1000)
@@ -1682,7 +1707,34 @@ int TKuPI_EncodeImageBuffer1I(TKuPI_EncState *ctx,
 	ctx->ispframe=((qfl&0x100)!=0);
 
 	if(pimg)
+	{
 		ctx->ishdr|=2;
+		
+//		ctx->vctrl|=1;
+
+		cxs=(oxs+15)>>4;
+		cys=(oys+15)>>4;
+		ctx->img_cxs=cxs;
+		ctx->img_cys=cys;
+
+		if(!ctx->mvxtab1)
+		{
+			ctx->mvxtab1=tkupi_malloc(cxs*cys*5);
+			ctx->mvytab1=ctx->mvxtab1+(cxs*cys*1);
+			ctx->mvxtab2=ctx->mvxtab1+(cxs*cys*2);
+			ctx->mvytab2=ctx->mvxtab1+(cxs*cys*3);
+			memset(ctx->mvxtab1, 0x80, cxs*cys*4);
+		}else
+		{
+			if(ctx->ispframe&1)
+			{
+				memcpy(ctx->mvxtab2, ctx->mvxtab1, cxs*cys*2);
+			}else
+			{
+				memset(ctx->mvxtab1, 0x80, cxs*cys*4);
+			}
+		}
+	}
 
 #if 0
 	if(ctx->ispframe&1)
@@ -1869,6 +1921,7 @@ int TKuPI_EncodeImageBuffer1I(TKuPI_EncState *ctx,
 	*(byte *)(ct+12)=ctx->mbform;
 	*(byte *)(ct+13)=ctx->pixclrs;
 	*(byte *)(ct+14)=ctx->ectrl;
+	*(byte *)(ct+15)=ctx->vctrl;
 //	if(pixfmt==TKUPI_PIXFMT_BGRA32_F8)
 //		*(byte *)(ct+13)=1;
 //	if(pixsz==2)
@@ -2099,6 +2152,12 @@ int TKuPI_EncodeImageBufferI(TKuPI_EncState *ctx,
 		if(j && (qfl&TKUPI_ENCFL_USETNS_MSK))
 			continue;
 		if((qfl&127)>=97)
+		{
+			if(i==2)	continue;
+			if(j==3)	continue;
+		}
+
+		if(pimg)
 		{
 			if(i==2)	continue;
 			if(j==3)	continue;

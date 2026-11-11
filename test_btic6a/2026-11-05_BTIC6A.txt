@@ -1,0 +1,161 @@
+BTIC6A:
+* VQ based design partly inspired by Cinepak.
+
+Will have multiple levels of Codebook:
+* L0=16x16, L1=8x8, L2=4x4, L3=2x2
+* Each higher codebook will consist of a 2x2 pattern of the next lower codebook.
+* Logical codebook elements will be expressed in hilbert order;
+* Each sub-block will be rotated such that components are in Hilbert order.
+** With multiple levels, will form a Hilbert Curve
+* If there is a "miss" in a codebook, the block will be decomposed in a 2x2 pattern.
+* A miss at the smallest level will be encoded as YYYY U V
+* New items will be added to the front of the codebook.
+** Everything else will be shifted back by 1 position.
+
+Each codebook level will encode YUV deltas.
+
+Zero Runs will be a special case, in that all deltas will be 0, thus this sub-block will represent a flat color.
+
+This format will be fixed at a 4:2:0 chroma subsampling, with a simplified colorspace.
+
+Here, YUV will be defined as:
+* Y=(4*G+3*R+B)/8
+* U=(B-Y)/2+128
+* V=(R-Y)/2+128
+
+With an inverse transform as:
+* R=Y+(V-128)*2
+* B=Y+(U-128)*2
+* G=(8*Y-3*R-B)/4
+
+The goal of this colorspace mostly being to allow it to approximate the properties of YCbCr however within the limits of cheap integer arithmetic.
+
+
+For decoding, the image will be stored as if it were padded up to the next multiple of 16 pixels in both width and height. Additionally, an extra 16 pixels of padding space above the top and bottom of the image.
+
+For Skip+Translate, it will copy blocks with a pixel offset. If this offset goes off the edge of the image, it will wrap around to the next/previous scanline in X, or potentially into the padding space for Y. However, an encoder is not allowed to access the pixels outside these 16 scanlines of pad space.
+
+
+=== TLV Packaging ===
+
+Will use a scheme:
+
+  TwoCC case:
+  U16 tcc;      //TWOCC
+  U16 nLen;     //Length, as bitwise inverse, includes tag itself
+  BYTE data[(~nLen)-4];
+  -
+  FourCC case:
+  U32 fcc;      //FOURCC
+  U32 nLen;     //Length, as bitwise inverse, includes tag itself
+  BYTE data[(~nLen)-8];
+
+With TWOCC fields being zero expanded to FOURCC as needed, if the payload size exceeds 32K. The TWOCC and FOURCC fields only allow ASCII range characters, and the length is stored as a bitwise complement, as this allows for unambiguous detection of the tag format.
+
+Tags:
+* 'HX': Header (I-Frame Only)
+** U16 xsize;  //image width
+** U16 ysize;  //image height
+** U16 flags;  //Control Flags (MBZ for now)
+** U16 cbSize; //Size of each codebook level in log2 form
+** Rest, MBZ for now.
+* 'IX': I-Frame Image Data
+* 'PX': P-Frame Image Data
+* 'Z3': RP2 Compressed Image (Optional)
+
+If a 'Z3' tag is used, the frame image is RP2 compressed, with the decompressed data containing more TLV tags. Typically, the Z3 tag will be used to compress the entire frame.
+
+Header Image Size:
+* Will be expressed as the native (non-padded) image resoultion.
+
+Header cbSize:
+* ( 3: 0): Size of the L3 Codebook, Log2 (4..12)
+* ( 7: 4): Size of the L2 Codebook, Log2 (4..12)
+* (11: 8): Size of the L1 Codebook, Log2 (4..12)
+* (15:12): Size of the L0 Codebook, Log2 (4..12)
+
+
+=== Image Data ===
+
+Tags will generally be divided into levels, with some level of per-level state.
+A single linear command-stream will be used, but the command-stream will internally be divided into 4 levels for decoding.
+
+The decoding will start in L0, and may descend into each deeper level as driven by Decompose tags.
+
+For sake of decoding, the image data will be treated as a linear stream of bytes.
+
+
+General Tag Structure (Tag Byte):
+       ppppppp0  Index into current codebook's STF (1..128);
+       nnnn0001  Zero Run of 1-16 blocks (at current level)
+    PP pppp1001  Freshen Index into Current Codebook, 1..4K
+  4*XX xxxxw101  (L3) 6x 6b delta (w=Left-Shift of 1 or 2 bits)
+       nnnn0101  (L0..L2) Skip 1-16 blocks at current level
+       nnnn1101  -
+    PP pppp0011  Index into Current Codebook, 1..4K
+  4*XX xxxx1011  (L3) 6x 6b delta (-32..31)
+    XX xxxx1011  (L0) 2x 6b Set-Translate (X/Y -31..31 in pixels)
+ 6n*XX nn000111  (L3) Block 1: 6x 8b Delta (6 bytes)
+ 3n*XX nn010111  (L3) Block 2: 6x 4b Delta (3 bytes), Shift=2 (-32..28)
+ 4n*XX nn100111  (L3) Block 3: 6x 5b Delta (4 bytes), Shift=0..3
+ 3n*XX nn110111  (L3) Block 4: 6x 4b Delta (3 bytes), Shift=3 (-64..56)
+       nnn00111  (L0..L2) Decompose 1
+       nnn10111  (L0/L1) Decompose 2
+
+The decompose operation will effectively encode how many levels to decompose, and how many decomposed blocks to encode at that level before checking for a new tag (when 'nn' is non-zero, it will descend to a level and behave as-if n 1-level decompose tags had been encoded).
+
+When at the last level (2x2), the block commands will be understood as:
+* Block 1: Multiples of 6 bytes (8b / component);
+* Block 2: Multiples of 3 bytes (4b / component), Shift=2;
+* Block 3: Multiples of 4 bytes (5b / component), Shift=0..3;
+* Block 4: Multiples of 3 bytes (4b / component), Shift=3;
+* Where, 'n' will give the number of 2x2 blocks (1..4).
+
+The Block 1 case will store the components as raw 8 bit deltas within a space that is modulo 256. The deltas will be stored in the order (Y0, Y1, Y2, Y3, U, V).
+
+The Block 2 and 4 cases will reduce each Delta to 4 bits, which are expanced to 8 bits as ((V-8)<<Shift). The elements will be packed in LSB first order, and will typically be decoded using shift-and-mask logic.
+
+The Block 3 case will be similar, just with the low 2 bits holding the shift, and the other elements being 5 bits with a bias of 16.
+
+Similarly, the 6x6b blocks will use a similar structure, just with a bias of 32, and a shift that is encoded via the tag (0..2).
+
+The Zero Run cases will mostly encode the equivalent of blocks where all the deltas hold zeroes.
+
+
+At the other levels:
+* Decompose 1: Decompose current level down into sub-blocks.
+** 'n' will specify the number of decomposed blocks at the current level.
+* Decompose 2: Decompose at current level and next level down into sub-blocks.
+** 'n' will specify the number of decomposed blocks at the next level down.
+** This will only be allowed on the upper 2 levels (8x8 and 16x16).
+** If For n=1..4, decomposes the current block; 5..8 also decomposes next block
+*** Will be like a Decompose 1 (n=2) followed by another Decompose 1
+
+
+After each decomposed block, the block in question will be added to the front of the codebook for that level. The given pattern may be reused again later by using an index into the current codebook.
+
+Within L0 .. L2, the blocks will depend on codebook entries within the smaller levels. When a dependency falls off the end of its respective codebook, the entry within the next larger codebook will become invalid and may no longer be used.
+
+
+An index may be encoded into the current codebook, either as a basic index or as a Freshen operation. In the basic case, it refers to the given position in the codebook. This codebook entry is also added to the front of the corresponding STF table.
+
+The Freshen case is functionally similar to the basic case, but will re-add a copy of the corresponding codebook entry to the front of the current codebook. Note that it will not freshen sub-blocks, so a freshened block that depends on state components will still become invalid once those components fall off the end.
+
+There will also be an STF table for each codebook level.
+This table will hold indices into the corresponding codebook.
+
+Referring to the codebook will add the item to the front of the STF and shift the STF back by 1 position, whereas refering to an item in the STF will swap the item forward (swapping it with the item at 7/8 of the current position).
+
+
+Skip will be allowed down to 4x4 blocks, however the ability to specify translation will only apply to L0. The blocks at L1 and L2 will inherit the active translation from L0.
+
+
+In terms of YUV delta behavior, the Skip blocks will behave the same as a Zero block.
+
+As each block is displayed, the running YUV state will be updated based on the deltas in the codebook entry for the block. Within the blocks, each sub-block will be treated as a linear subset, however when mapped to the output pixels, they will follow a Hilbert curve (with the 4-level Hilbert curve naturally forming a 16x16 pixel block).
+
+
+In the initial decoder state, the starting YUV values will all be 0x80.
+
+Note that the initial codebook state will be empty at the start of each frame. The codebook will be built solely from patterns encountered within the process of encoding the frame.
+

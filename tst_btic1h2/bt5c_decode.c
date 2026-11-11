@@ -585,6 +585,7 @@ u64 BTIC5C_DecodeBlock_Dummy(BTIC5C_DecodeContext *ctx, int c_bx, int c_by)
 	byte *cs;
 	u64 blk;
 	u32 px, clr;
+	int bxs, bys;
 	int bx, by, md, dy;
 
 	ctx->n_dummy--;
@@ -594,7 +595,11 @@ u64 BTIC5C_DecodeBlock_Dummy(BTIC5C_DecodeContext *ctx, int c_bx, int c_by)
 	{
 		bx=c_bx+ctx->skip_ox;
 		by=c_by+ctx->skip_oy;
-		return(ctx->lblka[by*ctx->bxs+bx]);
+		bxs=ctx->bxs;
+		bys=ctx->bys;
+		if((bx<0) || (by<0) || (bx>=bxs) || (by>bys))
+			return(0);
+		return(ctx->lblka[by*bxs+bx]);
 	}
 
 	if(md==2)
@@ -1644,23 +1649,24 @@ int BTIC5C_DecodeFrame(BTIC5C_DecodeContext *ctx,
 		if(!ctx->zfbuf)
 		{
 			sz=4096;
-			while(sz<=(dsz+64))
+			while(sz<=(dsz+512))
 				sz=sz+(sz>>1);
 			ctx->zfbsz=sz;
 			ctx->zfbuf=malloc(sz);
 			ctx->z2fbuf=malloc(sz);
 		}
 
-		if((dsz+64)>ctx->zfbsz)
+		if((dsz+512)>ctx->zfbsz)
 		{
 			sz=ctx->zfbsz;
-			while(sz<=(dsz+64))
+			while(sz<=(dsz+512))
 				sz=sz+(sz>>1);
 			ctx->zfbsz=sz;
 			ctx->zfbuf=realloc(ctx->zfbuf, sz);
 			ctx->z2fbuf=realloc(ctx->z2fbuf, sz);
 		}
-
+		
+//		if((cs0[4]==0x20) && (cs0[5]==0x00))
 		if(((cs0[4]&0x0F)==0x00) && (cs0[5]==0x00))
 		{
 			PostRp2_DecodeBufferPostRp2(ctx->z2fbuf, cs0+4, ctx->zfbsz, len-4);
