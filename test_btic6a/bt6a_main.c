@@ -7,8 +7,6 @@
 
 #include "repak_core.h"
 
-#if 0
-
 #include "gfxedit_minrp2.c"
 
 // #include "rp2post_h12d.c"
@@ -21,8 +19,6 @@
 #include "rp2post_h12e.c"
 
 #include "rp2post_auto.c"
-
-#endif
 
 #include "bt6a_decode.c"
 #include "bt6a_encode.c"

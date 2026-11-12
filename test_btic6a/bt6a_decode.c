@@ -54,12 +54,6 @@ struct BTIC6A_DecodeContext_s {
 	byte *cs;			//current position
 	byte *lcs;			//lst position
 
-//	byte cb_2x2_y[BTIC6A_CBSZ_2X*4];
-//	byte cb_2x2_c[BTIC6A_CBSZ_2X*2];
-//	u16 cb_4x4   [BTIC6A_CBSZ_4X*4];
-//	u16 cb_8x8   [BTIC6A_CBSZ_8X*4];
-//	u16 cb_16x16 [BTIC6A_CBSZ_16X*4];
-
 	byte *cb_2x2_y;
 	byte *cb_2x2_c;
 	u16 *cb_4x4;
@@ -98,6 +92,10 @@ struct BTIC6A_DecodeContext_s {
 	byte acc_skip_l2;
 	byte acc_skip_l1;
 	byte acc_skip_l0;
+
+	byte acc_dcmz_l2;
+	byte acc_dcmz_l1;
+	byte acc_dcmz_l0;
 
 
 	byte *tfzbuf;
@@ -156,37 +154,6 @@ BTIC6A_DecodeContext *BTIC6A_AllocDecodeContext()
 	return(ctx);
 }
 
-int BTIC6A_DecodeCopyMacroblockSkip(BTIC6A_DecodeContext *ctx)
-{
-	byte *cimg, *pimg;
-	u32 *cs, *ct;
-	int mx, my, bx, by, bz, px, py, pz, xs, ys;
-	int i, j, k;
-
-	xs=ctx->xs;		ys=ctx->ys;
-	bx=ctx->c_x*16;	by=ctx->c_y*16;
-	mx=ctx->mv_x;	my=ctx->mv_y;
-	px=bx+mx;		py=by+my;
-	cimg=ctx->cimg;	pimg=ctx->pimg;
-	bz=by*xs+bx;
-	pz=py*xs+px;
-	ct=((u32 *)cimg)+bz;
-	cs=((u32 *)pimg)+pz;
-
-	for(i=0; i<4; i++)
-	{
-		memcpy(ct, cs, 16*4);
-		ct+=xs;	cs+=xs;
-		memcpy(ct, cs, 16*4);
-		ct+=xs;	cs+=xs;
-		memcpy(ct, cs, 16*4);
-		ct+=xs;	cs+=xs;
-		memcpy(ct, cs, 16*4);
-		ct+=xs;	cs+=xs;
-	}
-	return(0);
-}
-
 int BTIC6A_DecodeTransColorRGB24(BTIC6A_DecodeContext *ctx)
 {
 	int cr, cg, cb, cy, cu, cv, px;
@@ -210,29 +177,248 @@ int BTIC6A_DecodeTransColorRGB24(BTIC6A_DecodeContext *ctx)
 	return(px);
 }
 
-void BTIC6A_DecodeMacroblockPixelsZero(BTIC6A_DecodeContext *ctx)
+void BTIC6A_DecodeBlock3Pixels2xIndex(BTIC6A_DecodeContext *ctx,
+	byte *cibase, int ystride, int ixi, int rot)
 {
-	byte *cimg;
+	byte *cict[4];
+	byte *ctb;
 	u32 *ct;
 	u32 px;
-	int bx, by, bz, xs, ys;
-	int x, y;
+	byte *cs_y, *cs_c;
+	int cy0, cy1, cy2, cy3, cu, cv, cu1, cv1;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+	int msk;
+	int i, str1, pz;
 
-	px=BTIC6A_DecodeTransColorRGB24(ctx);
-
-	xs=ctx->xs;		ys=ctx->ys;
-	bx=ctx->c_x*16;	by=ctx->c_y*16;
-	cimg=ctx->cimg;
+	msk=ctx->msk_2x2;
+	cs_y=ctx->cb_2x2_y+((ixi&msk)*4);
+	cs_c=ctx->cb_2x2_c+((ixi&msk)*2);
 	
-	bz=(by*xs+bx)*4;
-	ct=(u32 *)(cimg+bz);
-	for(y=0; y<16; y++)
+	cy0=cs_y[0];	cy1=cs_y[1];
+	cy2=cs_y[2];	cy3=cs_y[3];
+	cu=cs_c[0];		cv=cs_c[1];
+	cy0=((ctx->clr_y)+cy0)&255;		cy1=(cy0+cy1)&255;
+	cy2=(cy1+cy2)&255;				cy3=(cy2+cy3)&255;
+	cu=((ctx->clr_u)+cu)&255;		cv=((ctx->clr_v)+cv)&255;
+	ctx->clr_y=cy3;		ctx->clr_u=cu;		ctx->clr_v=cv;
+	
+	cu1=((cu-128)*2);				cv1=((cv-128)*2);
+	cb0=cy0+cu1;	cr0=cy0+cv1;	cb1=cy1+cu1;	cr1=cy1+cv1;
+	cb2=cy2+cu1;	cr2=cy2+cv1;	cb3=cy3+cu1;	cr3=cy3+cv1;
+	cg0=(8*cy0-cr0*3-cb0)>>2;		cg1=(8*cy1-cr1*3-cb1)>>2;
+	cg2=(8*cy2-cr2*3-cb2)>>2;		cg3=(8*cy3-cr3*3-cb3)>>2;
+	
+	if((cr0|cr1|cr2|cr3)&(~255))
+	{	cr0=btic6a_clamp255(cr0);	cr1=btic6a_clamp255(cr1);
+		cr2=btic6a_clamp255(cr2);	cr3=btic6a_clamp255(cr3);	}
+	if((cg0|cg1|cg2|cg3)&(~255))
+	{	cg0=btic6a_clamp255(cg0);	cg1=btic6a_clamp255(cg1);
+		cg2=btic6a_clamp255(cg2);	cg3=btic6a_clamp255(cg3);	}
+	if((cb0|cb1|cb2|cb3)&(~255))
+	{	cb0=btic6a_clamp255(cb0);	cb1=btic6a_clamp255(cb1);
+		cb2=btic6a_clamp255(cb2);	cb3=btic6a_clamp255(cb3);	}
+	
+	ctb=cibase+2*ystride;
+	cict[bt6a_rotab[rot+ 0]]=cibase+0;
+	cict[bt6a_rotab[rot+ 4]]=cibase+2*4;
+	cict[bt6a_rotab[rot+ 8]]=ctb;
+	cict[bt6a_rotab[rot+12]]=ctb+2*4;
+
+	str1=ystride>>2;
+	
+	ct=(u32 *)(cict[0]);
+	px=cb0|(cg0<<8)|(cr0<<16)|(255<<24);
+	ct[0]=px; ct[1]=px; ct+=str1;
+	ct[0]=px; ct[1]=px;
+	
+	ct=(u32 *)(cict[1]);
+	px=cb1|(cg1<<8)|(cr1<<16)|(255<<24);
+	ct[0]=px; ct[1]=px; ct+=str1;
+	ct[0]=px; ct[1]=px;
+	
+	ct=(u32 *)(cict[2]);
+	px=cb2|(cg2<<8)|(cr2<<16)|(255<<24);
+	ct[0]=px; ct[1]=px; ct+=str1;
+	ct[0]=px; ct[1]=px;
+	
+	ct=(u32 *)(cict[3]);
+	px=cb3|(cg3<<8)|(cr3<<16)|(255<<24);
+	ct[0]=px; ct[1]=px; ct+=str1;
+	ct[0]=px; ct[1]=px;
+}
+
+void BTIC6A_DecodeBlock3Pixels4xIndex(BTIC6A_DecodeContext *ctx,
+	byte *cibase, int ystride, int ixi, int rot)
+{
+	byte *cict[4];
+	byte *ctb;
+	u32 *ct;
+	u32 px;
+	byte *cs_y, *cs_c;
+	int cy0, cy1, cy2, cy3, cu, cv, cu1, cv1;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+	int msk;
+	int i, str1, pz;
+
+	msk=ctx->msk_2x2;
+	cs_y=ctx->cb_2x2_y+((ixi&msk)*4);
+	cs_c=ctx->cb_2x2_c+((ixi&msk)*2);
+	
+	cy0=cs_y[0];	cy1=cs_y[1];
+	cy2=cs_y[2];	cy3=cs_y[3];
+	cu=cs_c[0];		cv=cs_c[1];
+	cy0=((ctx->clr_y)+cy0)&255;		cy1=(cy0+cy1)&255;
+	cy2=(cy1+cy2)&255;				cy3=(cy2+cy3)&255;
+	cu=((ctx->clr_u)+cu)&255;		cv=((ctx->clr_v)+cv)&255;
+	ctx->clr_y=cy3;		ctx->clr_u=cu;		ctx->clr_v=cv;
+	
+	cu1=((cu-128)*2);				cv1=((cv-128)*2);
+	cb0=cy0+cu1;	cr0=cy0+cv1;	cb1=cy1+cu1;	cr1=cy1+cv1;
+	cb2=cy2+cu1;	cr2=cy2+cv1;	cb3=cy3+cu1;	cr3=cy3+cv1;
+	cg0=(8*cy0-cr0*3-cb0)>>2;		cg1=(8*cy1-cr1*3-cb1)>>2;
+	cg2=(8*cy2-cr2*3-cb2)>>2;		cg3=(8*cy3-cr3*3-cb3)>>2;
+	
+	if((cr0|cr1|cr2|cr3)&(~255))
+	{	cr0=btic6a_clamp255(cr0);	cr1=btic6a_clamp255(cr1);
+		cr2=btic6a_clamp255(cr2);	cr3=btic6a_clamp255(cr3);	}
+	if((cg0|cg1|cg2|cg3)&(~255))
+	{	cg0=btic6a_clamp255(cg0);	cg1=btic6a_clamp255(cg1);
+		cg2=btic6a_clamp255(cg2);	cg3=btic6a_clamp255(cg3);	}
+	if((cb0|cb1|cb2|cb3)&(~255))
+	{	cb0=btic6a_clamp255(cb0);	cb1=btic6a_clamp255(cb1);
+		cb2=btic6a_clamp255(cb2);	cb3=btic6a_clamp255(cb3);	}
+	
+	ctb=cibase+4*ystride;
+	cict[bt6a_rotab[rot+ 0]]=cibase+0;
+	cict[bt6a_rotab[rot+ 4]]=cibase+4*4;
+	cict[bt6a_rotab[rot+ 8]]=ctb;
+	cict[bt6a_rotab[rot+12]]=ctb+4*4;
+
+	str1=ystride>>2;
+	
+	ct=(u32 *)(cict[0]);
+	px=cb0|(cg0<<8)|(cr0<<16)|(255<<24);
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+	
+	ct=(u32 *)(cict[1]);
+	px=cb1|(cg1<<8)|(cr1<<16)|(255<<24);
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+	
+	ct=(u32 *)(cict[2]);
+	px=cb2|(cg2<<8)|(cr2<<16)|(255<<24);
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+	
+	ct=(u32 *)(cict[3]);
+	px=cb3|(cg3<<8)|(cr3<<16)|(255<<24);
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+}
+
+void BTIC6A_DecodeBlock3Pixels8xIndex(BTIC6A_DecodeContext *ctx,
+	byte *cibase, int ystride, int ixi, int rot)
+{
+	byte *cict[4];
+	u32 pxa[4];
+	byte *ctb;
+	u32 *ct;
+	u32 px;
+	byte *cs_y, *cs_c;
+	int cy0, cy1, cy2, cy3, cu, cv, cu1, cv1;
+	int cr0, cr1, cr2, cr3;
+	int cg0, cg1, cg2, cg3;
+	int cb0, cb1, cb2, cb3;
+	int msk;
+	int i, str1, pz;
+
+	msk=ctx->msk_2x2;
+	cs_y=ctx->cb_2x2_y+((ixi&msk)*4);
+	cs_c=ctx->cb_2x2_c+((ixi&msk)*2);
+	
+	cy0=cs_y[0];	cy1=cs_y[1];
+	cy2=cs_y[2];	cy3=cs_y[3];
+	cu=cs_c[0];		cv=cs_c[1];
+	cy0=((ctx->clr_y)+cy0)&255;		cy1=(cy0+cy1)&255;
+	cy2=(cy1+cy2)&255;				cy3=(cy2+cy3)&255;
+	cu=((ctx->clr_u)+cu)&255;		cv=((ctx->clr_v)+cv)&255;
+	ctx->clr_y=cy3;		ctx->clr_u=cu;		ctx->clr_v=cv;
+	
+	cu1=((cu-128)*2);				cv1=((cv-128)*2);
+	cb0=cy0+cu1;	cr0=cy0+cv1;	cb1=cy1+cu1;	cr1=cy1+cv1;
+	cb2=cy2+cu1;	cr2=cy2+cv1;	cb3=cy3+cu1;	cr3=cy3+cv1;
+	cg0=(8*cy0-cr0*3-cb0)>>2;		cg1=(8*cy1-cr1*3-cb1)>>2;
+	cg2=(8*cy2-cr2*3-cb2)>>2;		cg3=(8*cy3-cr3*3-cb3)>>2;
+	
+	if((cr0|cr1|cr2|cr3)&(~255))
+	{	cr0=btic6a_clamp255(cr0);	cr1=btic6a_clamp255(cr1);
+		cr2=btic6a_clamp255(cr2);	cr3=btic6a_clamp255(cr3);	}
+	if((cg0|cg1|cg2|cg3)&(~255))
+	{	cg0=btic6a_clamp255(cg0);	cg1=btic6a_clamp255(cg1);
+		cg2=btic6a_clamp255(cg2);	cg3=btic6a_clamp255(cg3);	}
+	if((cb0|cb1|cb2|cb3)&(~255))
+	{	cb0=btic6a_clamp255(cb0);	cb1=btic6a_clamp255(cb1);
+		cb2=btic6a_clamp255(cb2);	cb3=btic6a_clamp255(cb3);	}
+	
+	ctb=cibase+8*ystride;
+	cict[bt6a_rotab[rot+ 0]]=cibase+0;
+	cict[bt6a_rotab[rot+ 4]]=cibase+8*4;
+	cict[bt6a_rotab[rot+ 8]]=ctb;
+	cict[bt6a_rotab[rot+12]]=ctb+8*4;
+
+	str1=ystride>>2;
+
+	pxa[0]=cb0|(cg0<<8)|(cr0<<16)|(255<<24);
+	pxa[1]=cb1|(cg1<<8)|(cr1<<16)|(255<<24);
+	pxa[2]=cb2|(cg2<<8)|(cr2<<16)|(255<<24);
+	pxa[3]=cb3|(cg3<<8)|(cr3<<16)|(255<<24);
+	
+	for(i=0; i<4; i++)
 	{
-		ct[ 0]=px; ct[ 1]=px; ct[ 2]=px; ct[ 3]=px;
-		ct[ 4]=px; ct[ 5]=px; ct[ 6]=px; ct[ 7]=px;
-		ct[ 8]=px; ct[ 9]=px; ct[10]=px; ct[11]=px;
-		ct[12]=px; ct[13]=px; ct[14]=px; ct[15]=px;
-		ct+=xs;
+		ct=(u32 *)(cict[i]);
+		px=pxa[i];
+
+		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+		ct+=str1;
+		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+		ct+=str1;
+		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+		ct+=str1;
+		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+		ct+=str1;
+
+		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+		ct+=str1;
+		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+		ct+=str1;
+		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+		ct+=str1;
+		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+		ct+=str1;
+		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+		ct+=str1;
 	}
 }
 
@@ -264,25 +450,18 @@ void BTIC6A_DecodeBlock3PixelsIndex(BTIC6A_DecodeContext *ctx,
 	msk=ctx->msk_2x2;
 	cs_y=ctx->cb_2x2_y+((ixi&msk)*4);
 	cs_c=ctx->cb_2x2_c+((ixi&msk)*2);
-//	yst4=ystride;
-//	xst4=4;
 	
-	cy0=cs_y[0];
-	cy1=cs_y[1];
-	cy2=cs_y[2];
-	cy3=cs_y[3];
-	cu=cs_c[0];
-	cv=cs_c[1];
+	cy0=cs_y[0];	cy1=cs_y[1];
+	cy2=cs_y[2];	cy3=cs_y[3];
+	cu=cs_c[0];		cv=cs_c[1];
 	
-	if(!(ixi&0x4000))
-	{
-		cy0=((ctx->clr_y)+cy0)&255;
-		cy1=(cy0+cy1)&255;
-		cy2=(cy1+cy2)&255;
-		cy3=(cy2+cy3)&255;
-		cu=((ctx->clr_u)+cu)&255;
-		cv=((ctx->clr_v)+cv)&255;
-	}
+	cy0=((ctx->clr_y)+cy0)&255;
+	cy1=(cy0+cy1)&255;
+	cy2=(cy1+cy2)&255;
+	cy3=(cy2+cy3)&255;
+	cu=((ctx->clr_u)+cu)&255;
+	cv=((ctx->clr_v)+cv)&255;
+
 	ctx->clr_y=cy3;
 	ctx->clr_u=cu;
 	ctx->clr_v=cv;
@@ -321,24 +500,41 @@ void BTIC6A_DecodeBlock3PixelsIndex(BTIC6A_DecodeContext *ctx,
 }
 
 void BTIC6A_DecodeBlock2PixelsIndex(BTIC6A_DecodeContext *ctx,
-	byte *cibase, int ystride, int ixi, int rot)
+	byte *cibase, byte *pibase, int ystride, int ixi, int rot)
 {
 	byte *cict[4];
 	byte *ctb;
-	u32 *ct;
+	u32 *ct, *cs;
 	u32 px;
 	u16 *csi;
 	int i, str1, xst4, yst4;
 
-	if(ixi==0xFFFF)
+	if(ixi&0x8000)
 	{
-		px=BTIC6A_DecodeTransColorRGB24(ctx);
-		ct=(u32 *)cibase;
-		str1=ystride>>2;
-		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
-		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
-		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
-		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+		if(ixi==0xFFFF)
+		{
+			px=BTIC6A_DecodeTransColorRGB24(ctx);
+			ct=(u32 *)cibase;		str1=ystride>>2;
+			ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+			ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+			ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
+			ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+			return;
+		}
+		if(ixi==0xFFFC)
+		{
+			ct=(u32 *)cibase;	cs=(u32 *)pibase;	str1=ystride>>2;
+			ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3]; ct+=str1;
+			ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3]; ct+=str1;
+			ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3]; ct+=str1;
+			ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3];
+			return;
+		}
+	}
+
+	if(ixi&0x4000)
+	{
+		BTIC6A_DecodeBlock3Pixels2xIndex(ctx, cibase, ystride, ixi, rot);
 		return;
 	}
 
@@ -363,27 +559,44 @@ void BTIC6A_DecodeBlock2PixelsIndex(BTIC6A_DecodeContext *ctx,
 }
 
 void BTIC6A_DecodeBlock1PixelsIndex(BTIC6A_DecodeContext *ctx,
-	byte *cibase, int ystride, int ixi, int rot)
+	byte *cibase, byte *pibase, int ystride, int ixi, int rot)
 {
-	byte *cict[4];
-	byte *ctb;
-	u32 *ct;
+	int ciof[4];
+	u32 *ct, *cs;
 	u32 px;
 	u16 *csi;
 	int i, str1, xst4, yst4;
 
-	if(ixi==0xFFFF)
+	if(ixi&0x8000)
 	{
-		px=BTIC6A_DecodeTransColorRGB24(ctx);
-		ct=(u32 *)cibase;
-		str1=ystride>>2;
-
-		for(i=0; i<8; i++)
+		if(ixi==0xFFFF)
 		{
-			ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
-			ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
-			ct+=str1;
+			px=BTIC6A_DecodeTransColorRGB24(ctx);
+			ct=(u32 *)cibase;		str1=ystride>>2;
+			for(i=0; i<8; i++)
+			{
+				ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
+				ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
+				ct+=str1;
+			}
+			return;
 		}
+		if(ixi==0xFFFC)
+		{
+			ct=(u32 *)cibase;	cs=(u32 *)pibase;	str1=ystride>>2;
+			for(i=0; i<8; i++)
+			{
+				ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3];
+				ct[4]=cs[4]; ct[5]=cs[5]; ct[6]=cs[6]; ct[7]=cs[7];
+				ct+=str1; cs+=str1;
+			}
+			return;
+		}
+	}
+
+	if(ixi&0x4000)
+	{
+		BTIC6A_DecodeBlock3Pixels4xIndex(ctx, cibase, ystride, ixi, rot);
 		return;
 	}
 
@@ -391,46 +604,69 @@ void BTIC6A_DecodeBlock1PixelsIndex(BTIC6A_DecodeContext *ctx,
 	yst4=ystride*4;
 	xst4=4*4;
 	
-	ctb=cibase+yst4;
-	cict[bt6a_rotab[rot+ 0]]=cibase+0;
-	cict[bt6a_rotab[rot+ 4]]=cibase+xst4;
-	cict[bt6a_rotab[rot+ 8]]=ctb;
-	cict[bt6a_rotab[rot+12]]=ctb+xst4;
+	ciof[bt6a_rotab[rot+ 0]]=0;
+	ciof[bt6a_rotab[rot+ 4]]=xst4;
+	ciof[bt6a_rotab[rot+ 8]]=yst4;
+	ciof[bt6a_rotab[rot+12]]=yst4+xst4;
 	
+	i=ciof[0];
 	BTIC6A_DecodeBlock2PixelsIndex(ctx,
-		cict[0], ystride, csi[0], bt6a_rttab[rot+ 0]);
+		cibase+i, pibase+i, ystride, csi[0], bt6a_rttab[rot+ 0]);
+	i=ciof[1];
 	BTIC6A_DecodeBlock2PixelsIndex(ctx,
-		cict[1], ystride, csi[1], bt6a_rttab[rot+ 4]);
+		cibase+i, pibase+i, ystride, csi[1], bt6a_rttab[rot+ 4]);
+	i=ciof[2];
 	BTIC6A_DecodeBlock2PixelsIndex(ctx,
-		cict[2], ystride, csi[2], bt6a_rttab[rot+ 8]);
+		cibase+i, pibase+i, ystride, csi[2], bt6a_rttab[rot+ 8]);
+	i=ciof[3];
 	BTIC6A_DecodeBlock2PixelsIndex(ctx,
-		cict[3], ystride, csi[3], bt6a_rttab[rot+12]);
+		cibase+i, pibase+i, ystride, csi[3], bt6a_rttab[rot+12]);
 }
 
 void BTIC6A_DecodeBlock0PixelsIndex(BTIC6A_DecodeContext *ctx,
-	byte *cibase, int ystride, int ixi, int rot)
+	byte *cibase, byte *pibase, int ystride, int ixi, int rot)
 {
-	byte *cict[4];
-	byte *ctb;
-	u32 *ct;
+	int ciof[4];
+	u32 *ct, *cs;
 	u32 px;
 	u16 *csi;
 	int i, str1, xst4, yst4;
 
-	if(ixi==0xFFFF)
+	if(ixi&0x8000)
 	{
-		px=BTIC6A_DecodeTransColorRGB24(ctx);
-		ct=(u32 *)cibase;
-		str1=ystride>>2;
-
-		for(i=0; i<16; i++)
+		if(ixi==0xFFFF)
 		{
-			ct[ 0]=px; ct[ 1]=px; ct[ 2]=px; ct[ 3]=px;
-			ct[ 4]=px; ct[ 5]=px; ct[ 6]=px; ct[ 7]=px;
-			ct[ 8]=px; ct[ 9]=px; ct[10]=px; ct[11]=px;
-			ct[12]=px; ct[13]=px; ct[14]=px; ct[15]=px;
-			ct+=str1;
+			px=BTIC6A_DecodeTransColorRGB24(ctx);
+			ct=(u32 *)cibase;		str1=ystride>>2;
+			for(i=0; i<16; i++)
+			{
+				ct[ 0]=px; ct[ 1]=px; ct[ 2]=px; ct[ 3]=px;
+				ct[ 4]=px; ct[ 5]=px; ct[ 6]=px; ct[ 7]=px;
+				ct[ 8]=px; ct[ 9]=px; ct[10]=px; ct[11]=px;
+				ct[12]=px; ct[13]=px; ct[14]=px; ct[15]=px;
+				ct+=str1;
+			}
+			return;
 		}
+
+		if(ixi==0xFFFC)
+		{
+			ct=(u32 *)cibase;	cs=(u32 *)pibase;	str1=ystride>>2;
+			for(i=0; i<16; i++)
+			{
+				ct[ 0]=cs[ 0]; ct[ 1]=cs[ 1]; ct[ 2]=cs[ 2]; ct[ 3]=cs[ 3];
+				ct[ 4]=cs[ 4]; ct[ 5]=cs[ 5]; ct[ 6]=cs[ 6]; ct[ 7]=cs[ 7];
+				ct[ 8]=cs[ 8]; ct[ 9]=cs[ 9]; ct[10]=cs[10]; ct[11]=cs[11];
+				ct[12]=cs[12]; ct[13]=cs[13]; ct[14]=cs[14]; ct[15]=cs[15];
+				ct+=str1;	cs+=str1;
+			}
+			return;
+		}
+	}
+
+	if(ixi&0x4000)
+	{
+		BTIC6A_DecodeBlock3Pixels8xIndex(ctx, cibase, ystride, ixi, rot);
 		return;
 	}
 
@@ -438,20 +674,23 @@ void BTIC6A_DecodeBlock0PixelsIndex(BTIC6A_DecodeContext *ctx,
 	yst4=ystride*8;
 	xst4=8*4;
 	
-	ctb=cibase+yst4;
-	cict[bt6a_rotab[rot+ 0]]=cibase+0;
-	cict[bt6a_rotab[rot+ 4]]=cibase+xst4;
-	cict[bt6a_rotab[rot+ 8]]=ctb;
-	cict[bt6a_rotab[rot+12]]=ctb+xst4;
+	ciof[bt6a_rotab[rot+ 0]]=0;
+	ciof[bt6a_rotab[rot+ 4]]=xst4;
+	ciof[bt6a_rotab[rot+ 8]]=yst4;
+	ciof[bt6a_rotab[rot+12]]=yst4+xst4;
 	
+	i=ciof[0];
 	BTIC6A_DecodeBlock1PixelsIndex(ctx,
-		cict[0], ystride, csi[0], bt6a_rttab[rot+ 0]);
+		cibase+i, pibase+i, ystride, csi[0], bt6a_rttab[rot+ 0]);
+	i=ciof[1];
 	BTIC6A_DecodeBlock1PixelsIndex(ctx,
-		cict[1], ystride, csi[1], bt6a_rttab[rot+ 4]);
+		cibase+i, pibase+i, ystride, csi[1], bt6a_rttab[rot+ 4]);
+	i=ciof[2];
 	BTIC6A_DecodeBlock1PixelsIndex(ctx,
-		cict[2], ystride, csi[2], bt6a_rttab[rot+ 8]);
+		cibase+i, pibase+i, ystride, csi[2], bt6a_rttab[rot+ 8]);
+	i=ciof[3];
 	BTIC6A_DecodeBlock1PixelsIndex(ctx,
-		cict[3], ystride, csi[3], bt6a_rttab[rot+12]);
+		cibase+i, pibase+i, ystride, csi[3], bt6a_rttab[rot+12]);
 }
 
 void BTIC6A_DecodeMacroblockPixelsIndex(BTIC6A_DecodeContext *ctx, int ixi)
@@ -460,26 +699,32 @@ void BTIC6A_DecodeMacroblockPixelsIndex(BTIC6A_DecodeContext *ctx, int ixi)
 	byte *cict[4];
 	byte *ctb;
 	byte *cimg, *cibase;
+	byte *pimg, *pibase;
 	u32 *ctw, *csw;
 	u16 *csi;
 	int cr, cg, cb, cy, cu, cv;
 	int ystride, yst8, xst8;
 	int mx, my, bx, by, bz, px, py, pz, xs, ys;
 	int x, y, xf, yf;
-	
-	if(ixi==0xFFFF)
-	{
-		BTIC6A_DecodeMacroblockPixelsZero(ctx);
-		return;
-	}
 
 	xs=ctx->xs;		ys=ctx->ys;
+	mx=ctx->mv_x;	my=ctx->mv_y;
+	cimg=ctx->cimg;	pimg=ctx->pimg;
 	bx=ctx->c_x*16;	by=ctx->c_y*16;
-	cimg=ctx->cimg;
+	px=bx+mx;		py=by+my;
 	ystride=xs*4;
 	
+	if(((u16)(px|py))>xs)
+	{
+		if(px<(-15))	px=-15;
+		if(py<(-14))	py=-14;
+		if(px>(xs+15))	px=xs+15;
+		if(py>(ys+15))	py=ys+14;
+	}
+	
 	cibase=cimg+(by*xs+bx)*4;
-	BTIC6A_DecodeBlock0PixelsIndex(ctx, cibase, ystride, ixi, 0);
+	pibase=pimg+(py*xs+px)*4;
+	BTIC6A_DecodeBlock0PixelsIndex(ctx, cibase, pibase, ystride, ixi, 0);
 }
 
 int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
@@ -505,7 +750,6 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 		ct_c=ctx->cb_2x2_c+(j*2);
 
 		k=ctx->acc_dcom_l3;
-//		ctx->acc_dcom_l3=(k>=4)?(k-4):0;
 		ctx->acc_dcom_l3=(k>=8)?(k-4):0;
 
 		if((k&3)==0)
@@ -530,18 +774,6 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 		}else
 			if((k&3)==2)
 		{
-#if 0
-			ix2|=0x4000;
-			ct_y[0]=cs[0];
-			ct_y[1]=cs[1];
-			ct_y[2]=cs[2];
-			ct_y[3]=cs[3];
-			ct_c[0]=cs[4];
-			ct_c[1]=cs[5];
-			cs+=6;
-#endif
-
-#if 1
 			tg=btpic_getu32(cs);
 			j=tg&3;
 			ct_y[0]=(((tg>> 2)&31)-16)<<j;
@@ -551,10 +783,8 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ct_c[0]=(((tg>>22)&31)-16)<<j;
 			ct_c[1]=(((tg>>27)&31)-16)<<j;
 			cs+=4;
-#endif
 		}else
 		{
-#if 1
 			ct_y[0]=((cs[0]&15)-8)<<3;
 			ct_y[1]=((cs[0]>>4)-8)<<3;
 			ct_y[2]=((cs[1]&15)-8)<<3;
@@ -562,7 +792,6 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ct_c[0]=((cs[2]&15)-8)<<3;
 			ct_c[1]=((cs[2]>>4)-8)<<3;
 			cs+=3;
-#endif
 		}
 		
 		*rcs=cs;
@@ -616,8 +845,6 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 			return(ix2);
 		}else
 		{
-//			__debugbreak();
-
 			cs+=2;
 			ix2=(ctx->rov_2x2-(((tg>>4)&4095)+1))&0x3FFF;
 
@@ -643,7 +870,6 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 	}else	
 		if(!(tg&0x04))
 	{
-//		if((tg&0x0F)==0x03)
 		if(!(tg&0x08))
 		{
 			cs+=2;
@@ -674,7 +900,6 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 			return(ix2);
 		}
 	}else
-//	if((tg&0x0F)==0x07)
 		if(!(tg&0x08))
 	{
 		cs++;
@@ -712,6 +937,14 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 	if(ctx->acc_dcom_l2)
 	{
 		ctx->acc_dcom_l2--;
+		if(ctx->acc_dcmz_l2)
+		{
+			ix4=BTIC6A_DecodeMacroblockL3(ctx, &cs);
+			ix4|=0x4000;
+			*rcs=cs;
+			return(ix4);
+		}
+
 		ix4=ctx->rov_4x4;
 		ctx->rov_4x4=(ix4+1)&0x3FFF;
 		ct_i=ctx->cb_4x4+((ix4&(ctx->msk_4x4))*4);
@@ -750,8 +983,6 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 		}else
 			if(!(tg&4))
 		{
-//			__debugbreak();
-
 			cs+=2;
 			ix2=(ctx->rov_4x4-(((tg>>4)&4095)+1))&0x3FFF;
 
@@ -769,12 +1000,21 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 			*rcs=cs;
 			return(ix2);
 		}else
+			if(!(tg&8))
 		{
-//			__debugbreak();
 			cs++;
 			ctx->acc_skip_l2=(tg>>4)&15;
 			*rcs=cs;
 			return(0xFFFC);
+		}else
+		{
+			cs+=2;
+			ix2=(ctx->rov_2x2-(((tg>>4)&4095)+1))&0x3FFF;
+			ix2|=0x4000;
+			ctx->strov_4x4--;
+			ctx->stf_4x4[ctx->strov_4x4&127]=ix2;
+			*rcs=cs;
+			return(ix2);
 		}
 	}else
 		if(!(tg&0x04))
@@ -798,6 +1038,22 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 		if(!(tg&0x10))
 		{
 			ctx->acc_dcom_l2=((tg>>5)&7)+1;
+			ctx->acc_dcmz_l2=0;
+		}else
+		{
+			__debugbreak();
+		}
+		ix4=BTIC6A_DecodeMacroblockL2(ctx, &cs);
+		*rcs=cs;
+		return(ix4);
+	}else
+		if(!(tg&0x10))
+	{
+		cs++;
+		if(!(tg&0x20))
+		{
+			ctx->acc_dcom_l2=((tg>>6)&3)+1;
+			ctx->acc_dcmz_l2=1;
 		}else
 		{
 			__debugbreak();
@@ -835,6 +1091,14 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 	if(ctx->acc_dcom_l1)
 	{
 		ctx->acc_dcom_l1--;
+		if(ctx->acc_dcmz_l1)
+		{
+			ix4=BTIC6A_DecodeMacroblockL3(ctx, &cs);
+			ix4|=0x4000;
+			*rcs=cs;
+			return(ix4);
+		}
+
 		ix4=ctx->rov_8x8;
 		ctx->rov_8x8=(ix4+1)&0x3FFF;
 		ct_i=ctx->cb_8x8+((ix4&(ctx->msk_8x8))*4);
@@ -887,12 +1151,21 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 			*rcs=cs;
 			return(ix2);
 		}else
+			if(!(tg&8))
 		{
-//			__debugbreak();
 			cs++;
 			ctx->acc_skip_l1=(tg>>4)&15;
 			*rcs=cs;
 			return(0xFFFC);
+		}else
+		{
+			cs+=2;
+			ix2=(ctx->rov_2x2-(((tg>>4)&4095)+1))&0x3FFF;
+			ix2|=0x4000;
+			ctx->strov_8x8--;
+			ctx->stf_8x8[ctx->strov_8x8&127]=ix2;
+			*rcs=cs;
+			return(ix2);
 		}
 	}else
 		if(!(tg&0x04))
@@ -914,15 +1187,27 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 	{
 		cs++;
 		if(!(tg&0x10))
-		{
-			ctx->acc_dcom_l1=((tg>>5)&7)+1;
-		}
+			{ ctx->acc_dcom_l1=((tg>>5)&7)+1; }
 		else
-		{
-			ctx->acc_dcom_l2=((tg>>5)&7)+1;
-			ctx->acc_dcom_l1=1+(ctx->acc_dcom_l2>>2);
-		}
+		{	ctx->acc_dcom_l2=((tg>>5)&7)+1;
+			ctx->acc_dcom_l1=1+(ctx->acc_dcom_l2>>2);	}
+		ctx->acc_dcmz_l1=0;
 
+		ix4=BTIC6A_DecodeMacroblockL1(ctx, &cs);
+		*rcs=cs;
+		return(ix4);
+	}else
+		if(!(tg&0x10))
+	{
+		cs++;
+		if(!(tg&0x20))
+		{
+			ctx->acc_dcom_l1=((tg>>6)&3)+1;
+			ctx->acc_dcmz_l1=1;
+		}else
+		{
+			__debugbreak();
+		}
 		ix4=BTIC6A_DecodeMacroblockL1(ctx, &cs);
 		*rcs=cs;
 		return(ix4);
@@ -956,6 +1241,14 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 	if(ctx->acc_dcom_l0)
 	{
 		ctx->acc_dcom_l0--;
+		if(ctx->acc_dcmz_l0)
+		{
+			ix4=BTIC6A_DecodeMacroblockL3(ctx, &cs);
+			ix4|=0x4000;
+			*rcs=cs;
+			return(ix4);
+		}
+
 		ix4=ctx->rov_16x16;
 		ctx->rov_16x16=(ix4+1)&0x3FFF;
 		ct_i=ctx->cb_16x16+((ix4&(ctx->msk_16x16))*4);
@@ -993,12 +1286,21 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 		{
 			__debugbreak();
 		}else
+			if(!(tg&0x08))
 		{
-//			__debugbreak();
 			cs++;
 			ctx->acc_skip_l0=(tg>>4)&15;
 			*rcs=cs;
 			return(0xFFFC);
+		}else
+		{
+			cs+=2;
+			ix2=(ctx->rov_2x2-(((tg>>4)&4095)+1))&0x3FFF;
+			ix2|=0x4000;
+			ctx->strov_16x16--;
+			ctx->stf_16x16[ctx->strov_16x16&127]=ix2;
+			*rcs=cs;
+			return(ix2);
 		}
 	}else
 		if(!(tg&0x04))
@@ -1024,6 +1326,22 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 		else
 		{	ctx->acc_dcom_l1=((tg>>5)&7)+1;
 			ctx->acc_dcom_l0=1+(ctx->acc_dcom_l2>>2);	}
+		ctx->acc_dcmz_l0=0;
+		ix4=BTIC6A_DecodeMacroblockL0(ctx, &cs);
+		*rcs=cs;
+		return(ix4);
+	}else
+		if(!(tg&0x10))
+	{
+		cs++;
+		if(!(tg&0x20))
+		{
+			ctx->acc_dcom_l0=((tg>>6)&3)+1;
+			ctx->acc_dcmz_l0=1;
+		}else
+		{
+			__debugbreak();
+		}
 		ix4=BTIC6A_DecodeMacroblockL0(ctx, &cs);
 		*rcs=cs;
 		return(ix4);
@@ -1041,14 +1359,14 @@ int BTIC6A_DecodeMacroblock(BTIC6A_DecodeContext *ctx)
 	if(ctx->acc_skip_l0)
 	{
 		ctx->acc_skip_l0--;
-		BTIC6A_DecodeCopyMacroblockSkip(ctx);
+		BTIC6A_DecodeMacroblockPixelsIndex(ctx, 0xFFFC);
 		return(0);
 	}
 
 	if(ctx->acc_zero_l0)
 	{
 		ctx->acc_zero_l0--;
-		BTIC6A_DecodeMacroblockPixelsZero(ctx);
+		BTIC6A_DecodeMacroblockPixelsIndex(ctx, 0xFFFF);
 		return(0);
 	}
 	
@@ -1067,26 +1385,18 @@ int BTIC6A_DecodeFrameInner(BTIC6A_DecodeContext *ctx, byte *idat)
 	xs=ctx->xs;			ys=ctx->ys;
 	cxs=(xs+15)>>4;		cys=(ys+15)>>4;
 	
-	ctx->clr_y=0x80;
-	ctx->clr_u=0x80;
-	ctx->clr_v=0x80;
-	ctx->mv_x=0;
-	ctx->mv_y=0;
+	ctx->clr_y=0x80;	ctx->clr_u=0x80;	ctx->clr_v=0x80;
+	ctx->mv_x=0;		ctx->mv_y=0;
 
-	ctx->rov_2x2=0;
-	ctx->rov_4x4=0;
-	ctx->rov_8x8=0;
-	ctx->rov_16x16=0;
+	ctx->rov_2x2=0;		ctx->rov_4x4=0;
+	ctx->rov_8x8=0;		ctx->rov_16x16=0;
 
-	ctx->acc_zero_l3=0;
-	ctx->acc_zero_l2=0;
-	ctx->acc_zero_l1=0;
-	ctx->acc_zero_l0=0;
-	ctx->acc_dcom_l3=0;
-	ctx->acc_dcom_l2=0;
-	ctx->acc_dcom_l1=0;
-	ctx->acc_dcom_l0=0;
-	ctx->acc_skip_l0=0;
+	ctx->acc_zero_l3=0;	ctx->acc_zero_l2=0;
+	ctx->acc_zero_l1=0;	ctx->acc_zero_l0=0;
+	ctx->acc_dcom_l3=0;	ctx->acc_dcom_l2=0;
+	ctx->acc_dcom_l1=0;	ctx->acc_dcom_l0=0;
+	ctx->acc_skip_l0=0;	ctx->acc_skip_l1=0;
+	ctx->acc_skip_l2=0;
 	
 	for(y=0; y<cys; y++)
 	{
@@ -1116,12 +1426,9 @@ void BTIC6A_DecodeCopyFrameClrs(BTIC6A_DecodeContext *ctx,
 		(clrs==BTIC4B_CLRS_RGBX))
 			rgflip=2;
 	
-	xs=ctx->xs;
-	ys=ctx->ys;
-	xsr=ctx->xsr;
-	ysr=ctx->ysr;
-	cimg=ctx->cimg;
-	iystr=xs*4;
+	xs=ctx->xs;			ys=ctx->ys;
+	xsr=ctx->xsr;		ysr=ctx->ysr;
+	cimg=ctx->cimg;		iystr=xs*4;
 	
 	if((ocn==4) && !rgflip)
 	{
@@ -1139,8 +1446,7 @@ void BTIC6A_DecodeCopyFrameClrs(BTIC6A_DecodeContext *ctx,
 		return;
 	}
 	
-	ycs=cimg;
-	yct=oimg;
+	ycs=cimg;	yct=oimg;
 	for(y=0; y<ysr; y++)
 	{
 		cs=ycs;

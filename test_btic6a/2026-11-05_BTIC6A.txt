@@ -63,8 +63,6 @@ Tags:
 * 'PX': P-Frame Image Data
 * 'Z3': RP2 Compressed Image (Optional)
 
-If a 'Z3' tag is used, the frame image is RP2 compressed, with the decompressed data containing more TLV tags. Typically, the Z3 tag will be used to compress the entire frame.
-
 Header Image Size:
 * Will be expressed as the native (non-padded) image resoultion.
 
@@ -73,6 +71,12 @@ Header cbSize:
 * ( 7: 4): Size of the L2 Codebook, Log2 (4..12)
 * (11: 8): Size of the L1 Codebook, Log2 (4..12)
 * (15:12): Size of the L0 Codebook, Log2 (4..12)
+
+As such, each codebook will nominally have a capacity range between 16 and 4096 entries.
+
+
+If a 'Z3' tag is used, the frame image is RP2 compressed, with the decompressed data containing more TLV tags. Typically, the Z3 tag will be used to compress the entire frame.
+
 
 
 === Image Data ===
@@ -91,7 +95,7 @@ General Tag Structure (Tag Byte):
     PP pppp1001  Freshen Index into Current Codebook, 1..4K
   4*XX xxxxw101  (L3) 6x 6b delta (w=Left-Shift of 1 or 2 bits)
        nnnn0101  (L0..L2) Skip 1-16 blocks at current level
-       nnnn1101  -
+    PP pppp1101  (L0..L2) Zoom Index into L3 Codebook (2x/4x/8x zoom)
     PP pppp0011  Index into Current Codebook, 1..4K
   4*XX xxxx1011  (L3) 6x 6b delta (-32..31)
     XX xxxx1011  (L0) 2x 6b Set-Translate (X/Y -31..31 in pixels)
@@ -100,7 +104,10 @@ General Tag Structure (Tag Byte):
  4n*XX nn100111  (L3) Block 3: 6x 5b Delta (4 bytes), Shift=0..3
  3n*XX nn110111  (L3) Block 4: 6x 4b Delta (3 bytes), Shift=3 (-64..56)
        nnn00111  (L0..L2) Decompose 1
-       nnn10111  (L0/L1) Decompose 2
+       nnn10111  (L0..L1) Decompose 2
+       nn001111  (L0..L2) Decompose Zoom
+       nn101111  -
+       xx011111  -
 
 The decompose operation will effectively encode how many levels to decompose, and how many decomposed blocks to encode at that level before checking for a new tag (when 'nn' is non-zero, it will descend to a level and behave as-if n 1-level decompose tags had been encoded).
 
@@ -130,32 +137,38 @@ At the other levels:
 ** This will only be allowed on the upper 2 levels (8x8 and 16x16).
 ** If For n=1..4, decomposes the current block; 5..8 also decomposes next block
 *** Will be like a Decompose 1 (n=2) followed by another Decompose 1
+* Decompose Zoom: Decompose into Zoomed 2x2 Blocks
+** Decode blocks as 2x2 but zoomed to the current block size.
+** When used, will encode single blocks at L3 and zoom them.
 
 
-After each decomposed block, the block in question will be added to the front of the codebook for that level. The given pattern may be reused again later by using an index into the current codebook.
+After each decomposed block, the block in question will be added to the front of the codebook for that level. The given pattern may be reused again later by using an index into the current codebook (relative to the current position). Each codebook may be seen as a circular buffer, to which the index is relative to.
 
 Within L0 .. L2, the blocks will depend on codebook entries within the smaller levels. When a dependency falls off the end of its respective codebook, the entry within the next larger codebook will become invalid and may no longer be used.
+
+Each dependency may exist as an absolute position within the codebook, which may be later overwritten as the rover moves around the buffer.
 
 
 An index may be encoded into the current codebook, either as a basic index or as a Freshen operation. In the basic case, it refers to the given position in the codebook. This codebook entry is also added to the front of the corresponding STF table.
 
 The Freshen case is functionally similar to the basic case, but will re-add a copy of the corresponding codebook entry to the front of the current codebook. Note that it will not freshen sub-blocks, so a freshened block that depends on state components will still become invalid once those components fall off the end.
 
+The Zoom Index case will always encode an index into the 2x2 codebook, but zoom it on output to the size of the current codebook.
+
 There will also be an STF table for each codebook level.
-This table will hold indices into the corresponding codebook.
+The STF table will hold a collection of index numbers into the corresponding codebook.
 
-Referring to the codebook will add the item to the front of the STF and shift the STF back by 1 position, whereas refering to an item in the STF will swap the item forward (swapping it with the item at 7/8 of the current position).
+Referring to the codebook by a plain index will add the item to the front of the STF and shift the STF back by 1 position, whereas refering to a position in the STF will swap the index forward within the table (swapping it with the index held at 7/8 of the current position). This allows the STF to be used as a cheaper scratchpad of frequently accessed block indices.
 
 
-Skip will be allowed down to 4x4 blocks, however the ability to specify translation will only apply to L0. The blocks at L1 and L2 will inherit the active translation from L0.
-
+Skip will be allowed between L0 and L2, however the ability to specify translation will only apply at the level of the L0 blocks. The blocks at L1 and L2 will inherit the active translation from L0. In this case, the skip offset will be treated as part of the current state, rather than a part of the codebook block (which will merely remember the existence of skip blocks).
 
 In terms of YUV delta behavior, the Skip blocks will behave the same as a Zero block.
 
+
 As each block is displayed, the running YUV state will be updated based on the deltas in the codebook entry for the block. Within the blocks, each sub-block will be treated as a linear subset, however when mapped to the output pixels, they will follow a Hilbert curve (with the 4-level Hilbert curve naturally forming a 16x16 pixel block).
 
-
-In the initial decoder state, the starting YUV values will all be 0x80.
+In the initial decoder state (at the start of each frame), the starting YUV values will all be 0x80 (a neutral gray).
 
 Note that the initial codebook state will be empty at the start of each frame. The codebook will be built solely from patterns encountered within the process of encoding the frame.
 

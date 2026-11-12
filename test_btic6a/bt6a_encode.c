@@ -1,26 +1,22 @@
-// #define BTIC6A_CBSZ_2X		512
-// #define BTIC6A_CBSZ_4X		256
-// #define BTIC6A_CBSZ_2X		1024
-// #define BTIC6A_CBSZ_4X		512
-
 #define BTIC6A_CBSZ_2X		4096
-// #define BTIC6A_CBSZ_2X		2048
-// #define BTIC6A_CBSZ_2X		1024
-// #define BTIC6A_CBSZ_4X		1024
 #define BTIC6A_CBSZ_4X		2048
-
 #define BTIC6A_CBSZ_8X		512
-// #define BTIC6A_CBSZ_8X		256
-// #define BTIC6A_CBSZ_16X		256
 #define BTIC6A_CBSZ_16X		128
 
-// #define BTIC6A_CBSZ_8X		256
-//#define BTIC6A_CBSZ_8X		128
-// #define BTIC6A_CBSZ_16X		64
 #define BTIC6A_CBMSK_2X		(BTIC6A_CBSZ_2X-1)
 #define BTIC6A_CBMSK_4X		(BTIC6A_CBSZ_4X-1)
 #define BTIC6A_CBMSK_8X		(BTIC6A_CBSZ_8X-1)
 #define BTIC6A_CBMSK_16X	(BTIC6A_CBSZ_16X-1)
+
+/* How deep to hash-search for zoom */
+#define BTIC6A_CBSZ_2X_H4	512
+#define BTIC6A_CBSZ_2X_H8	256
+#define BTIC6A_CBSZ_2X_H16	128
+
+/* How deep to linear-search for zoom */
+#define BTIC6A_CBSZ_2X_L4	2048
+#define BTIC6A_CBSZ_2X_L8	1024
+#define BTIC6A_CBSZ_2X_L16	1024
 
 
 typedef struct BTIC6A_EncodeContext_s BTIC6A_EncodeContext;
@@ -54,6 +50,16 @@ struct BTIC6A_EncodeContext_s {
 	byte flg_4x4  [BTIC6A_CBSZ_4X];
 	byte flg_8x8  [BTIC6A_CBSZ_8X];
 	byte flg_16x16[BTIC6A_CBSZ_8X];
+
+	u16 hcn_2x2   [BTIC6A_CBSZ_2X];
+	u16 hcn_4x4   [BTIC6A_CBSZ_4X];
+	u16 hcn_8x8   [BTIC6A_CBSZ_8X];
+	u16 hcn_16x16 [BTIC6A_CBSZ_16X];
+
+	u16 hash_2x2  [256];
+	u16 hash_4x4  [256];
+	u16 hash_8x8  [256];
+	u16 hash_16x16[256];
 	
 	u16 stf_2x2  [128];
 	u16 stf_4x4  [128];
@@ -80,6 +86,8 @@ struct BTIC6A_EncodeContext_s {
 	byte ld_2x2;
 	byte ld_skip;
 	byte ld_joint;
+	
+	byte is_pframe;
 
 	int ld_flat_sq;
 	int ld_skip_sq;
@@ -173,6 +181,15 @@ byte *BTIC5C_EncodeEmitTwoCC(byte *ict, u16 tcc, void *buf, int sz)
 	}
 	ct=BTIC5C_EncodeEmitFourCC(ict, tcc, buf, sz);
 	return(ct);	
+}
+
+int btic6a_log2(int val)
+{
+	int ex, v;
+	ex=0; v=val;
+	while(v>1)
+		{ ex++; v=v>>1; }
+	return(ex);
 }
 
 void BTIC6A_EncodeGetFrameMacroblockPixelsYUV(
@@ -388,7 +405,43 @@ int bt6a_abserr(int x)
 
 //	return((x*x+abs(x))/2);
 //	return(abs(x)+(x*x*7/8));
-	return(abs(x)+(x*x));
+//	return(abs(x)+(x*x));
+	return(abs(x)+((x*x)/4));
+}
+
+int BTIC6A_EncodeCompareBlockAbsNErrorYUV(
+	byte *blk0_y, byte *blk0_c,
+	byte *blk1_y, byte *blk1_c,
+	int bn)
+{
+	int cy0, cu0, cv0, cy1, cu1, cv1;
+	int dcy, dcu, dcv;
+	int ecy, ecu, ecv;
+	int i, j, k, l;
+	
+	ecy=0;
+	ecu=0;
+	ecv=0;
+	
+	l=1<<(bn+2);
+	for(i=0; i<l; i++)
+	{
+		cy0=blk0_y[i];	cy1=blk1_y[i];
+		dcy=(cy0-cy1);
+		ecy+=bt6a_abserr(dcy);
+	}
+
+	l=1<<(bn+0);
+	for(i=0; i<l; i++)
+	{
+		cu0=blk0_c[i*2+0];		cv0=blk0_c[i*2+1];
+		cu1=blk1_c[i*2+0];		cv1=blk1_c[i*2+1];
+		dcu=(cu0-cu1);			dcv=(cv0-cv1);
+		ecu+=bt6a_abserr(dcu);	ecv+=bt6a_abserr(dcv);
+	}
+	ecu*=4;
+	ecv*=4;
+	return(ecy+ecu+ecv);
 }
 
 int BTIC6A_EncodeCompareBlockNErrorYUV(
@@ -459,22 +512,38 @@ void BTIC6A_EncodeCalcBlockNStepYUV(
 	*rocy=pcy;	*rocu=pcu;	*rocv=pcv;	
 }
 
-int BTIC6A_CheckValidVqBlock16Index(BTIC6A_EncodeContext *ctx, int idx)
+int BTIC6A_EncodeCalcBlockNHashYUV(
+	BTIC6A_EncodeContext *ctx,
+	byte *blk_y, byte *blk_c, int bn)
 {
-	if(idx&(~0xFFFF))	return(0);		//Not 16b
-	if(idx>=0xC000)		return(1);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
-	if(((ctx->rov_16x16-idx)&0x3FFF)>=(BTIC6A_CBSZ_16X-2))
-		return(0);
-	return(1);
+	int cy, cu, cv, h0, h, ex, bi;
+
+	BTIC6A_EncodeCalcBlockNStepYUV(blk_y, blk_c,
+		0x80, 0x80, 0x80, &cy, &cu, &cv, bn);
+	
+	ex=btic6a_log2(ctx->ld_flat)+1;
+	bi=1<<(ex-1);
+	
+//	cy=(cy+8)>>4; cu=(cu+8)>>4; cv=(cv+8)>>4;
+	cy=(cy+bi)>>ex; cu=(cu+bi)>>ex; cv=(cv+bi)>>ex;
+
+	h0=0x67;
+	h0=(h0*31)+cy;
+	h0=(h0*31)+cu;
+	h0=(h0*31)+cv;
+	h0=h0*251+cy;
+	h0=h0*251+cu;
+	h0=h0*251+cv;
+	h=(h>>8)&255;
+	return(h);
 }
 
-int BTIC6A_CheckValidVqBlock8Index(BTIC6A_EncodeContext *ctx, int idx)
+int BTIC6A_CheckValidVqBlock2Index(BTIC6A_EncodeContext *ctx, int idx)
 {
 	if(idx&(~0xFFFF))	return(0);		//Not 16b
 	if(idx>=0xC000)		return(1);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
-	if(((ctx->rov_8x8-idx)&0x3FFF)>=(BTIC6A_CBSZ_8X-6))
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(((ctx->rov_2x2-idx)&0x3FFF)>=(BTIC6A_CBSZ_2X-72))
 		return(0);
 	return(1);
 }
@@ -483,18 +552,35 @@ int BTIC6A_CheckValidVqBlock4Index(BTIC6A_EncodeContext *ctx, int idx)
 {
 	if(idx&(~0xFFFF))	return(0);		//Not 16b
 	if(idx>=0xC000)		return(1);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(idx>=0x4000)
+		return(BTIC6A_CheckValidVqBlock2Index(ctx, idx));
 	if(((ctx->rov_4x4-idx)&0x3FFF)>=(BTIC6A_CBSZ_4X-20))
 		return(0);
 	return(1);
 }
 
-int BTIC6A_CheckValidVqBlock2Index(BTIC6A_EncodeContext *ctx, int idx)
+int BTIC6A_CheckValidVqBlock8Index(BTIC6A_EncodeContext *ctx, int idx)
 {
 	if(idx&(~0xFFFF))	return(0);		//Not 16b
 	if(idx>=0xC000)		return(1);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
-	if(((ctx->rov_2x2-idx)&0x3FFF)>=(BTIC6A_CBSZ_2X-72))
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(idx>=0x4000)
+		return(BTIC6A_CheckValidVqBlock2Index(ctx, idx));
+	if(((ctx->rov_8x8-idx)&0x3FFF)>=(BTIC6A_CBSZ_8X-6))
+		return(0);
+	return(1);
+}
+
+int BTIC6A_CheckValidVqBlock16Index(BTIC6A_EncodeContext *ctx, int idx)
+{
+	if(idx&(~0xFFFF))	return(0);		//Not 16b
+	if(idx>=0xC000)		return(1);		//Special Always-Valid
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(idx>=0x4000)
+		return(BTIC6A_CheckValidVqBlock2Index(ctx, idx));
+
+	if(((ctx->rov_16x16-idx)&0x3FFF)>=(BTIC6A_CBSZ_16X-2))
 		return(0);
 	return(1);
 }
@@ -524,7 +610,9 @@ int BTIC6A_CheckStaleBlock4Index(BTIC6A_EncodeContext *ctx, int idx)
 	u16 *ici;
 	if(idx&(~0xFFFF))	return(0);		//Not 16b
 	if(idx>=0xC000)		return(0);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(idx>=0x4000)
+		return(BTIC6A_CheckStaleBlock2Index(ctx, idx));
 	if(((ctx->rov_4x4-idx)&0x3FFF)>=((BTIC6A_CBSZ_4X*3)/4))
 //	if(((ctx->rov_4x4-idx)&0x3FFF)>=((BTIC6A_CBSZ_4X*7)/16))
 //	if(((ctx->rov_4x4-idx)&0x3FFF)>=((BTIC6A_CBSZ_4X*7)/8))
@@ -543,7 +631,9 @@ int BTIC6A_CheckFreshBlock4Index(BTIC6A_EncodeContext *ctx, int idx)
 	u16 *ici;
 	if(idx&(~0xFFFF))	return(0);		//Not 16b
 	if(idx>=0xC000)		return(1);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(idx>=0x4000)
+		return(BTIC6A_CheckFreshBlock2Index(ctx, idx));
 	if(((ctx->rov_4x4-idx)&0x3FFF)>=((BTIC6A_CBSZ_4X*3)/8))
 		return(0);
 	ici=ctx->cb_4x4+((idx&BTIC6A_CBMSK_4X)*4);
@@ -560,7 +650,9 @@ int BTIC6A_CheckStaleBlock8Index(BTIC6A_EncodeContext *ctx, int idx)
 	u16 *ici;
 	if(idx&(~0xFFFF))	return(0);		//Not 16b
 	if(idx>=0xC000)		return(0);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(idx>=0x4000)
+		return(BTIC6A_CheckStaleBlock2Index(ctx, idx));
 	if(((ctx->rov_8x8-idx)&0x3FFF)>=((BTIC6A_CBSZ_8X*3)/4))
 		return(1);
 	ici=ctx->cb_8x8+((idx&BTIC6A_CBMSK_8X)*4);
@@ -577,7 +669,9 @@ int BTIC6A_CheckFreshBlock8Index(BTIC6A_EncodeContext *ctx, int idx)
 	u16 *ici;
 	if(idx&(~0xFFFF))	return(0);		//Not 16b
 	if(idx>=0xC000)		return(1);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(idx>=0x4000)
+		return(BTIC6A_CheckFreshBlock2Index(ctx, idx));
 	if(((ctx->rov_8x8-idx)&0x3FFF)>=((BTIC6A_CBSZ_8X*3)/8))
 		return(0);
 	ici=ctx->cb_8x8+((idx&BTIC6A_CBMSK_8X)*4);
@@ -594,7 +688,9 @@ int BTIC6A_CheckStaleBlock16Index(BTIC6A_EncodeContext *ctx, int idx)
 	u16 *ici;
 	if(idx&(~0xFFFF))	return(0);		//Not 16b
 	if(idx>=0xC000)		return(0);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(idx>=0x4000)
+		return(BTIC6A_CheckStaleBlock2Index(ctx, idx));
 	if(((ctx->rov_16x16-idx)&0x3FFF)>=((BTIC6A_CBSZ_16X*3)/4))
 		return(1);
 	ici=ctx->cb_16x16+((idx&BTIC6A_CBMSK_16X)*4);
@@ -611,7 +707,9 @@ int BTIC6A_CheckFreshBlock16Index(BTIC6A_EncodeContext *ctx, int idx)
 	u16 *ici;
 	if(idx&(~0xFFFF))	return(0);		//Not 16b
 	if(idx>=0xC000)		return(1);		//Special Always-Valid
-	if(idx>=0x4000)		return(0);		//Special, Absolute
+	if(idx>=0x8000)		return(0);		//Special, Absolute
+	if(idx>=0x4000)
+		return(BTIC6A_CheckFreshBlock2Index(ctx, idx));
 	if(((ctx->rov_16x16-idx)&0x3FFF)>=((BTIC6A_CBSZ_16X*3)/8))
 		return(0);
 	ici=ctx->cb_16x16+((idx&BTIC6A_CBMSK_16X)*4);
@@ -650,6 +748,16 @@ int BTIC6A_EncodeGetVqBlock4(BTIC6A_EncodeContext *ctx,
 	memset(blk_c, 0, 8);
 	if(idx>=0xC000)
 		{ return(0); }
+
+	if(idx&0x4000)
+	{
+		rt0=BTIC6A_EncodeGetVqBlock2(ctx, idx, blk_y, blk_c);
+		blk_y[ 4]=blk_y[1];		blk_y[1]=0;
+		blk_y[ 8]=blk_y[2];		blk_y[2]=0;
+		blk_y[12]=blk_y[3];		blk_y[3]=0;
+		return(rt0);
+	}
+
 	if(!BTIC6A_CheckValidVqBlock4Index(ctx, idx))
 		return(-1);
 	ici=ctx->cb_4x4+((idx&BTIC6A_CBMSK_4X)*4);
@@ -671,6 +779,16 @@ int BTIC6A_EncodeGetVqBlock8(BTIC6A_EncodeContext *ctx,
 	memset(blk_c, 0, 32);
 	if(idx>=0xC000)
 		{ return(0); }
+
+	if(idx&0x4000)
+	{
+		rt0=BTIC6A_EncodeGetVqBlock2(ctx, idx, blk_y, blk_c);
+		blk_y[16]=blk_y[1];		blk_y[1]=0;
+		blk_y[32]=blk_y[2];		blk_y[2]=0;
+		blk_y[48]=blk_y[3];		blk_y[3]=0;
+		return(rt0);
+	}
+
 	if(!BTIC6A_CheckValidVqBlock8Index(ctx, idx))
 		return(-1);
 	ici=ctx->cb_8x8+((idx&BTIC6A_CBMSK_8X)*4);
@@ -692,6 +810,16 @@ int BTIC6A_EncodeGetVqBlock16(BTIC6A_EncodeContext *ctx,
 	memset(blk_c, 0, 128);
 	if(idx>=0xC000)
 		{ return(0); }
+
+	if(idx&0x4000)
+	{
+		rt0=BTIC6A_EncodeGetVqBlock2(ctx, idx, blk_y, blk_c);
+		blk_y[ 64]=blk_y[1];	blk_y[1]=0;
+		blk_y[128]=blk_y[2];	blk_y[2]=0;
+		blk_y[192]=blk_y[3];	blk_y[3]=0;
+		return(rt0);
+	}
+
 	if(!BTIC6A_CheckValidVqBlock16Index(ctx, idx))
 		return(-1);
 	ici=ctx->cb_16x16+((idx&BTIC6A_CBMSK_16X)*4);
@@ -708,7 +836,7 @@ int BTIC6A_EncAddBlock2Index(BTIC6A_EncodeContext *ctx,
 	byte *blk_y, byte *blk_c)
 {
 	byte *ici_y, *ici_c;
-	int ix2;
+	int ix2, h;
 
 	ix2=ctx->rov_2x2;
 	ctx->rov_2x2=(ix2+1)&0x3FFF;
@@ -719,6 +847,11 @@ int BTIC6A_EncAddBlock2Index(BTIC6A_EncodeContext *ctx,
 	ici_c[0]=blk_c[0];		ici_c[1]=blk_c[1];
 	ctx->rfr_2x2[ix2&BTIC6A_CBMSK_2X]=0xBFFF;
 	ctx->flg_2x2[ix2&BTIC6A_CBMSK_2X]=0;
+	
+	h=BTIC6A_EncodeCalcBlockNHashYUV(ctx, blk_y, blk_c, 0);
+	ctx->hcn_2x2[ix2&BTIC6A_CBMSK_2X]=ctx->hash_2x2[h];
+	ctx->hash_2x2[h]=ix2;
+		
 	return(ix2);
 }
 
@@ -745,8 +878,9 @@ int BTIC6A_EncWalkFreshenBlock2Index(BTIC6A_EncodeContext *ctx, int ix2)
 
 int BTIC6A_EncAddBlock4Index(BTIC6A_EncodeContext *ctx, u16 *blk_i)
 {
+	byte blk1_y[16], blk1_c[8];
 	u16 *ici;
-	int ix2;
+	int ix2, h;
 
 	ix2=ctx->rov_4x4;
 	ctx->rov_4x4=(ix2+1)&0x3FFF;
@@ -755,6 +889,12 @@ int BTIC6A_EncAddBlock4Index(BTIC6A_EncodeContext *ctx, u16 *blk_i)
 	ici[2]=blk_i[2];		ici[3]=blk_i[3];
 	ctx->rfr_4x4[ix2&BTIC6A_CBMSK_4X]=0xBFFF;
 	ctx->flg_4x4[ix2&BTIC6A_CBMSK_4X]=0;
+
+	BTIC6A_EncodeGetVqBlock4(ctx, ix2, blk1_y, blk1_c);
+	h=BTIC6A_EncodeCalcBlockNHashYUV(ctx, blk1_y, blk1_c, 2);
+	ctx->hcn_4x4[ix2&BTIC6A_CBMSK_4X]=ctx->hash_4x4[h];
+	ctx->hash_4x4[h]=ix2;
+
 	return(ix2);
 }
 
@@ -867,11 +1007,13 @@ int BTIC6A_EncodeBlock2(BTIC6A_EncodeContext *ctx,
 	int bi, bd, d;
 	int ix0, ix1, ix2, ix3, ix4, ix5, ix6, ix7;
 	int iy0, iy1, iy2, iy3, iy4, iy5, iy6, iy7;
-	int cy, cu, cv, icy, icu, icv;
+	int cy, cu, cv, icy, icu, icv, hash;
 	int i, j, k;
 
 	icy=ctx->clr_y;		icu=ctx->clr_u;		icv=ctx->clr_v;
 	BTIC6A_EncodeBlock2DeltaYUV(blk_y, blk_c, blk0_y, blk0_c, icy, icu, icv);
+
+	hash=BTIC6A_EncodeCalcBlockNHashYUV(ctx, blk0_y, blk0_c, 0);
 
 	BTIC6A_EncodeGetVqBlock2(ctx, 0xFFFF, blk1_y, blk1_c);
 	d=BTIC6A_EncodeCompareBlockNErrorYUV(
@@ -955,22 +1097,45 @@ int BTIC6A_EncodeBlock2(BTIC6A_EncodeContext *ctx,
 
 	bi=-1; bd=3*256*256*256;
 #if 1
+	ix2=ctx->hash_2x2[hash];
 	for(i=0; i<BTIC6A_CBSZ_2X; i++)
 	{
 		k=BTIC6A_EncodeGetVqBlock2(ctx,
-			ctx->rov_2x2-(i+1), blk1_y, blk1_c);
-		if(k<0)		continue;
+			ix2, blk1_y, blk1_c);
+		if(k<0)		break;
+
 		d=BTIC6A_EncodeCompareBlockNErrorYUV(
 			blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 0);
-		if(d<0)
-			continue;
-//		if(i>64)
-//			d*=2;
-		if(d<bd)
+		if(d<0)		break;
+		j=(ctx->rov_2x2-ix2-1)&0x3FFF;
+		if(d<bd && (j<4096))
 		{
-			bi=i; bd=d;
+			bi=j; bd=d;
 			if(((bd/2)<ctx->ld_skip_sq))
 				break;
+		}
+		ix2=ctx->hcn_2x2[ix2&BTIC6A_CBMSK_2X];
+	}
+
+	if((bd/4)>ctx->ld_skip_sq)
+	{
+		for(i=0; i<BTIC6A_CBSZ_2X; i++)
+		{
+			k=BTIC6A_EncodeGetVqBlock2(ctx,
+				ctx->rov_2x2-(i+1), blk1_y, blk1_c);
+			if(k<0)		continue;
+			d=BTIC6A_EncodeCompareBlockNErrorYUV(
+				blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 0);
+			if(d<0)
+				continue;
+	//		if(i>64)
+	//			d*=2;
+			if(d<bd)
+			{
+				bi=i; bd=d;
+				if(((bd/2)<ctx->ld_skip_sq))
+					break;
+			}
 		}
 	}
 #endif
@@ -1014,6 +1179,82 @@ int BTIC6A_EncodeBlock2(BTIC6A_EncodeContext *ctx,
 	ix0=blk0_y[0];	ix1=blk0_y[1];
 	ix2=blk0_y[2];	ix3=blk0_y[3];
 	ix6=blk0_c[0];	ix7=blk0_c[1];
+
+#if 0
+	j=2;
+	ix5=((sbyte)(ix0+ix1+ix2+ix3))>>1;
+	iy0=((((sbyte)ix5)>>j)+8)&255;
+	iy6=((((sbyte)ix6)>>j)+4)&255;
+	iy7=((((sbyte)ix7)>>j)+4)&255;
+	if(	(iy0<16) &&
+		(iy6<8) &&
+		(iy7<8) )
+	{
+		blk1_y[0]=(iy0-8)<<j;		blk1_y[1]=0;
+		blk1_y[2]=0;				blk1_y[3]=0;
+		blk1_c[0]=(iy6-4)<<j;		blk1_c[1]=(iy7-4)<<j;
+
+		d=BTIC6A_EncodeCompareBlockNErrorYUV(
+			blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 0);
+		if((d/4)<=ctx->ld_skip_sq)
+		{
+			tv=0x1F|(iy0<<6)|(iy6<<10)|(iy7<<13);
+		
+			ctx->lct=ctx->ct;
+			ctx->lct2=ctx->ct;
+			*ctx->ct++=(tv>> 0)&255;
+			*ctx->ct++=(tv>> 8)&255;
+			ctx->bytes_cb_2x2_3b+=4;
+
+			BTIC6A_EncodeCalcBlockNStepYUV(
+				blk1_y, blk1_c, icy, icu, icv, &cy, &cu, &cv, 0);
+			ctx->clr_y=cy;		ctx->clr_u=cu;		ctx->clr_v=cv;
+
+			ix4=BTIC6A_EncAddBlock2Index(ctx, blk1_y, blk1_c);
+			return(ix4);
+		}
+	}
+#endif
+
+#if 0
+	j=0;
+//	j=1;
+	ix5=((sbyte)(ix0+ix1+ix2+ix3))>>1;
+//	ix5=(ix0+ix1+ix2+ix3)&255;
+	iy0=((((sbyte)ix5)>>j)+16)&255;
+	iy6=((((sbyte)ix6)>>j)+16)&255;
+	iy7=((((sbyte)ix7)>>j)+16)&255;
+	if(	(iy0<32) &&
+		(iy6<32) &&
+		(iy7<32) )
+	{
+		blk1_y[0]=(iy0-16)<<j;		blk1_y[1]=0;
+		blk1_y[2]=0;				blk1_y[3]=0;
+		blk1_c[0]=(iy6-16)<<j;		blk1_c[1]=(iy7-16)<<j;
+
+		d=BTIC6A_EncodeCompareBlockNErrorYUV(
+			blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 0);
+		if((d/4)<=ctx->ld_skip_sq)
+		{
+			tv=0x1F|(iy0<<9)|(iy6<<14)|(iy7<<19);
+		
+			ctx->lct=ctx->ct;
+			ctx->lct2=ctx->ct;
+			*ctx->ct++=(tv>> 0)&255;
+			*ctx->ct++=(tv>> 8)&255;
+			*ctx->ct++=(tv>>16)&255;
+			ctx->bytes_cb_2x2_3b+=4;
+
+			BTIC6A_EncodeCalcBlockNStepYUV(
+				blk1_y, blk1_c, icy, icu, icv, &cy, &cu, &cv, 0);
+			ctx->clr_y=cy;		ctx->clr_u=cu;		ctx->clr_v=cv;
+
+			ix4=BTIC6A_EncAddBlock2Index(ctx, blk1_y, blk1_c);
+			return(ix4);
+		}
+	}
+#endif
+
 
 #if 1
 	for(j=2; j<4; j++)
@@ -1253,15 +1494,18 @@ int BTIC6A_EncodeBlock4(BTIC6A_EncodeContext *ctx,
 	byte blk0_c[ 8];
 	byte blk1_y[16];
 	byte blk1_c[ 8];
+	byte blk0a_y[4], blk0a_c[2];
 	u16 ictab[4];
 	u16 *ici, *icj;
-	int bi, bd, d;
+	int bi, bd, d, hash;
 	int ix0, ix1, ix2, ix3, ix4;
 	int cy, cu, cv, icy, icu, icv;
 	int i, j, k;
 
 	icy=ctx->clr_y;		icu=ctx->clr_u;		icv=ctx->clr_v;
 	BTIC6A_EncodeBlock4DeltaYUV(blk_y, blk_c, blk0_y, blk0_c, icy, icu, icv);
+
+	hash=BTIC6A_EncodeCalcBlockNHashYUV(ctx, blk0_y, blk0_c, 2);
 
 	BTIC6A_EncodeGetVqBlock4(ctx, 0xFFFF, blk1_y, blk1_c);
 	d=BTIC6A_EncodeCompareBlockNErrorYUV(
@@ -1341,28 +1585,119 @@ int BTIC6A_EncodeBlock4(BTIC6A_EncodeContext *ctx,
 	}
 #endif
 
+#if 1
+	bi=-1; bd=3*256*256*256;
+
+	ix2=ctx->hash_2x2[hash];
+	ix2|=0x4000;
+	for(i=0; i<BTIC6A_CBSZ_2X_H4; i++)
+	{
+		k=BTIC6A_EncodeGetVqBlock4(ctx,
+			ix2, blk1_y, blk1_c);
+		if(k<0)		break;
+
+		d=BTIC6A_EncodeCompareBlockNErrorYUV(
+			blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 2);
+		if(d<0)		break;
+		j=(ctx->rov_2x2-ix2-1)&0x3FFF;
+		if(d<bd && (j<4096))
+		{
+			bi=j; bd=d;
+			if(((bd/8)<ctx->ld_skip_sq))
+				break;
+		}
+		ix2=ctx->hcn_2x2[ix2&BTIC6A_CBMSK_2X];
+		ix2|=0x4000;
+	}
+
+	if((bd/16)>ctx->ld_skip_sq)
+	{
+		for(i=0; i<BTIC6A_CBSZ_2X_L4; i++)
+		{
+			ix2=ctx->rov_2x2-(i+1);
+			ix2|=0x4000;
+			if(ctx->flg_2x2[ix2&BTIC6A_CBMSK_2X]&1)
+				continue;
+			k=BTIC6A_EncodeGetVqBlock4(ctx, ix2, blk1_y, blk1_c);
+			if(k<0)
+				{ ctx->flg_2x2[ix2&BTIC6A_CBMSK_2X]|=1; continue; }
+			d=BTIC6A_EncodeCompareBlockNErrorYUV(
+				blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 2);
+			if(d<bd)
+			{
+				bi=i; bd=d;
+				if(((bd/8)<ctx->ld_skip_sq))
+					break;
+			}
+		}
+	}
+
+	if((bi>=0) && ((bd/16)<ctx->ld_skip_sq))
+	{
+		ix2=ctx->rov_2x2-(bi+1);
+		ix2|=0x4000;
+	
+		BTIC6A_EncodeGetVqBlock4(ctx, ix2, blk1_y, blk1_c);
+
+		ctx->bytes_cb_4x4_idx2+=2;
+
+		ctx->lct=ctx->ct;
+		ctx->lct4=ctx->ct;
+
+		*ctx->ct++=0x0D|(bi<<4);
+		*ctx->ct++=(bi>>4)&255;
+
+		ctx->strov_4x4--;
+		ctx->stf_4x4[ctx->strov_4x4&127]=ix2;
+
+		BTIC6A_EncodeCalcBlockNStepYUV(
+			blk1_y, blk1_c, icy, icu, icv, &cy, &cu, &cv, 2);
+		ctx->clr_y=cy;		ctx->clr_u=cu;		ctx->clr_v=cv;
+		return(ix2);
+	}
+#endif
+
 	bi=-1; bd=3*256*256*256;
 
 #if 1
+	ix2=ctx->hash_4x4[hash];
 	for(i=0; i<BTIC6A_CBSZ_4X; i++)
 	{
-		ix2=ctx->rov_4x4-(i+1);
-		if(ctx->flg_4x4[ix2&BTIC6A_CBMSK_4X]&1)
-			continue;
-		k=BTIC6A_EncodeGetVqBlock4(ctx, ix2, blk1_y, blk1_c);
-		if(k<0)
-			{ ctx->flg_4x4[ix2&BTIC6A_CBMSK_4X]|=1; continue; }
+		k=BTIC6A_EncodeGetVqBlock4(ctx,
+			ix2, blk1_y, blk1_c);
+		if(k<0)		break;
+
 		d=BTIC6A_EncodeCompareBlockNErrorYUV(
 			blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 2);
-//		if(i>64)
-//			d*=1.1;
-//		if(i<64)
-//			d*=0.875;
+		if(d<0)		break;
 		if(d<bd)
 		{
-			bi=i; bd=d;
+			j=(ctx->rov_4x4-ix2-1)&0x3FFF;
+			bi=j; bd=d;
 			if(((bd/8)<ctx->ld_skip_sq))
 				break;
+		}
+		ix2=ctx->hcn_4x4[ix2&BTIC6A_CBMSK_4X];
+	}
+
+	if((bd/16)>ctx->ld_skip_sq)
+	{
+		for(i=0; i<BTIC6A_CBSZ_4X; i++)
+		{
+			ix2=ctx->rov_4x4-(i+1);
+			if(ctx->flg_4x4[ix2&BTIC6A_CBMSK_4X]&1)
+				continue;
+			k=BTIC6A_EncodeGetVqBlock4(ctx, ix2, blk1_y, blk1_c);
+			if(k<0)
+				{ ctx->flg_4x4[ix2&BTIC6A_CBMSK_4X]|=1; continue; }
+			d=BTIC6A_EncodeCompareBlockNErrorYUV(
+				blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 2);
+			if(d<bd)
+			{
+				bi=i; bd=d;
+				if(((bd/8)<ctx->ld_skip_sq))
+					break;
+			}
 		}
 	}
 #endif
@@ -1390,17 +1725,12 @@ int BTIC6A_EncodeBlock4(BTIC6A_EncodeContext *ctx,
 	
 		BTIC6A_EncodeGetVqBlock4(ctx, ix2, blk1_y, blk1_c);
 
-//		ctx->bytes_cb_4x4_idx++;
-//		if(bi>=64)
-//		if(bi>=128)
-//			ctx->bytes_cb_4x4_idx2++;
 		ctx->bytes_cb_4x4_idx2+=2;
 
 		ctx->lct=ctx->ct;
 		ctx->lct4=ctx->ct;
 
 		if(BTIC6A_CheckStaleBlock4Index(ctx, ix2))
-//		if(0)
 		{
 			*ctx->ct++=0x09|(bi<<4);
 			*ctx->ct++=(bi>>4)&255;
@@ -1420,25 +1750,50 @@ int BTIC6A_EncodeBlock4(BTIC6A_EncodeContext *ctx,
 		return(ctx->rov_4x4-(bi+1));
 	}
 
+#if 1
+	blk0a_y[0]=(blk_y[ 0]+blk_y[ 1]+blk_y[ 2]+blk_y[ 3])>>2;
+	blk0a_y[1]=(blk_y[ 4]+blk_y[ 5]+blk_y[ 6]+blk_y[ 7])>>2;
+	blk0a_y[2]=(blk_y[ 8]+blk_y[ 9]+blk_y[10]+blk_y[11])>>2;
+	blk0a_y[3]=(blk_y[12]+blk_y[13]+blk_y[14]+blk_y[15])>>2;
+	blk0a_c[0]=(blk_c[ 0]+blk_c[ 2]+blk_c[ 4]+blk_c[ 6])>>2;
+	blk0a_c[1]=(blk_c[ 1]+blk_c[ 3]+blk_c[ 5]+blk_c[ 7])>>2;
+	memset(blk1_y, 0, 16);
+	memset(blk1_c, 0, 8);
+	blk1_y[ 0]=blk0a_y[0]-icy;
+	blk1_y[ 4]=blk0a_y[1]-blk0a_y[0];
+	blk1_y[ 8]=blk0a_y[2]-blk0a_y[1];
+	blk1_y[12]=blk0a_y[3]-blk0a_y[2];
+	blk1_c[0]=blk0a_c[0]-icu;
+	blk1_c[1]=blk0a_c[1]-icv;
+
+	d=BTIC6A_EncodeCompareBlockNErrorYUV(
+		blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 2);
+	if((d/16)<ctx->ld_skip_sq)
+	{
+		if(	ctx->lct4 &&
+			(((*ctx->lct4)&0x3F)==0x0F) &&
+			(((*ctx->lct4)&0xC0)< 0xC0) )
+		{
+			*ctx->lct4=(*ctx->lct4)+0x40;
+		}else
+		{
+			ctx->lct=ctx->ct;
+			ctx->lct4=ctx->ct;
+			*ctx->ct++=0x0F;
+			ctx->bytes_cb_4x4_tag++;
+		}
+		ix4=BTIC6A_EncodeBlock2(ctx, blk0a_y, blk0a_c);
+		ix4|=0x4000;
+		return(ix4);
+	}
+#endif
+
 	if(	ctx->lct4 &&
 		(((*ctx->lct4)&0x1F)==0x07) &&
 		(((*ctx->lct4)&0xE0)< 0xE0) )
 	{
 		*ctx->lct4=(*ctx->lct4)+0x20;
 	}else
-#if 0
-		if(	(ctx->lct==ctx->lct8) &&
-			((*ctx->lct8)==0x07))
-	{
-		*ctx->lct8=(*ctx->lct8)|0x10;
-	}else
-		if(	(ctx->lct==ctx->lct8) &&
-			(((*ctx->lct8)&0x1F)==0x17) &&
-			(((*ctx->lct8)&0xE0)< 0x60))
-	{
-		*ctx->lct8=(*ctx->lct8)+0x20;
-	}else
-#endif
 	{
 		ctx->lct=ctx->ct;
 		ctx->lct4=ctx->ct;
@@ -1463,16 +1818,20 @@ int BTIC6A_EncodeBlock8(BTIC6A_EncodeContext *ctx,
 	byte blk0_c[32];
 	byte blk1_y[64];
 	byte blk1_c[32];
+	byte blk0a_y[4], blk0a_c[2];
+	byte blk1a_y[16], blk1a_c[8];
 	u16 tidxi[4], tidxj[4];
 	u16 ictab[4];
 	u16 *ici, *icj;
-	int bi, bd, d, bj, bi_dorfr, ix_dorfr;
-	int ix0, ix1, ix2, ix3, ix4;
+	int bi, bd, d, bj, bi_dorfr, ix_dorfr, hash;
+	int ix0, ix1, ix2, ix3, ix4, ix5, ix6, ix7;
 	int cy, cu, cv, icy, icu, icv;
 	int i, j, k;
 
 	icy=ctx->clr_y;		icu=ctx->clr_u;		icv=ctx->clr_v;
 	BTIC6A_EncodeBlock8DeltaYUV(blk_y, blk_c, blk0_y, blk0_c, icy, icu, icv);
+
+	hash=BTIC6A_EncodeCalcBlockNHashYUV(ctx, blk0_y, blk0_c, 4);
 
 	BTIC6A_EncodeGetVqBlock8(ctx, 0xFFFF, blk1_y, blk1_c);
 	d=BTIC6A_EncodeCompareBlockNErrorYUV(
@@ -1545,6 +1904,78 @@ int BTIC6A_EncodeBlock8(BTIC6A_EncodeContext *ctx,
 		ctx->lct8=ctx->ct;
 
 		*ctx->ct++=0x00|(bi<<1);
+
+		BTIC6A_EncodeCalcBlockNStepYUV(
+			blk1_y, blk1_c, icy, icu, icv, &cy, &cu, &cv, 4);
+		ctx->clr_y=cy;		ctx->clr_u=cu;		ctx->clr_v=cv;
+		return(ix2);
+	}
+#endif
+
+#if 1
+	bi=-1; bd=3*256*256*256;
+
+	ix2=ctx->hash_2x2[hash];
+	ix2|=0x4000;
+	for(i=0; i<BTIC6A_CBSZ_2X_H8; i++)
+	{
+		k=BTIC6A_EncodeGetVqBlock8(ctx,
+			ix2, blk1_y, blk1_c);
+		if(k<0)		break;
+
+		d=BTIC6A_EncodeCompareBlockNErrorYUV(
+			blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 4);
+		if(d<0)		break;
+		j=(ctx->rov_2x2-ix2-1)&0x3FFF;
+		if(d<bd && (j<4096))
+		{
+			bi=j; bd=d;
+			if(((bd/32)<ctx->ld_skip_sq))
+				break;
+		}
+		ix2=ctx->hcn_2x2[ix2&BTIC6A_CBMSK_2X];
+		ix2|=0x4000;
+	}
+
+	if((bd/32)>ctx->ld_skip_sq)
+	{
+		for(i=0; i<BTIC6A_CBSZ_2X_L8; i++)
+		{
+			ix2=ctx->rov_2x2-(i+1);
+			ix2|=0x4000;
+			if(ctx->flg_2x2[ix2&BTIC6A_CBMSK_2X]&1)
+				continue;
+			k=BTIC6A_EncodeGetVqBlock8(ctx, ix2, blk1_y, blk1_c);
+			if(k<0)
+				{ ctx->flg_2x2[ix2&BTIC6A_CBMSK_2X]|=1; continue; }
+			d=BTIC6A_EncodeCompareBlockNErrorYUV(
+				blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 4);
+			if(d<bd)
+			{
+				bi=i; bd=d;
+				if(((bd/32)<ctx->ld_skip_sq))
+					break;
+			}
+		}
+	}
+
+	if((bi>=0) && ((bd/64)<(ctx->ld_skip_sq*1.414)))
+	{
+		ix2=ctx->rov_2x2-(bi+1);
+		ix2|=0x4000;
+	
+		BTIC6A_EncodeGetVqBlock8(ctx, ix2, blk1_y, blk1_c);
+
+		ctx->bytes_cb_8x8_idx2+=2;
+
+		ctx->lct=ctx->ct;
+		ctx->lct8=ctx->ct;
+
+		*ctx->ct++=0x0D|(bi<<4);
+		*ctx->ct++=(bi>>4)&255;
+
+		ctx->strov_8x8--;
+		ctx->stf_8x8[ctx->strov_8x8&127]=ix2;
 
 		BTIC6A_EncodeCalcBlockNStepYUV(
 			blk1_y, blk1_c, icy, icu, icv, &cy, &cu, &cv, 4);
@@ -1688,6 +2119,53 @@ int BTIC6A_EncodeBlock8(BTIC6A_EncodeContext *ctx,
 	}
 #endif
 
+#if 1
+	for(i=0; i<4; i++)
+	{
+		ix0=(blk_y[i*16+ 0]+blk_y[i*16+ 1]+blk_y[i*16+ 2]+blk_y[i*16+ 3])>>2;
+		ix1=(blk_y[i*16+ 4]+blk_y[i*16+ 5]+blk_y[i*16+ 6]+blk_y[i*16+ 7])>>2;
+		ix2=(blk_y[i*16+ 8]+blk_y[i*16+ 9]+blk_y[i*16+10]+blk_y[i*16+11])>>2;
+		ix3=(blk_y[i*16+12]+blk_y[i*16+13]+blk_y[i*16+14]+blk_y[i*16+15])>>2;
+		blk0a_y[i]=(ix0+ix1+ix2+ix3)>>2;
+		ix6=(blk_c[i*8+ 0]+blk_c[i*8+ 2]+blk_c[i*8+ 4]+blk_c[i*8+ 6])>>2;
+		ix7=(blk_c[i*8+ 1]+blk_c[i*8+ 3]+blk_c[i*8+ 5]+blk_c[i*8+ 7])>>2;
+		blk1a_c[i*2+0]=ix6;
+		blk1a_c[i*2+1]=ix7;
+	}
+	blk0a_c[0]=(blk1a_c[ 0]+blk1a_c[ 2]+blk1a_c[ 4]+blk1a_c[ 6])>>2;
+	blk0a_c[1]=(blk1a_c[ 1]+blk1a_c[ 3]+blk1a_c[ 5]+blk1a_c[ 7])>>2;
+
+	memset(blk1_y, 0, 64);
+	memset(blk1_c, 0, 32);
+	blk1_y[ 0]=blk0a_y[0]-icy;
+	blk1_y[16]=blk0a_y[1]-blk0a_y[0];
+	blk1_y[32]=blk0a_y[2]-blk0a_y[1];
+	blk1_y[48]=blk0a_y[3]-blk0a_y[2];
+	blk1_c[0]=blk0a_c[0]-icu;
+	blk1_c[1]=blk0a_c[1]-icv;
+
+	d=BTIC6A_EncodeCompareBlockNErrorYUV(
+		blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 4);
+	if((d/64)<(ctx->ld_skip_sq*1.414))
+	{
+		if(	ctx->lct8 &&
+			(((*ctx->lct8)&0x3F)==0x0F) &&
+			(((*ctx->lct8)&0xC0)< 0xC0) )
+		{
+			*ctx->lct8=(*ctx->lct8)+0x40;
+		}else
+		{
+			ctx->lct=ctx->ct;
+			ctx->lct8=ctx->ct;
+			*ctx->ct++=0x0F;
+			ctx->bytes_cb_8x8_tag++;
+		}
+		ix4=BTIC6A_EncodeBlock2(ctx, blk0a_y, blk0a_c);
+		ix4|=0x4000;
+		return(ix4);
+	}
+#endif
+
 	if(	ctx->lct8 &&
 		(((*ctx->lct8)&0x1F)==0x07) &&
 		(((*ctx->lct8)&0xE0)< 0xE0) )
@@ -1714,19 +2192,21 @@ int BTIC6A_EncodeBlock8(BTIC6A_EncodeContext *ctx,
 int BTIC6A_EncodeBlock16(BTIC6A_EncodeContext *ctx,
 	byte *blk_y, byte *blk_c)
 {
-	byte blk0_y[256];
-	byte blk0_c[128];
-	byte blk1_y[256];
-	byte blk1_c[128];
+	byte blk0_y[256], blk0_c[128];
+	byte blk1_y[256], blk1_c[128];
+	byte blk1a_y[256], blk1a_c[128];
+	byte blk0a_y[4], blk0a_c[2];
 	u16 ictab[4];
 	u16 *ici;
-	int bi, bd, d;
-	int ix0, ix1, ix2, ix3, ix4;
+	int bi, bd, d, hash;
+	int ix0, ix1, ix2, ix3, ix4, ix5, ix6, ix7;
 	int cy, cu, cv, icy, icu, icv;
 	int i, j, k;
 
 	icy=ctx->clr_y;		icu=ctx->clr_u;		icv=ctx->clr_v;
 	BTIC6A_EncodeBlock16DeltaYUV(blk_y, blk_c, blk0_y, blk0_c, icy, icu, icv);
+
+	hash=BTIC6A_EncodeCalcBlockNHashYUV(ctx, blk0_y, blk0_c, 6);
 
 	BTIC6A_EncodeGetVqBlock16(ctx, 0xFFFF, blk1_y, blk1_c);
 	d=BTIC6A_EncodeCompareBlockNErrorYUV(
@@ -1803,6 +2283,78 @@ int BTIC6A_EncodeBlock16(BTIC6A_EncodeContext *ctx,
 	}
 #endif
 
+#if 1
+	bi=-1; bd=3*256*256*256;
+
+	ix2=ctx->hash_2x2[hash];
+	ix2|=0x4000;
+	for(i=0; i<BTIC6A_CBSZ_2X_H16; i++)
+	{
+		k=BTIC6A_EncodeGetVqBlock16(ctx,
+			ix2, blk1_y, blk1_c);
+		if(k<0)		break;
+
+		d=BTIC6A_EncodeCompareBlockNErrorYUV(
+			blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 6);
+		if(d<0)		break;
+		j=(ctx->rov_2x2-ix2-1)&0x3FFF;
+		if(d<bd && (j<4096))
+		{
+			bi=j; bd=d;
+			if(((bd/128)<ctx->ld_skip_sq))
+				break;
+		}
+		ix2=ctx->hcn_2x2[ix2&BTIC6A_CBMSK_2X];
+		ix2|=0x4000;
+	}
+
+	if((bd/128)>ctx->ld_skip_sq)
+	{
+		for(i=0; i<BTIC6A_CBSZ_2X_L16; i++)
+		{
+			ix2=ctx->rov_2x2-(i+1);
+			ix2|=0x4000;
+			if(ctx->flg_2x2[ix2&BTIC6A_CBMSK_2X]&1)
+				continue;
+			k=BTIC6A_EncodeGetVqBlock16(ctx, ix2, blk1_y, blk1_c);
+			if(k<0)
+				{ ctx->flg_2x2[ix2&BTIC6A_CBMSK_2X]|=1; continue; }
+			d=BTIC6A_EncodeCompareBlockNErrorYUV(
+				blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 6);
+			if(d<bd)
+			{
+				bi=i; bd=d;
+				if(((bd/128)<ctx->ld_skip_sq))
+					break;
+			}
+		}
+	}
+
+	if((bi>=0) && ((bd/256)<(ctx->ld_skip_sq*2)))
+	{
+		ix2=ctx->rov_2x2-(bi+1);
+		ix2|=0x4000;
+	
+		BTIC6A_EncodeGetVqBlock16(ctx, ix2, blk1_y, blk1_c);
+
+		ctx->bytes_cb_16x16_idx2+=2;
+
+		ctx->lct=ctx->ct;
+		ctx->lct16=ctx->ct;
+
+		*ctx->ct++=0x0D|(bi<<4);
+		*ctx->ct++=(bi>>4)&255;
+
+		ctx->strov_16x16--;
+		ctx->stf_16x16[ctx->strov_16x16&127]=ix2;
+
+		BTIC6A_EncodeCalcBlockNStepYUV(
+			blk1_y, blk1_c, icy, icu, icv, &cy, &cu, &cv, 6);
+		ctx->clr_y=cy;		ctx->clr_u=cu;		ctx->clr_v=cv;
+		return(ix2);
+	}
+#endif
+
 	bi=-1; bd=3*256*256*256;
 #if 1
 	for(i=0; i<BTIC6A_CBSZ_16X; i++)
@@ -1869,6 +2421,72 @@ int BTIC6A_EncodeBlock16(BTIC6A_EncodeContext *ctx,
 		return(ix2);
 	}
 
+
+#if 1
+	for(i=0; i<64; i++)
+	{
+		ix0=(	blk_y[i*4+0]+blk_y[i*4+1]+
+				blk_y[i*4+2]+blk_y[i*4+3])>>2;
+		blk1a_y[i]=ix0;
+	}
+	for(i=0; i<16; i++)
+	{
+		ix0=(	blk1a_y[i*4+0]+blk1a_y[i*4+1]+
+				blk1a_y[i*4+2]+blk1a_y[i*4+3])>>2;
+		blk1a_y[i]=ix0;
+		ix6=(	blk_c[i*8+0]+blk_c[i*8+2]+
+				blk_c[i*8+4]+blk_c[i*8+6])>>2;
+		ix7=(	blk_c[i*8+1]+blk_c[i*8+3]+
+				blk_c[i*8+5]+blk_c[i*8+7])>>2;
+		blk1a_c[i*2+0]=ix6;
+		blk1a_c[i*2+1]=ix7;
+	}
+	for(i=0; i<4; i++)
+	{
+		ix0=(	blk1a_y[i*4+ 0]+blk1a_y[i*4+ 1]+
+				blk1a_y[i*4+ 2]+blk1a_y[i*4+ 3])>>2;
+		blk0a_y[i]=ix0;
+		ix6=(	blk1a_c[i*8+ 0]+blk1a_c[i*8+ 2]+
+				blk1a_c[i*8+ 4]+blk1a_c[i*8+ 6])>>2;
+		ix7=(	blk1a_c[i*8+ 1]+blk1a_c[i*8+ 3]+
+				blk1a_c[i*8+ 5]+blk1a_c[i*8+ 7])>>2;
+		blk1a_c[i*2+0]=ix6;
+		blk1a_c[i*2+1]=ix7;
+	}
+	blk0a_c[0]=(blk1a_c[0]+blk1a_c[2]+blk1a_c[4]+blk1a_c[6])>>2;
+	blk0a_c[1]=(blk1a_c[1]+blk1a_c[3]+blk1a_c[5]+blk1a_c[7])>>2;
+
+	memset(blk1_y, 0, 256);
+	memset(blk1_c, 0, 128);
+	blk1_y[  0]=blk0a_y[0]-icy;
+	blk1_y[ 64]=blk0a_y[1]-blk0a_y[0];
+	blk1_y[128]=blk0a_y[2]-blk0a_y[1];
+	blk1_y[192]=blk0a_y[3]-blk0a_y[2];
+	blk1_c[0]=blk0a_c[0]-icu;
+	blk1_c[1]=blk0a_c[1]-icv;
+
+	d=BTIC6A_EncodeCompareBlockNErrorYUV(
+		blk0_y, blk0_c, blk1_y, blk1_c, icy, icu, icv, 6);
+	if((d/256)<(ctx->ld_skip_sq*2))
+	{
+		if(	ctx->lct16 &&
+			(((*ctx->lct16)&0x3F)==0x0F) &&
+			(((*ctx->lct16)&0xC0)< 0xC0) )
+		{
+			*ctx->lct16=(*ctx->lct16)+0x40;
+		}else
+		{
+			ctx->lct=ctx->ct;
+			ctx->lct16=ctx->ct;
+			*ctx->ct++=0x0F;
+			ctx->bytes_cb_16x16_tag++;
+		}
+		ix4=BTIC6A_EncodeBlock2(ctx, blk0a_y, blk0a_c);
+		ix4|=0x4000;
+		return(ix4);
+	}
+#endif
+
 	if(	ctx->lct16 &&
 		(((*ctx->lct16)&0x1F)==0x07) &&
 		(((*ctx->lct16)&0xE0)< 0xE0) )
@@ -1893,15 +2511,101 @@ int BTIC6A_EncodeBlock16(BTIC6A_EncodeContext *ctx,
 
 int BTIC6A_EncodeFrameMacroblock(BTIC6A_EncodeContext *ctx)
 {
+	static const int ofst[16]={
+		1,0, 0,1, -1,0, 0,-1, 1,1, -1,1, -1,-1, 1,-1 };
 	byte blk0_y[256];
 	byte blk0_c[128];
-//	byte blk1_y[256];
-//	byte blk1_c[128];
+	byte blk1_y[256];
+	byte blk1_c[128];
+	int tg;
+	int d0, d1, d2, imx, imy, mx, my, tmx, tmy, t2mx, t2my, t2d, n;
+	int i, j, k;
 
 	BTIC6A_EncodeGetFrameMacroblockPixelsHilbertYUV(
 		ctx->cimg, ctx->bxs, ctx->bys,
 		blk0_y, blk0_c,
 		ctx->c_x*16, ctx->c_y*16);
+
+	if(ctx->is_pframe)
+	{
+		imx=ctx->mv_x;	imy=ctx->mv_y;
+		BTIC6A_EncodeGetFrameMacroblockPixelsHilbertYUV(
+			ctx->pimg, ctx->bxs, ctx->bys,
+			blk1_y, blk1_c, ctx->c_x*16+imx, ctx->c_y*16+imy);
+		d0=BTIC6A_EncodeCompareBlockAbsNErrorYUV(
+			blk0_y, blk0_c, blk1_y, blk1_c, 6);
+		d1=d0;
+
+		if((imx!=0) || (imy!=0))
+		{
+			BTIC6A_EncodeGetFrameMacroblockPixelsHilbertYUV(
+				ctx->pimg, ctx->bxs, ctx->bys,
+				blk1_y, blk1_c, ctx->c_x*16+0, ctx->c_y*16+0);
+			d1=BTIC6A_EncodeCompareBlockAbsNErrorYUV(
+				blk0_y, blk0_c, blk1_y, blk1_c, 6);
+		}
+
+		mx=imx; my=imy; d2=d0;
+		if(d1<d0)
+			{ mx=0; my=0; d2=d1; }
+		
+		n=64;
+		while((n--)>0)
+		{
+			t2d=d2;
+			for(i=0; i<8; i++)
+			{
+				tmx=mx+ofst[i*2+0];
+				tmy=my+ofst[i*2+1];
+				if(tmx<(-31))		continue;
+				if(tmy<(-31))		continue;
+				if(tmx>( 31))		continue;
+				if(tmy>( 31))		continue;
+
+				BTIC6A_EncodeGetFrameMacroblockPixelsHilbertYUV(
+					ctx->pimg, ctx->bxs, ctx->bys,
+					blk1_y, blk1_c, ctx->c_x*16+tmx, ctx->c_y*16+tmy);
+				d1=BTIC6A_EncodeCompareBlockAbsNErrorYUV(
+					blk0_y, blk0_c, blk1_y, blk1_c, 6);
+				if(d1<0)
+					continue;
+				if(d1<t2d)
+					{ t2mx=tmx; t2my=tmy; t2d=d1; }
+			}
+			if(t2d<d2)
+				{ mx=t2mx; my=t2my; d2=t2d; continue; }
+			break;
+		}
+		
+		if((mx!=imx) || (my!=imy))
+		{
+			ctx->mv_x=mx;	ctx->mv_y=my;
+			tg=0x0B|((tmy+32)<<10)|((tmx+32)<<4);
+			ctx->lct=ctx->ct;
+			ctx->lct16=ctx->ct;
+			*ctx->ct++=(tg>>0)&255;
+			*ctx->ct++=(tg>>8)&255;
+			ctx->bytes_cb_16x16_tag+=2;
+		}
+		
+		if((d2/256)<(ctx->ld_skip_sq*2))
+		{
+			if(	ctx->lct16 &&
+				(((*ctx->lct16)&0x0F)==0x05) &&
+				(((*ctx->lct16)&0xF0)< 0xF0) )
+			{
+				*ctx->lct16=(*ctx->lct16)+0x10;
+			}else
+			{
+				ctx->lct=ctx->ct;
+				ctx->lct16=ctx->ct;
+				*ctx->ct++=0x05;
+				ctx->bytes_cb_16x16_tag++;
+			}
+			return(0);
+		}
+	}
+
 	BTIC6A_EncodeBlock16(ctx, blk0_y, blk0_c);
 	return(0);
 }
@@ -1968,15 +2672,6 @@ void BTIC6A_EncodeCopyFrameClrs(BTIC6A_EncodeContext *ctx,
 	}
 }
 
-int btic6a_log2(int val)
-{
-	int ex, v;
-	ex=0; v=val;
-	while(v>1)
-		{ ex++; v=v>>1; }
-	return(ex);
-}
-
 int BTIC6A_EncodeFrameImage(BTIC6A_EncodeContext *ctx,
 	byte *obuf, int obsz, void *ibuf, int qfl, int clrs)
 {
@@ -2005,6 +2700,10 @@ int BTIC6A_EncodeFrameImage(BTIC6A_EncodeContext *ctx,
 	ctx->strov_8x8  =0;
 	ctx->strov_16x16=0;
 	
+	ctx->is_pframe=0;
+	if(qfl&BTPIC_QFL_PFRAME)
+		ctx->is_pframe=1;
+	
 	ctx->ct=ctx->tfbuf;
 	for(y=0; y<ctx->cys; y++)
 	{
@@ -2018,22 +2717,28 @@ int BTIC6A_EncodeFrameImage(BTIC6A_EncodeContext *ctx,
 	sz=ctx->ct-ctx->tfbuf;
 	ct=obuf;
 	
-	k=0;
-	k|=btic6a_log2(BTIC6A_CBSZ_2X )<< 0;
-	k|=btic6a_log2(BTIC6A_CBSZ_4X )<< 4;
-	k|=btic6a_log2(BTIC6A_CBSZ_8X )<< 8;
-	k|=btic6a_log2(BTIC6A_CBSZ_16X)<<12;
-	
-	memset(thbuf, 0, 16);
-	btpic_setu16(thbuf+0, ctx->xs);
-	btpic_setu16(thbuf+2, ctx->ys);
-	btpic_setu16(thbuf+4, 0x0000);
-	btpic_setu16(thbuf+6, k);
-	ct=BTIC5C_EncodeEmitTwoCC(ct, BTPIC_TCC_HX, thbuf, 16);
+	if(ctx->is_pframe)
+	{
+		ct=BTIC5C_EncodeEmitTwoCC(ct, BTPIC_TCC_PX, ctx->tfbuf, sz);
+		osz=ct-obuf;
+	}else
+	{
+		k=0;
+		k|=btic6a_log2(BTIC6A_CBSZ_2X )<< 0;
+		k|=btic6a_log2(BTIC6A_CBSZ_4X )<< 4;
+		k|=btic6a_log2(BTIC6A_CBSZ_8X )<< 8;
+		k|=btic6a_log2(BTIC6A_CBSZ_16X)<<12;
+		
+		memset(thbuf, 0, 16);
+		btpic_setu16(thbuf+0, ctx->xs);
+		btpic_setu16(thbuf+2, ctx->ys);
+		btpic_setu16(thbuf+4, 0x0000);
+		btpic_setu16(thbuf+6, k);
+		ct=BTIC5C_EncodeEmitTwoCC(ct, BTPIC_TCC_HX, thbuf, 16);
 
-	ct=BTIC5C_EncodeEmitTwoCC(ct, BTPIC_TCC_IX, ctx->tfbuf, sz);
-	osz=ct-obuf;
-
+		ct=BTIC5C_EncodeEmitTwoCC(ct, BTPIC_TCC_IX, ctx->tfbuf, sz);
+		osz=ct-obuf;
+	}
 #ifdef RP2POST_RP2AUTO_C
 	sz=PostRp2_EncodeRP2TestAuto(
 		ctx->tfzbuf+12, obuf, ctx->tfbsz, osz, 
