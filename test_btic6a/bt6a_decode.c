@@ -16,9 +16,12 @@
 
 #ifndef BTPIC_QFL_PFRAME
 // #define BTPIC_QFL_PFRAME	0x100
-#define BTPIC_QFL_PFRAME	0x200
+// #define BTPIC_QFL_PFRAME	0x200
+#define BTPIC_QFL_PFRAME	BTIC4B_QFL_PFRAME
 #endif
 
+#ifndef PDLIB_INT_BITS_T
+#define PDLIB_INT_BITS_T
 typedef	uint8_t		byte;
 typedef	uint16_t	u16;
 typedef	uint32_t	u32;
@@ -28,6 +31,39 @@ typedef	int8_t		sbyte;
 typedef	int16_t		s16;
 typedef	int32_t		s32;
 typedef	int64_t		s64;
+#endif
+
+#ifdef __GNUC__
+#define DO_MISAL_BYTES
+#endif
+
+#ifdef DO_MISAL_BYTES
+
+u16 btpic_getu16le(byte *ptr)
+	{ return(ptr[0]|(ptr[1]<<8)); }
+u32 btpic_getu32le(byte *ptr)
+	{ return(ptr[0]|(ptr[1]<<8)|(ptr[2]<<16)|(ptr[3]<<24)); }
+u64 btpic_getu64le(byte *ptr)
+	{ return(btpic_getu32le(ptr+0)|(((u64)(btpic_getu32le(ptr+4)))<<32)); }
+
+void btpic_setu16le(byte *ptr, u16 v)
+	{ ptr[0]=v; ptr[1]=v>>8; }
+void btpic_setu32le(byte *ptr, u32 v)
+	{ ptr[0]=v; ptr[1]=v>>8; ptr[2]=v>>16; ptr[3]=v>>24; }
+void btpic_setu64le(byte *ptr, u64 v)
+	{ btpic_setu32le(ptr, v); btpic_setu32le(ptr+4, v>>32); }
+
+#ifndef btpic_getu16
+#define		btpic_getu16(p)		btpic_getu16le(p)
+#define		btpic_getu32(p)		btpic_getu32le(p)
+#define		btpic_getu64(p)		btpic_getu64le(p)
+
+#define		btpic_setu16(p, v)	btpic_setu16le(p, v)
+#define		btpic_setu32(p, v)	btpic_setu32le(p, v)
+#define		btpic_setu64(p, v)	btpic_setu64le(p, v)
+#endif
+
+#else
 
 #ifdef _M_IX86
 #define		unaligned
@@ -47,12 +83,29 @@ typedef	int64_t		s64;
 #define		btpic_setu64(p, v)	((*(unaligned u64 *)(p))=(v))
 #endif
 
+#endif
+
+#ifdef BTIC1H_VFWDRV
+#define		btic6a_dbgfault_0	if(1) { ctx->errorstatus=1; return(0xFFFF); }
+#endif
+
+#ifndef btic6a_dbgfault_0
+#ifdef _MSC_VER
+#define btic6a_dbgfault_0	__debugbreak();
+#endif
+#endif
+
+#ifndef btic6a_dbgfault_0
+#define		btic6a_dbgfault_0	if(1) { ctx->errorstatus=1; return(0xFFFF); }
+#endif
 
 typedef struct BTIC6A_DecodeContext_s BTIC6A_DecodeContext;
 
 struct BTIC6A_DecodeContext_s {
 	byte *cs;			//current position
 	byte *lcs;			//lst position
+
+	byte *cb_ram;
 
 	byte *cb_2x2_y;
 	byte *cb_2x2_c;
@@ -97,23 +150,28 @@ struct BTIC6A_DecodeContext_s {
 	byte acc_dcmz_l1;
 	byte acc_dcmz_l0;
 
+	byte pad1;
+	byte pad2;
 
 	byte *tfzbuf;
 	byte *tfz2buf;
 	int tfzsz;
+	int cb_ram_sz;
 
 	byte *cimg2x;
 	byte *cimg;
 	byte *pimg;
+	byte *cimg_e;
 	int xs, ys;
 	int xsr, ysr;
 	int xsc, ysc;
 	int mv_x, mv_y;
 	int c_x, c_y;
 	
-	int clr_y;
-	int clr_u;
-	int clr_v;
+	byte clr_y;
+	byte clr_u;
+	byte clr_v;
+	byte errorstatus;
 };
 
 /*
@@ -146,12 +204,22 @@ int btic6a_clamp255(int v)
 	return(v);
 }
 
-BTIC6A_DecodeContext *BTIC6A_AllocDecodeContext()
+BTIC6A_DecodeContext *BTIC6A_AllocDecodeContext(void)
 {
 	BTIC6A_DecodeContext *ctx;
-	ctx=malloc(sizeof(BTIC6A_DecodeContext));
+	ctx=malloc(sizeof(BTIC6A_DecodeContext)+256);
 	memset(ctx, 0, sizeof(BTIC6A_DecodeContext));
 	return(ctx);
+}
+
+int BTIC6A_FreeDecodeContext(BTIC6A_DecodeContext *ctx)
+{
+	if(ctx->cb_ram)
+		free(ctx->cb_ram);
+	if(ctx->cimg2x)
+		free(ctx->cimg2x);
+	free(ctx);
+	return(0);
 }
 
 int BTIC6A_DecodeTransColorRGB24(BTIC6A_DecodeContext *ctx)
@@ -177,6 +245,23 @@ int BTIC6A_DecodeTransColorRGB24(BTIC6A_DecodeContext *ctx)
 	return(px);
 }
 
+#if 0
+void BTIC6A_DecodeCheckOutputRange(BTIC6A_DecodeContext *ctx, void *cibase)
+{
+	byte *ctb;
+	
+	ctb=cibase;
+	if(ctb<ctx->cimg)
+		{ __debugbreak(); }
+	if(ctb>=ctx->cimg_e)
+		{ __debugbreak(); }
+}
+#else
+
+#define BTIC6A_DecodeCheckOutputRange(ctx, ptr)
+
+#endif
+
 void BTIC6A_DecodeBlock3Pixels2xIndex(BTIC6A_DecodeContext *ctx,
 	byte *cibase, int ystride, int ixi, int rot)
 {
@@ -190,7 +275,12 @@ void BTIC6A_DecodeBlock3Pixels2xIndex(BTIC6A_DecodeContext *ctx,
 	int cg0, cg1, cg2, cg3;
 	int cb0, cb1, cb2, cb3;
 	int msk;
-	int i, str1, pz;
+	int str1;
+
+	if(ixi&0x8000)
+	{
+		return;
+	}
 
 	msk=ctx->msk_2x2;
 	cs_y=ctx->cb_2x2_y+((ixi&msk)*4);
@@ -202,7 +292,7 @@ void BTIC6A_DecodeBlock3Pixels2xIndex(BTIC6A_DecodeContext *ctx,
 	cy0=((ctx->clr_y)+cy0)&255;		cy1=(cy0+cy1)&255;
 	cy2=(cy1+cy2)&255;				cy3=(cy2+cy3)&255;
 	cu=((ctx->clr_u)+cu)&255;		cv=((ctx->clr_v)+cv)&255;
-	ctx->clr_y=cy3;		ctx->clr_u=cu;		ctx->clr_v=cv;
+	ctx->clr_y=(byte)cy3;	ctx->clr_u=(byte)cu;	ctx->clr_v=(byte)cv;
 	
 	cu1=((cu-128)*2);				cv1=((cv-128)*2);
 	cb0=cy0+cu1;	cr0=cy0+cv1;	cb1=cy1+cu1;	cr1=cy1+cv1;
@@ -229,21 +319,25 @@ void BTIC6A_DecodeBlock3Pixels2xIndex(BTIC6A_DecodeContext *ctx,
 	str1=ystride>>2;
 	
 	ct=(u32 *)(cict[0]);
+	BTIC6A_DecodeCheckOutputRange(ctx, ct);
 	px=cb0|(cg0<<8)|(cr0<<16)|(255<<24);
 	ct[0]=px; ct[1]=px; ct+=str1;
 	ct[0]=px; ct[1]=px;
 	
 	ct=(u32 *)(cict[1]);
+	BTIC6A_DecodeCheckOutputRange(ctx, ct);
 	px=cb1|(cg1<<8)|(cr1<<16)|(255<<24);
 	ct[0]=px; ct[1]=px; ct+=str1;
 	ct[0]=px; ct[1]=px;
 	
 	ct=(u32 *)(cict[2]);
+	BTIC6A_DecodeCheckOutputRange(ctx, ct);
 	px=cb2|(cg2<<8)|(cr2<<16)|(255<<24);
 	ct[0]=px; ct[1]=px; ct+=str1;
 	ct[0]=px; ct[1]=px;
 	
 	ct=(u32 *)(cict[3]);
+	BTIC6A_DecodeCheckOutputRange(ctx, ct);
 	px=cb3|(cg3<<8)|(cr3<<16)|(255<<24);
 	ct[0]=px; ct[1]=px; ct+=str1;
 	ct[0]=px; ct[1]=px;
@@ -262,7 +356,12 @@ void BTIC6A_DecodeBlock3Pixels4xIndex(BTIC6A_DecodeContext *ctx,
 	int cg0, cg1, cg2, cg3;
 	int cb0, cb1, cb2, cb3;
 	int msk;
-	int i, str1, pz;
+	int str1;
+
+	if(ixi&0x8000)
+	{
+		return;
+	}
 
 	msk=ctx->msk_2x2;
 	cs_y=ctx->cb_2x2_y+((ixi&msk)*4);
@@ -274,7 +373,7 @@ void BTIC6A_DecodeBlock3Pixels4xIndex(BTIC6A_DecodeContext *ctx,
 	cy0=((ctx->clr_y)+cy0)&255;		cy1=(cy0+cy1)&255;
 	cy2=(cy1+cy2)&255;				cy3=(cy2+cy3)&255;
 	cu=((ctx->clr_u)+cu)&255;		cv=((ctx->clr_v)+cv)&255;
-	ctx->clr_y=cy3;		ctx->clr_u=cu;		ctx->clr_v=cv;
+	ctx->clr_y=(byte)cy3;	ctx->clr_u=(byte)cu;	ctx->clr_v=(byte)cv;
 	
 	cu1=((cu-128)*2);				cv1=((cv-128)*2);
 	cb0=cy0+cu1;	cr0=cy0+cv1;	cb1=cy1+cu1;	cr1=cy1+cv1;
@@ -301,6 +400,7 @@ void BTIC6A_DecodeBlock3Pixels4xIndex(BTIC6A_DecodeContext *ctx,
 	str1=ystride>>2;
 	
 	ct=(u32 *)(cict[0]);
+	BTIC6A_DecodeCheckOutputRange(ctx, ct);
 	px=cb0|(cg0<<8)|(cr0<<16)|(255<<24);
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
@@ -308,6 +408,7 @@ void BTIC6A_DecodeBlock3Pixels4xIndex(BTIC6A_DecodeContext *ctx,
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
 	
 	ct=(u32 *)(cict[1]);
+	BTIC6A_DecodeCheckOutputRange(ctx, ct);
 	px=cb1|(cg1<<8)|(cr1<<16)|(255<<24);
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
@@ -315,6 +416,7 @@ void BTIC6A_DecodeBlock3Pixels4xIndex(BTIC6A_DecodeContext *ctx,
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
 	
 	ct=(u32 *)(cict[2]);
+	BTIC6A_DecodeCheckOutputRange(ctx, ct);
 	px=cb2|(cg2<<8)|(cr2<<16)|(255<<24);
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
@@ -322,6 +424,7 @@ void BTIC6A_DecodeBlock3Pixels4xIndex(BTIC6A_DecodeContext *ctx,
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
 	
 	ct=(u32 *)(cict[3]);
+	BTIC6A_DecodeCheckOutputRange(ctx, ct);
 	px=cb3|(cg3<<8)|(cr3<<16)|(255<<24);
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
 	ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
@@ -343,7 +446,12 @@ void BTIC6A_DecodeBlock3Pixels8xIndex(BTIC6A_DecodeContext *ctx,
 	int cg0, cg1, cg2, cg3;
 	int cb0, cb1, cb2, cb3;
 	int msk;
-	int i, str1, pz;
+	int i, str1;
+
+	if(ixi&0x8000)
+	{
+		return;
+	}
 
 	msk=ctx->msk_2x2;
 	cs_y=ctx->cb_2x2_y+((ixi&msk)*4);
@@ -355,7 +463,7 @@ void BTIC6A_DecodeBlock3Pixels8xIndex(BTIC6A_DecodeContext *ctx,
 	cy0=((ctx->clr_y)+cy0)&255;		cy1=(cy0+cy1)&255;
 	cy2=(cy1+cy2)&255;				cy3=(cy2+cy3)&255;
 	cu=((ctx->clr_u)+cu)&255;		cv=((ctx->clr_v)+cv)&255;
-	ctx->clr_y=cy3;		ctx->clr_u=cu;		ctx->clr_v=cv;
+	ctx->clr_y=(byte)cy3;	ctx->clr_u=(byte)cu;	ctx->clr_v=(byte)cv;
 	
 	cu1=((cu-128)*2);				cv1=((cv-128)*2);
 	cb0=cy0+cu1;	cr0=cy0+cv1;	cb1=cy1+cu1;	cr1=cy1+cv1;
@@ -390,6 +498,8 @@ void BTIC6A_DecodeBlock3Pixels8xIndex(BTIC6A_DecodeContext *ctx,
 	{
 		ct=(u32 *)(cict[i]);
 		px=pxa[i];
+
+		BTIC6A_DecodeCheckOutputRange(ctx, ct);
 
 		ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
 		ct[4]=px; ct[5]=px; ct[6]=px; ct[7]=px;
@@ -435,15 +545,20 @@ void BTIC6A_DecodeBlock3PixelsIndex(BTIC6A_DecodeContext *ctx,
 	int cg0, cg1, cg2, cg3;
 	int cb0, cb1, cb2, cb3;
 	int msk;
-	int i, str1, pz;
+	int str1;
 
-	if(ixi==0xFFFF)
+	if(ixi&0x8000)
 	{
-		px=BTIC6A_DecodeTransColorRGB24(ctx);
-		ct=(u32 *)cibase;
-		str1=ystride>>2;
-		ct[0]=px; ct[1]=px; ct+=str1;
-		ct[0]=px; ct[1]=px;
+		if(ixi==0xFFFF)
+		{
+			px=BTIC6A_DecodeTransColorRGB24(ctx);
+			ct=(u32 *)cibase;
+			str1=ystride>>2;
+			ct[0]=px; ct[1]=px; ct+=str1;
+			ct[0]=px; ct[1]=px;
+			return;
+		}
+
 		return;
 	}
 
@@ -462,9 +577,9 @@ void BTIC6A_DecodeBlock3PixelsIndex(BTIC6A_DecodeContext *ctx,
 	cu=((ctx->clr_u)+cu)&255;
 	cv=((ctx->clr_v)+cv)&255;
 
-	ctx->clr_y=cy3;
-	ctx->clr_u=cu;
-	ctx->clr_v=cv;
+	ctx->clr_y=(byte)cy3;
+	ctx->clr_u=(byte)cu;
+	ctx->clr_v=(byte)cv;
 	
 	cu1=((cu-128)*2);
 	cv1=((cv-128)*2);
@@ -490,13 +605,20 @@ void BTIC6A_DecodeBlock3PixelsIndex(BTIC6A_DecodeContext *ctx,
 	cict[bt6a_rotab[rot+12]]=ctb+4;
 	
 	ctb=cict[0];
-	ctb[0]=cb0; ctb[1]=cg0; ctb[2]=cr0; ctb[3]=255;
+	BTIC6A_DecodeCheckOutputRange(ctx, ctb);
+	ctb[0]=(byte)cb0; ctb[1]=(byte)cg0; ctb[2]=(byte)cr0; ctb[3]=255;
+
 	ctb=cict[1];
-	ctb[0]=cb1; ctb[1]=cg1; ctb[2]=cr1; ctb[3]=255;
+	BTIC6A_DecodeCheckOutputRange(ctx, ctb);
+	ctb[0]=(byte)cb1; ctb[1]=(byte)cg1; ctb[2]=(byte)cr1; ctb[3]=255;
+
 	ctb=cict[2];
-	ctb[0]=cb2; ctb[1]=cg2; ctb[2]=cr2; ctb[3]=255;
+	BTIC6A_DecodeCheckOutputRange(ctx, ctb);
+	ctb[0]=(byte)cb2; ctb[1]=(byte)cg2; ctb[2]=(byte)cr2; ctb[3]=255;
+
 	ctb=cict[3];
-	ctb[0]=cb3; ctb[1]=cg3; ctb[2]=cr3; ctb[3]=255;
+	BTIC6A_DecodeCheckOutputRange(ctx, ctb);
+	ctb[0]=(byte)cb3; ctb[1]=(byte)cg3; ctb[2]=(byte)cr3; ctb[3]=255;
 }
 
 void BTIC6A_DecodeBlock2PixelsIndex(BTIC6A_DecodeContext *ctx,
@@ -507,7 +629,7 @@ void BTIC6A_DecodeBlock2PixelsIndex(BTIC6A_DecodeContext *ctx,
 	u32 *ct, *cs;
 	u32 px;
 	u16 *csi;
-	int i, str1, xst4, yst4;
+	int str1, xst4, yst4;
 
 	if(ixi&0x8000)
 	{
@@ -515,6 +637,7 @@ void BTIC6A_DecodeBlock2PixelsIndex(BTIC6A_DecodeContext *ctx,
 		{
 			px=BTIC6A_DecodeTransColorRGB24(ctx);
 			ct=(u32 *)cibase;		str1=ystride>>2;
+			BTIC6A_DecodeCheckOutputRange(ctx, ct);
 			ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
 			ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
 			ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px; ct+=str1;
@@ -524,12 +647,15 @@ void BTIC6A_DecodeBlock2PixelsIndex(BTIC6A_DecodeContext *ctx,
 		if(ixi==0xFFFC)
 		{
 			ct=(u32 *)cibase;	cs=(u32 *)pibase;	str1=ystride>>2;
+			BTIC6A_DecodeCheckOutputRange(ctx, ct);
 			ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3]; ct+=str1;
 			ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3]; ct+=str1;
 			ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3]; ct+=str1;
 			ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3];
 			return;
 		}
+
+		return;
 	}
 
 	if(ixi&0x4000)
@@ -573,6 +699,7 @@ void BTIC6A_DecodeBlock1PixelsIndex(BTIC6A_DecodeContext *ctx,
 		{
 			px=BTIC6A_DecodeTransColorRGB24(ctx);
 			ct=(u32 *)cibase;		str1=ystride>>2;
+			BTIC6A_DecodeCheckOutputRange(ctx, ct);
 			for(i=0; i<8; i++)
 			{
 				ct[0]=px; ct[1]=px; ct[2]=px; ct[3]=px;
@@ -584,6 +711,7 @@ void BTIC6A_DecodeBlock1PixelsIndex(BTIC6A_DecodeContext *ctx,
 		if(ixi==0xFFFC)
 		{
 			ct=(u32 *)cibase;	cs=(u32 *)pibase;	str1=ystride>>2;
+			BTIC6A_DecodeCheckOutputRange(ctx, ct);
 			for(i=0; i<8; i++)
 			{
 				ct[0]=cs[0]; ct[1]=cs[1]; ct[2]=cs[2]; ct[3]=cs[3];
@@ -592,6 +720,8 @@ void BTIC6A_DecodeBlock1PixelsIndex(BTIC6A_DecodeContext *ctx,
 			}
 			return;
 		}
+
+		return;
 	}
 
 	if(ixi&0x4000)
@@ -638,6 +768,7 @@ void BTIC6A_DecodeBlock0PixelsIndex(BTIC6A_DecodeContext *ctx,
 		{
 			px=BTIC6A_DecodeTransColorRGB24(ctx);
 			ct=(u32 *)cibase;		str1=ystride>>2;
+			BTIC6A_DecodeCheckOutputRange(ctx, ct);
 			for(i=0; i<16; i++)
 			{
 				ct[ 0]=px; ct[ 1]=px; ct[ 2]=px; ct[ 3]=px;
@@ -652,6 +783,7 @@ void BTIC6A_DecodeBlock0PixelsIndex(BTIC6A_DecodeContext *ctx,
 		if(ixi==0xFFFC)
 		{
 			ct=(u32 *)cibase;	cs=(u32 *)pibase;	str1=ystride>>2;
+			BTIC6A_DecodeCheckOutputRange(ctx, ct);
 			for(i=0; i<16; i++)
 			{
 				ct[ 0]=cs[ 0]; ct[ 1]=cs[ 1]; ct[ 2]=cs[ 2]; ct[ 3]=cs[ 3];
@@ -662,6 +794,8 @@ void BTIC6A_DecodeBlock0PixelsIndex(BTIC6A_DecodeContext *ctx,
 			}
 			return;
 		}
+
+		return;
 	}
 
 	if(ixi&0x4000)
@@ -695,17 +829,10 @@ void BTIC6A_DecodeBlock0PixelsIndex(BTIC6A_DecodeContext *ctx,
 
 void BTIC6A_DecodeMacroblockPixelsIndex(BTIC6A_DecodeContext *ctx, int ixi)
 {
-	byte ctpix[16*16*4];
-	byte *cict[4];
-	byte *ctb;
 	byte *cimg, *cibase;
 	byte *pimg, *pibase;
-	u32 *ctw, *csw;
-	u16 *csi;
-	int cr, cg, cb, cy, cu, cv;
-	int ystride, yst8, xst8;
-	int mx, my, bx, by, bz, px, py, pz, xs, ys;
-	int x, y, xf, yf;
+	int ystride;
+	int mx, my, bx, by, px, py, xs, ys;
 
 	xs=ctx->xs;		ys=ctx->ys;
 	mx=ctx->mv_x;	my=ctx->mv_y;
@@ -731,8 +858,8 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 {
 	byte *cs, *ct_y, *ct_c, *cs_y, *cs_c;
 	u64 tg;
-	int n, ix0, ix1, ix2, ix3;
-	int i, j, k;
+	int ix0, ix1, ix2, ix3;
+	int j, k;
 	
 	if(ctx->acc_zero_l3)
 	{
@@ -750,7 +877,7 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 		ct_c=ctx->cb_2x2_c+(j*2);
 
 		k=ctx->acc_dcom_l3;
-		ctx->acc_dcom_l3=(k>=8)?(k-4):0;
+		ctx->acc_dcom_l3=(byte)((k>=8)?(k-4):0);
 
 		if((k&3)==0)
 		{
@@ -809,8 +936,8 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 		ix1=(ix0*7)>>3;
 		ix0=(ix0+ctx->strov_2x2)&127;
 		ix1=(ix1+ctx->strov_2x2)&127;
-		ix2=ctx->stf_2x2[ix0];	ix3=ctx->stf_2x2[ix1];
-		ctx->stf_2x2[ix0]=ix3;	ctx->stf_2x2[ix1]=ix2;
+		ix2=ctx->stf_2x2[ix0];			ix3=ctx->stf_2x2[ix1];
+		ctx->stf_2x2[ix0]=(u16)ix3;		ctx->stf_2x2[ix1]=(u16)ix2;
 		*rcs=cs;
 		return(ix2);
 	}else
@@ -858,11 +985,13 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ct_y=ctx->cb_2x2_y+(j*4);
 			ct_c=ctx->cb_2x2_c+(j*2);
 
-			memcpy(ct_y, cs_y, 4);
-			memcpy(ct_c, cs_c, 2);
+//			memcpy(ct_y, cs_y, 4);
+//			memcpy(ct_c, cs_c, 2);
+			btpic_setu32(ct_y, btpic_getu32(cs_y));
+			btpic_setu16(ct_c, btpic_getu16(cs_c));
 
 			ctx->strov_2x2--;
-			ctx->stf_2x2[ctx->strov_2x2&127]=ix2;
+			ctx->stf_2x2[ctx->strov_2x2&127]=(u16)ix2;
 
 			*rcs=cs;
 			return(ix2);
@@ -875,7 +1004,7 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 			cs+=2;
 			ix2=(ctx->rov_2x2-(((tg>>4)&4095)+1))&0x3FFF;
 			ctx->strov_2x2--;
-			ctx->stf_2x2[ctx->strov_2x2&127]=ix2;
+			ctx->stf_2x2[ctx->strov_2x2&127]=(u16)ix2;
 
 			*rcs=cs;
 			return(ix2);
@@ -909,7 +1038,8 @@ int BTIC6A_DecodeMacroblockL3(BTIC6A_DecodeContext *ctx, byte **rcs)
 		return(ix2);
 	}
 
-	__debugbreak();
+//	__debugbreak();
+	btic6a_dbgfault_0
 	return(0);
 }
 
@@ -917,8 +1047,8 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 {
 	byte *cs;
 	u16 *ct_i, *cs_i;
-	int tg, tg1, n, ix0, ix1, ix2, ix3, ix4;
-	int i, j, k;
+	int tg, ix0, ix1, ix2, ix3, ix4;
+	int i;
 	
 	if(ctx->acc_zero_l2)
 	{
@@ -951,7 +1081,7 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 		for(i=0; i<4; i++)
 		{
 			ix2=BTIC6A_DecodeMacroblockL3(ctx, &cs);
-			ct_i[i]=ix2;
+			ct_i[i]=(u16)ix2;
 		}
 		*rcs=cs;
 		return(ix4);
@@ -968,7 +1098,7 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 		ix0=(ix0+ctx->strov_4x4)&127;
 		ix1=(ix1+ctx->strov_4x4)&127;
 		ix2=ctx->stf_4x4[ix0];	ix3=ctx->stf_4x4[ix1];
-		ctx->stf_4x4[ix0]=ix3;	ctx->stf_4x4[ix1]=ix2;
+		ctx->stf_4x4[ix0]=(u16)ix3;	ctx->stf_4x4[ix1]=(u16)ix2;
 		*rcs=cs;
 		return(ix2);
 	}else
@@ -996,7 +1126,7 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ct_i[2]=cs_i[2];	ct_i[3]=cs_i[3];
 
 			ctx->strov_4x4--;
-			ctx->stf_4x4[ctx->strov_4x4&127]=ix2;
+			ctx->stf_4x4[ctx->strov_4x4&127]=(u16)ix2;
 			*rcs=cs;
 			return(ix2);
 		}else
@@ -1012,7 +1142,7 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ix2=(ctx->rov_2x2-(((tg>>4)&4095)+1))&0x3FFF;
 			ix2|=0x4000;
 			ctx->strov_4x4--;
-			ctx->stf_4x4[ctx->strov_4x4&127]=ix2;
+			ctx->stf_4x4[ctx->strov_4x4&127]=(u16)ix2;
 			*rcs=cs;
 			return(ix2);
 		}
@@ -1024,12 +1154,13 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 			cs+=2;
 			ix2=(ctx->rov_4x4-(((tg>>4)&4095)+1))&0x3FFF;
 			ctx->strov_4x4--;
-			ctx->stf_4x4[ctx->strov_4x4&127]=ix2;
+			ctx->stf_4x4[ctx->strov_4x4&127]=(u16)ix2;
 			*rcs=cs;
 			return(ix2);
 		}else
 		{
-			__debugbreak();
+//			__debugbreak();
+			btic6a_dbgfault_0
 		}
 	}else
 		if(!(tg&0x08))
@@ -1041,7 +1172,8 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ctx->acc_dcmz_l2=0;
 		}else
 		{
-			__debugbreak();
+//			__debugbreak();
+			btic6a_dbgfault_0
 		}
 		ix4=BTIC6A_DecodeMacroblockL2(ctx, &cs);
 		*rcs=cs;
@@ -1056,14 +1188,16 @@ int BTIC6A_DecodeMacroblockL2(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ctx->acc_dcmz_l2=1;
 		}else
 		{
-			__debugbreak();
+//			__debugbreak();
+			btic6a_dbgfault_0
 		}
 		ix4=BTIC6A_DecodeMacroblockL2(ctx, &cs);
 		*rcs=cs;
 		return(ix4);
 	}
 
-	__debugbreak();
+//	__debugbreak();
+	btic6a_dbgfault_0
 	return(0);
 }
 
@@ -1071,8 +1205,8 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 {
 	byte *cs;
 	u16 *ct_i, *cs_i;
-	int tg, tg1, n, ix0, ix1, ix2, ix3, ix4;
-	int i, j, k;
+	int tg, ix0, ix1, ix2, ix3, ix4;
+	int i;
 	
 	if(ctx->acc_zero_l1)
 	{
@@ -1103,7 +1237,7 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 		ctx->rov_8x8=(ix4+1)&0x3FFF;
 		ct_i=ctx->cb_8x8+((ix4&(ctx->msk_8x8))*4);
 		for(i=0; i<4; i++)
-			ct_i[i]=BTIC6A_DecodeMacroblockL2(ctx, &cs);
+			ct_i[i]=(u16)(BTIC6A_DecodeMacroblockL2(ctx, &cs));
 		*rcs=cs;
 		return(ix4);
 	}
@@ -1118,8 +1252,8 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 		ix1=(ix0*7)>>3;
 		ix0=(ix0+ctx->strov_8x8)&127;
 		ix1=(ix1+ctx->strov_8x8)&127;
-		ix2=ctx->stf_8x8[ix0];	ix3=ctx->stf_8x8[ix1];
-		ctx->stf_8x8[ix0]=ix3;	ctx->stf_8x8[ix1]=ix2;
+		ix2=ctx->stf_8x8[ix0];		ix3=ctx->stf_8x8[ix1];
+		ctx->stf_8x8[ix0]=(u16)ix3;	ctx->stf_8x8[ix1]=(u16)ix2;
 		*rcs=cs;
 		return(ix2);
 	}else
@@ -1132,7 +1266,7 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 			*rcs=cs;
 			return(0xFFFF);
 		}else
-			if(!(tg&4))
+			if(!(tg&0x04))
 		{
 			cs+=2;
 			ix2=(ctx->rov_8x8-(((tg>>4)&4095)+1))&0x3FFF;
@@ -1147,11 +1281,11 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ct_i[2]=cs_i[2];	ct_i[3]=cs_i[3];
 
 			ctx->strov_8x8--;
-			ctx->stf_8x8[ctx->strov_8x8&127]=ix2;
+			ctx->stf_8x8[ctx->strov_8x8&127]=(u16)ix2;
 			*rcs=cs;
 			return(ix2);
 		}else
-			if(!(tg&8))
+			if(!(tg&0x08))
 		{
 			cs++;
 			ctx->acc_skip_l1=(tg>>4)&15;
@@ -1163,7 +1297,7 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ix2=(ctx->rov_2x2-(((tg>>4)&4095)+1))&0x3FFF;
 			ix2|=0x4000;
 			ctx->strov_8x8--;
-			ctx->stf_8x8[ctx->strov_8x8&127]=ix2;
+			ctx->stf_8x8[ctx->strov_8x8&127]=(u16)ix2;
 			*rcs=cs;
 			return(ix2);
 		}
@@ -1175,12 +1309,13 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 			cs+=2;
 			ix2=(ctx->rov_8x8-(((tg>>4)&4095)+1))&0x3FFF;
 			ctx->strov_8x8--;
-			ctx->stf_8x8[ctx->strov_8x8&127]=ix2;
+			ctx->stf_8x8[ctx->strov_8x8&127]=(u16)ix2;
 			*rcs=cs;
 			return(ix2);
 		}else
 		{
-			__debugbreak();
+//			__debugbreak();
+			btic6a_dbgfault_0
 		}
 	}else
 		if(!(tg&0x08))
@@ -1206,14 +1341,16 @@ int BTIC6A_DecodeMacroblockL1(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ctx->acc_dcmz_l1=1;
 		}else
 		{
-			__debugbreak();
+//			__debugbreak();
+			btic6a_dbgfault_0
 		}
 		ix4=BTIC6A_DecodeMacroblockL1(ctx, &cs);
 		*rcs=cs;
 		return(ix4);
 	}
 
-	__debugbreak();
+//	__debugbreak();
+	btic6a_dbgfault_0
 	return(0);
 }
 
@@ -1221,8 +1358,8 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 {
 	byte *cs;
 	u16 *ct_i;
-	int tg, tg1, n, ix0, ix1, ix2, ix3, ix4;
-	int i, j, k;
+	int tg, ix0, ix1, ix2, ix3, ix4;
+	int i;
 	
 	if(ctx->acc_zero_l0)
 	{
@@ -1253,7 +1390,7 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 		ctx->rov_16x16=(ix4+1)&0x3FFF;
 		ct_i=ctx->cb_16x16+((ix4&(ctx->msk_16x16))*4);
 		for(i=0; i<4; i++)
-			ct_i[i]=BTIC6A_DecodeMacroblockL1(ctx, &cs);
+			ct_i[i]=(u16)(BTIC6A_DecodeMacroblockL1(ctx, &cs));
 		*rcs=cs;
 		return(ix4);
 	}
@@ -1268,8 +1405,8 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 		ix1=(ix0*7)>>3;
 		ix0=(ix0+ctx->strov_16x16)&127;
 		ix1=(ix1+ctx->strov_16x16)&127;
-		ix2=ctx->stf_16x16[ix0];	ix3=ctx->stf_16x16[ix1];
-		ctx->stf_16x16[ix0]=ix3;	ctx->stf_16x16[ix1]=ix2;
+		ix2=ctx->stf_16x16[ix0];		ix3=ctx->stf_16x16[ix1];
+		ctx->stf_16x16[ix0]=(u16)ix3;	ctx->stf_16x16[ix1]=(u16)ix2;
 		*rcs=cs;
 		return(ix2);
 	}else
@@ -1284,7 +1421,8 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 		}else
 			if(!(tg&0x04))
 		{
-			__debugbreak();
+//			__debugbreak();
+			btic6a_dbgfault_0
 		}else
 			if(!(tg&0x08))
 		{
@@ -1298,7 +1436,7 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ix2=(ctx->rov_2x2-(((tg>>4)&4095)+1))&0x3FFF;
 			ix2|=0x4000;
 			ctx->strov_16x16--;
-			ctx->stf_16x16[ctx->strov_16x16&127]=ix2;
+			ctx->stf_16x16[ctx->strov_16x16&127]=(u16)ix2;
 			*rcs=cs;
 			return(ix2);
 		}
@@ -1310,12 +1448,18 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 			cs+=2;
 			ix2=(ctx->rov_16x16-(((tg>>4)&4095)+1))&0x3FFF;
 			ctx->strov_16x16--;
-			ctx->stf_16x16[ctx->strov_16x16&127]=ix2;
+			ctx->stf_16x16[ctx->strov_16x16&127]=(u16)ix2;
 			*rcs=cs;
 			return(ix2);
 		}else
 		{
-			__debugbreak();
+//			__debugbreak();
+			cs+=2;
+			ctx->mv_x=((tg>> 4)&63)-32;
+			ctx->mv_y=((tg>>10)&63)-32;
+			ix4=BTIC6A_DecodeMacroblockL0(ctx, &cs);
+			*rcs=cs;
+			return(ix4);
 		}
 	}else
 		if(!(tg&0x08))
@@ -1340,21 +1484,23 @@ int BTIC6A_DecodeMacroblockL0(BTIC6A_DecodeContext *ctx, byte **rcs)
 			ctx->acc_dcmz_l0=1;
 		}else
 		{
-			__debugbreak();
+//			__debugbreak();
+			btic6a_dbgfault_0
 		}
 		ix4=BTIC6A_DecodeMacroblockL0(ctx, &cs);
 		*rcs=cs;
 		return(ix4);
 	}
 	
-	__debugbreak();
+//	__debugbreak();
+	btic6a_dbgfault_0
 	return(0);
 }
 
 int BTIC6A_DecodeMacroblock(BTIC6A_DecodeContext *ctx)
 {
 	byte *cs;
-	int tg, ix;
+	int ix;
 
 	if(ctx->acc_skip_l0)
 	{
@@ -1385,18 +1531,40 @@ int BTIC6A_DecodeFrameInner(BTIC6A_DecodeContext *ctx, byte *idat)
 	xs=ctx->xs;			ys=ctx->ys;
 	cxs=(xs+15)>>4;		cys=(ys+15)>>4;
 	
-	ctx->clr_y=0x80;	ctx->clr_u=0x80;	ctx->clr_v=0x80;
-	ctx->mv_x=0;		ctx->mv_y=0;
-
 	ctx->rov_2x2=0;		ctx->rov_4x4=0;
 	ctx->rov_8x8=0;		ctx->rov_16x16=0;
+
+	ctx->strov_2x2=0;	ctx->strov_4x4=0;
+	ctx->strov_8x8=0;	ctx->strov_16x16=0;
 
 	ctx->acc_zero_l3=0;	ctx->acc_zero_l2=0;
 	ctx->acc_zero_l1=0;	ctx->acc_zero_l0=0;
 	ctx->acc_dcom_l3=0;	ctx->acc_dcom_l2=0;
 	ctx->acc_dcom_l1=0;	ctx->acc_dcom_l0=0;
 	ctx->acc_skip_l0=0;	ctx->acc_skip_l1=0;
-	ctx->acc_skip_l2=0;
+	ctx->acc_skip_l2=0; ctx->acc_dcmz_l0=0;
+	ctx->acc_dcmz_l1=0; ctx->acc_dcmz_l2=0;
+	
+	ctx->clr_y=0x80;	ctx->clr_u=0x80;	ctx->clr_v=0x80;
+	ctx->mv_x=0;		ctx->mv_y=0;
+
+	ctx->errorstatus=0;
+
+#if 1
+	ctx->cb_2x2_y[ctx->msk_2x2*4+0]=0;
+	ctx->cb_2x2_y[ctx->msk_2x2*4+1]=0;
+	ctx->cb_2x2_y[ctx->msk_2x2*4+2]=0;
+	ctx->cb_2x2_y[ctx->msk_2x2*4+3]=0;
+	ctx->cb_2x2_c[ctx->msk_2x2*2+0]=0;
+	ctx->cb_2x2_c[ctx->msk_2x2*2+1]=0;
+#endif
+
+#if 0
+	ctx->cb_4x4[ctx->msk_4x4*4+0]=0;
+	ctx->cb_4x4[ctx->msk_4x4*4+1]=0;
+	ctx->cb_4x4[ctx->msk_4x4*4+2]=0;
+	ctx->cb_4x4[ctx->msk_4x4*4+3]=0;
+#endif
 	
 	for(y=0; y<cys; y++)
 	{
@@ -1404,6 +1572,8 @@ int BTIC6A_DecodeFrameInner(BTIC6A_DecodeContext *ctx, byte *idat)
 		{
 			ctx->c_x=x;		ctx->c_y=y;
 			BTIC6A_DecodeMacroblock(ctx);
+			if(ctx->errorstatus)
+				return(-1);
 		}
 	}
 	return(0);
@@ -1414,7 +1584,8 @@ void BTIC6A_DecodeCopyFrameClrs(BTIC6A_DecodeContext *ctx,
 {
 	byte *cimg;
 	byte *ycs, *yct, *cs, *ct;
-	int x, y, xs, ys, xsr, ysr, iystr, ystr2;
+	int cr, cg, cb, px;
+	int x, y, xs, ys, xsr, ysr, iystr, ystr2, oystra;
 	int ocn, rgflip;
 	
 	ocn=4; rgflip=0;
@@ -1430,6 +1601,34 @@ void BTIC6A_DecodeCopyFrameClrs(BTIC6A_DecodeContext *ctx,
 	xsr=ctx->xsr;		ysr=ctx->ysr;
 	cimg=ctx->cimg;		iystr=xs*4;
 	
+	oystra=oystr;
+	if(oystr<0)
+	{
+		oystra=-oystr;
+//		oimg+=(ysr-1)*oystra;
+	}
+	
+	if(clrs==BTIC4B_CLRS_RGB555)
+	{
+		ycs=cimg;	yct=oimg;
+		for(y=0; y<ysr; y++)
+		{
+			cs=ycs;
+			ct=yct;
+			for(x=0; x<xsr; x++)
+			{
+				cb=cs[0]; cg=cs[1]; cr=cs[2];
+				cr>>=3;	cg>>=3;	cb>>=3;
+				px=(cr<<10)|(cg<<5)|cb;
+				btpic_setu16(ct, (u16)px);
+				cs+=4; ct+=2;
+			}
+			ycs+=iystr;
+			yct+=oystr;
+		}
+		return;
+	}
+	
 	if((ocn==4) && !rgflip)
 	{
 		if(oystr==iystr)
@@ -1438,7 +1637,7 @@ void BTIC6A_DecodeCopyFrameClrs(BTIC6A_DecodeContext *ctx,
 			return;
 		}
 	
-		ystr2=oystr;
+		ystr2=oystra;
 		if(iystr<ystr2)
 			ystr2=iystr;
 		for(y=0; y<ysr; y++)
@@ -1467,13 +1666,13 @@ void BTIC6A_DecodeCopyFrameClrs(BTIC6A_DecodeContext *ctx,
 
 int BTIC6A_DecodeFrame(BTIC6A_DecodeContext *ctx,
 	byte *cibuf, int cisz,
-	byte *cimg, int cystr, int clrs)
+	void *cimg, int cystr, int clrs)
 {
 	byte *cs, *cs0, *cs1, *cse, *cs0e, *z3dat;
 	byte *idat, *pdat;
 	int ix0, ix1, ix2, ix3;
 	int tg, sz, ipsz, zsz, dsz;
-	int i, j, k;
+	int j, k;
 	
 	cs=cibuf;
 	cse=cibuf+cisz;
@@ -1516,45 +1715,77 @@ int BTIC6A_DecodeFrame(BTIC6A_DecodeContext *ctx,
 		
 		if(tg==BTPIC_TCC_HX)
 		{
-			ctx->xsr=btpic_getu16(cs0+0);
-			ctx->ysr=btpic_getu16(cs0+2);
-			ctx->xsc=(ctx->xsr+15)>>4;
-			ctx->ysc=(ctx->ysr+15)>>4;
-			ctx->xs=ctx->xsc<<4;
-			ctx->ys=ctx->ysc<<4;
-
 			if(!ctx->cb_2x2_y)
 			{
+				ctx->xsr=btpic_getu16(cs0+0);
+				ctx->ysr=btpic_getu16(cs0+2);
+				ctx->xsc=(ctx->xsr+15)>>4;
+				ctx->ysc=(ctx->ysr+15)>>4;
+				ctx->xs=ctx->xsc<<4;
+				ctx->ys=ctx->ysc<<4;
+
 				k=btpic_getu16(cs0+6);
 				
-				ix3=1<<((k>>0)&15);
-				ix2=1<<((k>>4)&15);
-				ix1=1<<((k>>8)&15);
+				ix3=1<<((k>> 0)&15);
+				ix2=1<<((k>> 4)&15);
+				ix1=1<<((k>> 8)&15);
 				ix0=1<<((k>>12)&15);
 
-				ctx->cb_2x2_y=malloc(ix3*6);
+				j=((ix2+ix1+ix0+16)*8)+((ix3+8)*6);
+
+				ctx->cb_ram=malloc(j);
+				ctx->cb_ram_sz=j;
+				memset(ctx->cb_ram, 0x00, j);
+				
+//				ctx->cb_2x2_y=malloc(ix3*6);
+				ctx->cb_2x2_y=ctx->cb_ram+(4*6);
 				ctx->cb_2x2_c=ctx->cb_2x2_y+(ix3*4);
 
-				j=ix2+ix1+ix0;
-				ctx->cb_4x4=malloc(j*4*2);
+//				j=ix2+ix1+ix0;
+//				ctx->cb_4x4=malloc(j*4*2);
+				ctx->cb_4x4=(u16 *)(ctx->cb_ram+((ix3+4)*6));
 				ctx->cb_8x8=ctx->cb_4x4+(ix2*4);
 				ctx->cb_16x16=ctx->cb_8x8+(ix1*4);
 
-				ctx->msk_2x2=ix3-1;
-				ctx->msk_4x4=ix2-1;
-				ctx->msk_8x8=ix1-1;
-				ctx->msk_16x16=ix0-1;
-			}
-			
-			/* current and backbuffer images, padded out */
-			if(!ctx->cimg2x)
-			{
-				ctx->cimg2x=malloc(ctx->xs*((ctx->ys+24)*2)*4);
-//				memset(ctx->cimg2x, 0x80, ctx->xs*((ctx->ys+24)*2)*4);
-				memset(ctx->cimg2x, 0x00, ctx->xs*((ctx->ys+24)*2)*4);
+				ctx->msk_2x2=(u16)(ix3-1);
+				ctx->msk_4x4=(u16)(ix2-1);
+				ctx->msk_8x8=(u16)(ix1-1);
+				ctx->msk_16x16=(u16)(ix0-1);
 
-				ctx->cimg=ctx->cimg2x+(ctx->xs*16)*4;
-				ctx->pimg=ctx->cimg+(ctx->xs*(ctx->ys+16))*4;
+			
+				/* current and backbuffer images, padded out */
+				if(!ctx->cimg2x)
+				{
+					ctx->cimg2x=malloc(ctx->xs*((ctx->ys+48)*2)*4);
+	//				memset(ctx->cimg2x, 0x80, ctx->xs*((ctx->ys+24)*2)*4);
+					memset(ctx->cimg2x, 0x00, ctx->xs*((ctx->ys+48)*2)*4);
+
+					ctx->cimg=ctx->cimg2x+(ctx->xs*24)*4;
+					ctx->pimg=ctx->cimg+(ctx->xs*(ctx->ys+24))*4;
+				}
+			}else
+			{
+				if(	(ctx->xsr!=btpic_getu16(cs0+0)) ||
+					(ctx->ysr!=btpic_getu16(cs0+2)) )
+				{
+					__debugbreak();
+				}
+
+				k=btpic_getu16(cs0+6);
+
+				ix3=1<<((k>> 0)&15);
+				ix2=1<<((k>> 4)&15);
+				ix1=1<<((k>> 8)&15);
+				ix0=1<<((k>>12)&15);
+
+				if(	(ctx->msk_2x2  !=(u16)(ix3-1)) ||
+					(ctx->msk_4x4  !=(u16)(ix2-1)) ||
+					(ctx->msk_8x8  !=(u16)(ix1-1)) ||
+					(ctx->msk_16x16!=(u16)(ix0-1)) )
+						{ __debugbreak(); }
+
+				j=ctx->cb_ram_sz;
+				memset(ctx->cb_ram, 0x00, j);
 			}
 		}
 	}
@@ -1573,6 +1804,8 @@ int BTIC6A_DecodeFrame(BTIC6A_DecodeContext *ctx,
 			ctx->tfzbuf=malloc(sz);
 			ctx->tfz2buf=malloc(sz);
 		}
+
+		zsz=ctx->tfzsz;
 		
 		if(((z3dat[4]&0x0F)==0x00) && (z3dat[5]==0x00))
 		{
@@ -1590,14 +1823,22 @@ int BTIC6A_DecodeFrame(BTIC6A_DecodeContext *ctx,
 
 	if(idat)
 	{
+		if(!ctx->cimg2x)
+			return(-1);
+		ctx->cimg_e=ctx->cimg+(ctx->xs*ctx->ys*4);
 		BTIC6A_DecodeFrameInner(ctx, idat);
 		BTIC6A_DecodeCopyFrameClrs(ctx, cimg, cystr, clrs);
 	}
 
 	if(pdat)
 	{
+		if(!ctx->cimg2x)
+			return(-1);
+
 		cs0=ctx->cimg;	cs1=ctx->pimg;
 		ctx->cimg=cs1;	ctx->pimg=cs0;
+		ctx->cimg_e=ctx->cimg+(ctx->xs*ctx->ys*4);
+
 		BTIC6A_DecodeFrameInner(ctx, pdat);
 		BTIC6A_DecodeCopyFrameClrs(ctx, cimg, cystr, clrs);
 	}
