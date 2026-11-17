@@ -1,5 +1,6 @@
 BTIC6A:
 * VQ based design partly inspired by Cinepak.
+* FOURCC: 'bt6a'
 
 Will have multiple levels of Codebook:
 * L0=16x16, L1=8x8, L2=4x4, L3=2x2
@@ -61,6 +62,7 @@ Tags:
 ** Rest, MBZ for now.
 * 'IX': I-Frame Image Data
 * 'PX': P-Frame Image Data
+* 'PP': Frame Prolog (Possible)
 * 'Z3': RP2 Compressed Image (Optional)
 
 Header Image Size:
@@ -77,6 +79,9 @@ As such, each codebook will nominally have a capacity range between 16 and 4096 
 
 If a 'Z3' tag is used, the frame image is RP2 compressed, with the decompressed data containing more TLV tags. Typically, the Z3 tag will be used to compress the entire frame.
 
+The 'IX' will be the data blob used for I-Frames, and 'PX' for P-Frames. Both will contain a raw blob of image data.
+
+The 'PP' will also be a blob of image data encoded with an I-Frame. Rather than encoding actual image blocks, it will encode blocks that function as a sequence of prolog commands to be run before the main part of the frame intended to pre-warm the codebooks. If a PP is included with an I-Frame, it will also be run prior to decoding the image data for the I-Frame along with each of the following P-Frames to provide the initial state for decoding that frame. If PP is absent from an I-Frame, then no prolog will apply either to the I-Frame nor to any of the P-Frames following that I-Frame. Each new I-Frame will fully replace the prolog from the previous I-Frame (either by supplying a new one or by omission).
 
 
 === Image Data ===
