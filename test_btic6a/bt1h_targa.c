@@ -231,8 +231,16 @@ byte *BTIC1H_Img_ReadTGA(FILE *fd, int *w, int *h)
 int BTIC1H_Img_StoreTGA(FILE *fd, byte *buf, int w, int h)
 {
 	PDGL_TGAHeader head;
-	int i;
+	int i, n, isal;
 	byte *s;
+
+	isal=0;
+	n=w*h;
+	for(i=0; i<n; i++)
+		if(buf[i*4+3]!=255)
+			break;
+	if(i<n)
+		isal=1;
 
 	head.id_length=0;
 	head.ctype=0;
@@ -246,6 +254,9 @@ int BTIC1H_Img_StoreTGA(FILE *fd, byte *buf, int w, int h)
 	head.height=h;
 	head.bpp=24;
 	head.attributes=0;
+
+	if(isal)
+		head.bpp=32;
 
 	fputc(head.id_length, fd);
 	fputc(head.ctype, fd);
@@ -279,6 +290,8 @@ int BTIC1H_Img_StoreTGA(FILE *fd, byte *buf, int w, int h)
 		fputc(s[2], fd);
 		fputc(s[1], fd);
 		fputc(s[0], fd);
+		if(isal)
+			fputc(s[3], fd);
 		s+=4;
 	}
 
@@ -306,6 +319,235 @@ int BTIC1H_Img_SaveTGA(
 	if(!fd)return(-1);
 	BTIC1H_Img_StoreTGA(fd, buf, w, h);
 	return(0);
+}
+
+int BTIC1H_Img_DecodeProbeIsTGA(byte *imgbuf, int *w, int *h)
+{
+	PDGL_TGAHeader head;
+	byte *cs;
+
+	cs=imgbuf;
+
+	head.id_length=*cs++;
+	head.ctype=*cs++;
+	head.itype=*cs++;
+	head.cindex=*cs++;
+	head.cindex+=(*cs++<<8);
+	head.clength=*cs++;
+	head.clength+=(*cs++<<8);
+	head.csize=*cs++;
+	head.x_origin=*cs++;
+	head.x_origin+=(*cs++<<8);
+	head.y_origin=*cs++;
+	head.y_origin+=(*cs++<<8);
+	head.width=*cs++;
+	head.width+=(*cs++<<8);
+	head.height=*cs++;
+	head.height+=(*cs++<<8);
+	head.bpp=*cs++;
+	head.attributes=*cs++;
+
+	if(((head.itype!=2) && (head.itype!=3) &&
+		(head.itype!=10) && (head.itype!=11)) ||
+			((head.bpp!=32) && (head.bpp!=24) && (head.bpp!=8)) ||
+			(head.ctype!=0))
+	{
+		return(0);
+	}
+	
+	if(w)	*w=head.width;
+	if(h)	*h=head.height;
+	return(1);
+}
+
+
+byte *BTIC1H_Img_DecodeTGA(byte *imgbuf, int *w, int *h)
+{
+	PDGL_TGAHeader head;
+	int pixlin, i, j;
+	byte *dest, *src, *buf, *obuf, r, g, b, a;
+	byte *cs;
+
+	cs=imgbuf;
+
+	head.id_length=*cs++;
+	head.ctype=*cs++;
+	head.itype=*cs++;
+	head.cindex=*cs++;
+	head.cindex+=(*cs++<<8);
+	head.clength=*cs++;
+	head.clength+=(*cs++<<8);
+	head.csize=*cs++;
+	head.x_origin=*cs++;
+	head.x_origin+=(*cs++<<8);
+	head.y_origin=*cs++;
+	head.y_origin+=(*cs++<<8);
+	head.width=*cs++;
+	head.width+=(*cs++<<8);
+	head.height=*cs++;
+	head.height+=(*cs++<<8);
+	head.bpp=*cs++;
+	head.attributes=*cs++;
+
+	if(((head.itype!=2) && (head.itype!=3) &&
+		(head.itype!=10) && (head.itype!=11)) ||
+			((head.bpp!=32) && (head.bpp!=24) && (head.bpp!=8)) ||
+			(head.ctype!=0))
+	{
+//		printf("Img_LoadTGA: Unsupported Image Type\n");
+//		printf("   bpp: %d, ctype: %d, itype: %d\n",
+//			head.bpp, head.ctype, head.itype);
+		return(NULL);
+	}
+
+	cs+=head.id_length;
+
+	pixlin=head.width*head.height;
+	obuf=btic1g_malloc(pixlin*4);
+	dest=obuf;
+
+//	buf=btic1g_malloc(2*pixlin*(head.bpp>>3));
+//	fread(buf, 1, 2*pixlin*(head.bpp>>3), fd);
+//	memcpy(buf, cs, 2*pixlin*(head.bpp>>3));
+	src=cs;
+
+	if(head.itype==2)
+	{
+		for(i=0; i<pixlin; i++)
+		{
+			b=*src++;
+			g=*src++;
+			r=*src++;
+			if(head.bpp==32)
+				a=*src++;
+				else a=255;
+			*dest++=r;
+			*dest++=g;
+			*dest++=b;
+			*dest++=a;
+		}
+	}
+
+	if(head.itype==3)
+	{
+		for(i=0; i<pixlin; i++)
+		{
+			g=*src++;
+			*dest++=g;
+			*dest++=g;
+			*dest++=g;
+			*dest++=255;
+		}
+	}
+
+	if(head.itype==10)
+	{
+		i=0;
+		while(i<pixlin)
+		{
+			j=*src++;
+			if(j<128)
+			{
+				j++;
+				while(j)
+				{
+					b=*src++;
+					g=*src++;
+					r=*src++;
+					if(head.bpp==32)
+						a=*src++;
+						else a=255;
+					*dest++=r;
+					*dest++=g;
+					*dest++=b;
+					*dest++=a;
+
+					j--;
+					i++;
+				}
+			}else
+			{
+				b=*src++;
+				g=*src++;
+				r=*src++;
+				if(head.bpp==32)
+					a=*src++;
+					else a=255;
+
+				j-=127;
+				while(j)
+				{
+					*dest++=r;
+					*dest++=g;
+					*dest++=b;
+					*dest++=a;
+
+					j--;
+					i++;
+				}
+			}
+		}
+	}
+
+	if(head.itype==11)
+	{
+		i=0;
+		while(i<pixlin)
+		{
+			j=*src++;
+			if(j<128)
+			{
+				j++;
+				while(j)
+				{
+					g=*src++;
+					b=g; r=g;
+					a=255;
+					*dest++=r;
+					*dest++=g;
+					*dest++=b;
+					*dest++=a;
+
+					j--;
+					i++;
+				}
+			}else
+			{
+				g=*src++;
+				b=g; r=g;
+				a=255;
+
+				j-=127;
+				while(j)
+				{
+					*dest++=r;
+					*dest++=g;
+					*dest++=b;
+					*dest++=a;
+
+					j--;
+					i++;
+				}
+			}
+		}
+	}
+
+//	btic1g_free(buf);
+
+//	if(!(head.attributes&32))
+	if(head.attributes&32)
+	{
+		dest=btic1g_malloc(pixlin*4);
+		for(i=0; i<head.height; i++)
+			memcpy(&dest[i*head.width*4],
+				&obuf[(head.height-(i+1))*head.width*4], head.width*4);
+		memcpy(obuf, dest, pixlin*4);
+		free(dest);
+	}
+
+	*w=head.width;
+	*h=head.height;
+	return(obuf);
 }
 
 
@@ -414,6 +656,77 @@ int BTIC1H_Img_SaveTGA24(
 			cb=ibuf[(i0+x)*3+2];
 			tbuf[i*4+0]=cr;			tbuf[i*4+1]=cg;
 			tbuf[i*4+2]=cb;			tbuf[i*4+3]=255;
+		}
+	}
+	
+	fd=fopen(name, "wb");
+	if(!fd)return(-1);
+	BTIC1H_Img_StoreTGA(fd, tbuf, w, h);
+	fclose(fd);
+	free(tbuf);
+	return(0);
+}
+
+
+byte *BTIC1H_Img_LoadTGA_BGRA(
+	char *name, int *w, int *h)
+{
+	byte *buf;
+	FILE *fd;
+	int cr, cg, cb;
+	int xs, ys, n;
+	int i, j, k;
+	
+	fd=fopen(name, "rb");
+	if(!fd)return(NULL);
+	buf=BTIC1H_Img_ReadTGA(fd, &xs, &ys);
+	fclose(fd);
+	if(!buf)
+		return(NULL);
+	
+	n=xs*ys;
+	for(i=0; i<n; i++)
+	{
+		cr=buf[i*4+0];	cb=buf[i*4+2];
+		buf[i*4+0]=cb;	buf[i*4+2]=cr;
+	}
+	
+	*w=xs;
+	*h=ys;
+	
+	return(buf);
+}
+
+int BTIC1H_Img_SaveTGA_BGRA(
+	char *name, byte *ibuf, int xs, int ys)
+{
+	byte *tbuf;
+	FILE *fd;
+	int cr, cg, cb, ca;
+	int x, y, w, h, i0, i1;
+	int i, j, k, n;
+	
+	w=xs; h=ys;
+	if(h<0)h=-h;
+	
+	tbuf=malloc((w+4)*(h+4)*4);
+	n=w*h;
+//	for(i=0; i<n; i++)
+	for(y=0; y<h; y++)
+	{
+		if(ys<0)
+			i0=(h-y-1)*w;
+		else
+			i0=y*w;
+		i1=y*w;
+
+		for(x=0; x<w; x++)
+		{
+			i=i1+x;					j=i0+x;
+			cr=ibuf[j*4+0];			cg=ibuf[j*4+1];
+			cb=ibuf[j*4+2];			ca=ibuf[j*4+3];
+			tbuf[i*4+0]=cb;			tbuf[i*4+1]=cg;
+			tbuf[i*4+2]=cr;			tbuf[i*4+3]=ca;
 		}
 	}
 	

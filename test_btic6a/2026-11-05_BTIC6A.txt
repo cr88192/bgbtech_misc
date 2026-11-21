@@ -177,3 +177,11 @@ In the initial decoder state (at the start of each frame), the starting YUV valu
 
 Note that the initial codebook state will be empty at the start of each frame. The codebook will be built solely from patterns encountered within the process of encoding the frame.
 
+
+=== Alpha Transparency ===
+
+Transparency may be encoded via strongly out-of-gamut colors.
+
+* Super Magenta: Y=0, U=255, V=255
+* Super Green: Y=255, U=0, V=0
+* Near Y=0 or Y=255 when U/V are sufficiently off-center.

@@ -7,6 +7,8 @@
 
 #include "repak_core.h"
 
+#if 0
+
 #include "gfxedit_minrp2.c"
 
 // #include "rp2post_h12d.c"
@@ -19,6 +21,8 @@
 #include "rp2post_h12e.c"
 
 #include "rp2post_auto.c"
+
+#endif
 
 #include "bt6a_decode.c"
 #include "bt6a_encode.c"
@@ -264,13 +268,16 @@ int main(int argc, char *argv[])
 		
 		ectx=BTIC6A_AllocEncodeContext();
 		BTIC6A_EncodeInitContext(ectx, xs, ys, qf);
+		t0=clock();
 		osz=BTIC6A_EncodeFrameImage(ectx,
 			obuf+0x40, 1<<22, ibuf, qf, BTIC4B_CLRS_RGBA);
+		t1=clock();
 		
 		if(osz<=0)
 			return(-1);
 		
-		printf("osz=%d %.3fbpp\n", osz, (osz*8.0)/pix);
+		printf("osz=%d %.3fbpp t=%.3fs\n",
+			osz, (osz*8.0)/pix, (t1-t0)*(1.0/CLOCKS_PER_SEC));
 
 		obuf[0]='B';
 		obuf[1]='M';
@@ -342,6 +349,8 @@ int main(int argc, char *argv[])
 
 		if(mod==0)
 			checkrmse(ibuf, i2buf, xs, ys);
+
+		BTIC1H_Img_SaveTGA("tst6a_out0.tga", (byte *)i2buf, xs, ys);
 		
 	//	for(i=0; i<256; i++)
 	//		i2buf[i]=dctx->pal[i];
@@ -360,11 +369,11 @@ int main(int argc, char *argv[])
 			BTIC4B_CLRS_BGRA);
 		BTIC1H_Img_SaveTGA("tst6a_bgra.tga", (byte *)i2buf, xs, ys);
 
-		BTIC6A_DecodeFrame(dctx, obuf+offs, osz, i2buf, xs*4,
+		BTIC6A_DecodeFrame(dctx, obuf+offs, osz, i2buf, xs*3,
 			BTIC4B_CLRS_RGB);
-		BTIC1H_Img_SaveTGA24("tst6a_rgba.tg", (byte *)i2buf, xs, ys);
+		BTIC1H_Img_SaveTGA24("tst6a_rgb.tga", (byte *)i2buf, xs, ys);
 
-		BTIC6A_DecodeFrame(dctx, obuf+offs, osz, i2buf, xs*4,
+		BTIC6A_DecodeFrame(dctx, obuf+offs, osz, i2buf, xs*3,
 			BTIC4B_CLRS_BGR);
 		BTIC1H_Img_SaveTGA24("tst6a_bgr.tga", (byte *)i2buf, xs, ys);
 	}
@@ -385,4 +394,5 @@ int main(int argc, char *argv[])
 		
 		printf("%d, %f MPix/s", cnt, (((s64)cnt)*pix)/(1000.0*(t1-t0)));
 	}
+	return(0);
 }
