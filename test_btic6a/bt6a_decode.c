@@ -732,6 +732,142 @@ void BTIC6A_DecodeBlock3PixelsIndex(BTIC6A_DecodeContext *ctx,
 	ctb[0]=(byte)cb3; ctb[1]=(byte)cg3; ctb[2]=(byte)cr3; ctb[3]=ca3;
 }
 
+void BTIC6A_DecodeBlock2PixelsIndexB(BTIC6A_DecodeContext *ctx,
+	byte *cibase, int ystride, int ixi, int rot)
+{
+	static const byte rixtab[4*16]={
+		 0,  1, 14, 15,	 3,  2, 13, 12,	 4,  7,  8, 11,	 5,  6,  9, 10,
+		10, 11, 12, 15,	 9,  8, 13, 14,	 6,  7,  2,  1,	 5,  4,  3,  0,
+		10,  9,  6,  5,	11,  8,  7,  4,	12, 13,  2,  3,	15, 14,  1,  0,
+		 0,  3,  4,  5,	 1,  2,  7,  6,	14, 13,  8,  9,	15, 12, 11, 10 };
+	u32 pxt[16];
+	u32 *ct, *cs;
+	u32 px;
+	u16 *csi;
+	byte *cs_y, *cs_c;
+	const byte *ics;
+	int icy, icu, icv;
+	int cy0, cy1, cy2, cy3, cu, cv, cu1, cv1;
+	int cr0, cr1, cr2, cr3, crcl;
+	int cg0, cg1, cg2, cg3, cgcl;
+	int cb0, cb1, cb2, cb3, cbcl;
+	int ca0, ca1, ca2, ca3;
+	int msk, ix1;
+	int str1;
+	int i;
+
+	msk=ctx->msk_2x2;
+	csi=ctx->cb_4x4+((ixi&(ctx->msk_4x4))*4);
+	
+	icy=ctx->clr_y;
+	icu=ctx->clr_u;
+	icv=ctx->clr_v;
+	
+	ct=pxt;
+	for(i=0; i<4; i++)
+	{
+		ix1=csi[i];
+
+#if 1
+		if(ix1&0x8000)
+		{
+			cu1=((icu-128)*2);			cv1=((icv-128)*2);
+			cb0=icy+cu1;				cr0=icy+cv1;
+			cg0=(8*icy-cr0*3-cb0)>>2;	ca0=255;
+			if((cr0|cg0|cb0)&(~255))
+			{
+				cr0=btic6a_clamp255(cr0);
+				cg0=btic6a_clamp255(cg0);
+				cb0=btic6a_clamp255(cb0);
+				cu1=icu-120;	cv1=icv-120;
+				if((cu1|cv1)&0xF0)
+					{	if(icy<12)		ca0=0;	}
+			}
+			px=(cb0<<0)|(cg0<<8)|(cr0<<16)|(ca0<<24);
+			ct[0]=px;	ct[1]=px;	ct[2]=px;	ct[3]=px;
+			ct+=4;
+			continue;
+		}
+#endif
+
+		cs_y=ctx->cb_2x2_y+((ix1&msk)*4);
+		cs_c=ctx->cb_2x2_c+((ix1&msk)*2);
+		
+		cy0=cs_y[0];	cy1=cs_y[1];
+		cy2=cs_y[2];	cy3=cs_y[3];
+		cu=cs_c[0];		cv=cs_c[1];
+
+		cy0=(icy+cy0)&255;	cy1=(cy0+cy1)&255;
+		cy2=(cy1+cy2)&255;	cy3=(cy2+cy3)&255;
+		cu=(icu+cu)&255;	cv=(icv+cv)&255;
+
+		icy=cy3;	icu=cu;		icv=cv;
+
+		cu1=((cu-128)*2);		cv1=((cv-128)*2);
+		cb0=cy0+cu1;	cr0=cy0+cv1;	cb1=cy1+cu1;	cr1=cy1+cv1;
+		cb2=cy2+cu1;	cr2=cy2+cv1;	cb3=cy3+cu1;	cr3=cy3+cv1;
+		cg0=(8*cy0-cr0*3-cb0)>>2;		cg1=(8*cy1-cr1*3-cb1)>>2;
+		cg2=(8*cy2-cr2*3-cb2)>>2;		cg3=(8*cy3-cr3*3-cb3)>>2;
+		
+		crcl=(cr0|cr1|cr2|cr3)&(~255);
+		cgcl=(cg0|cg1|cg2|cg3)&(~255);
+		cbcl=(cb0|cb1|cb2|cb3)&(~255);
+		ca0=255;	ca1=255;
+		ca2=255;	ca3=255;
+
+		if(crcl|cgcl|cbcl)
+		{
+			if(crcl)
+			{	cr0=btic6a_clamp255(cr0);	cr1=btic6a_clamp255(cr1);
+				cr2=btic6a_clamp255(cr2);	cr3=btic6a_clamp255(cr3);	}
+			if(cgcl)
+			{	cg0=btic6a_clamp255(cg0);	cg1=btic6a_clamp255(cg1);
+				cg2=btic6a_clamp255(cg2);	cg3=btic6a_clamp255(cg3);	}
+			if(cbcl)
+			{	cb0=btic6a_clamp255(cb0);	cb1=btic6a_clamp255(cb1);
+				cb2=btic6a_clamp255(cb2);	cb3=btic6a_clamp255(cb3);	}
+
+			cu1=cu-120;		cv1=cv-120;
+			if((cu1|cv1)&0xF0)
+			{
+				if(cy0<12)		ca0=0;
+				if(cy1<12)		ca1=0;
+				if(cy2<12)		ca2=0;
+				if(cy3<12)		ca3=0;
+			}
+		}
+		ct[0]=(cb0<<0)|(cg0<<8)|(cr0<<16)|(ca0<<24);
+		ct[1]=(cb1<<0)|(cg1<<8)|(cr1<<16)|(ca1<<24);
+		ct[2]=(cb2<<0)|(cg2<<8)|(cr2<<16)|(ca2<<24);
+		ct[3]=(cb3<<0)|(cg3<<8)|(cr3<<16)|(ca3<<24);
+		ct+=4;
+	}
+	ctx->clr_y=(byte)icy;
+	ctx->clr_u=(byte)icu;
+	ctx->clr_v=(byte)icv;
+
+	ics=rixtab+(rot<<4);
+
+	str1=ystride>>2;
+	ct=(u32 *)cibase;
+
+	cy0=ics[0];		cy1=ics[1];		cy2=ics[2];		cy3=ics[3];
+	cy0=pxt[cy0];	cy1=pxt[cy1];	cy2=pxt[cy2];	cy3=pxt[cy3];
+	ct[0]=cy0;		ct[1]=cy1;		ct[2]=cy2;		ct[3]=cy3;
+	ct+=str1;
+	cy0=ics[4];		cy1=ics[5];		cy2=ics[6];		cy3=ics[7];
+	cy0=pxt[cy0];	cy1=pxt[cy1];	cy2=pxt[cy2];	cy3=pxt[cy3];
+	ct[0]=cy0;		ct[1]=cy1;		ct[2]=cy2;		ct[3]=cy3;
+	ct+=str1;
+	cy0=ics[8];		cy1=ics[9];		cy2=ics[10];	cy3=ics[11];
+	cy0=pxt[cy0];	cy1=pxt[cy1];	cy2=pxt[cy2];	cy3=pxt[cy3];
+	ct[0]=cy0;		ct[1]=cy1;		ct[2]=cy2;		ct[3]=cy3;
+	ct+=str1;
+	cy0=ics[12];	cy1=ics[13];	cy2=ics[14];	cy3=ics[15];
+	cy0=pxt[cy0];	cy1=pxt[cy1];	cy2=pxt[cy2];	cy3=pxt[cy3];
+	ct[0]=cy0;		ct[1]=cy1;		ct[2]=cy2;		ct[3]=cy3;
+}
+
 void BTIC6A_DecodeBlock2PixelsIndex(BTIC6A_DecodeContext *ctx,
 	byte *cibase, byte *pibase, int ystride, int ixi, int rot)
 {
@@ -775,6 +911,9 @@ void BTIC6A_DecodeBlock2PixelsIndex(BTIC6A_DecodeContext *ctx,
 		return;
 	}
 
+	BTIC6A_DecodeBlock2PixelsIndexB(ctx, cibase, ystride, ixi, rot);
+
+#if 0
 	csi=ctx->cb_4x4+((ixi&(ctx->msk_4x4))*4);
 	yst4=ystride*2;
 	xst4=2*4;
@@ -793,6 +932,7 @@ void BTIC6A_DecodeBlock2PixelsIndex(BTIC6A_DecodeContext *ctx,
 		cict[2], ystride, csi[2], bt6a_rttab[rot+ 8]);
 	BTIC6A_DecodeBlock3PixelsIndex(ctx,
 		cict[3], ystride, csi[3], bt6a_rttab[rot+12]);
+#endif
 }
 
 void BTIC6A_DecodeBlock1PixelsIndex(BTIC6A_DecodeContext *ctx,
@@ -1938,6 +2078,7 @@ void BTIC6A_DecodeCopyFrameClrs(BTIC6A_DecodeContext *ctx,
 		if(iystr<ystr2)
 			ystr2=iystr;
 
+#if 1
 		if(cdblbfr)
 		{
 			for(y=0; y<ysr; y+=16)
@@ -1953,10 +2094,11 @@ void BTIC6A_DecodeCopyFrameClrs(BTIC6A_DecodeContext *ctx,
 				if((xco+xcsz)>ystr2)
 					xcsz=ystr2-xco;
 				for(y1=y; y1<yn; y1++)
-					{ memcpy(oimg+y1*oystr+xco, cimg+y1*iystr, xcsz); }
+					{ memcpy(oimg+y1*oystr+xco, cimg+y1*iystr+xco, xcsz); }
 			}
 			return;
 		}
+#endif
 	
 		for(y=0; y<ysr; y++)
 			{ memcpy(oimg+y*oystr, cimg+y*iystr, ystr2); }
